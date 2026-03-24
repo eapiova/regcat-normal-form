@@ -1,0 +1,93 @@
+{-# OPTIONS --cubical --guardedness #-}
+
+module TReg.EqComp where
+
+open import Cubical.Foundations.Prelude
+open import Cubical.Data.Empty.Base as Empty using (rec)
+open import Cubical.Data.List.Base using ([])
+
+open import TReg.Syntax
+open import TReg.Context
+open import TReg.Evaluation
+open import TReg.Derivability
+open import TReg.Computability
+open import TReg.Inversion
+open import TReg.Presupposition
+open import TReg.Structural
+
+compFEqClosed : {A : RawType} {a b : RawTerm}
+  -> Computable (isType [] A)
+  -> Computable (hasTy [] a A)
+  -> Computable (hasTy [] b A)
+  -> Computable (isType [] (tyEq A a b))
+compFEqClosed compA compa compb =
+  compTyClosedEq
+    (fEq (compToDerivable compA) (compToDerivable compa) (compToDerivable compb))
+    evalEq
+    (reflTy (fEq (compToDerivable compA) (compToDerivable compa) (compToDerivable compb)))
+    compA
+    compa
+    compb
+
+compIEqClosed : {A : RawType} {a : RawTerm}
+  -> Computable (hasTy [] a A)
+  -> Computable (hasTy [] tmR (tyEq A a a))
+compIEqClosed compa =
+  compTmClosedEq
+    (iEq (compToDerivable compa))
+    (compFEqClosed (compTmToCompTy compa) compa compa)
+    evalEq
+    evalR
+    (reflTm (iEq (compToDerivable compa)))
+    (compReflTm compa)
+
+compEEqClosed : {A : RawType} {a b p : RawTerm}
+  -> Computable (hasTy [] p (tyEq A a b))
+  -> Computable (termEq [] a b A)
+compEEqClosed {A = A} {a = a} {b = b}
+  (compTmClosedEq _ _ (evalEq {A = A} {a = a} {b = b}) _ _ compab) =
+  compab
+compEEqClosed (compTmOpen neq _ _ _ _) = Empty.rec (neq refl)
+
+compCEqClosed : {A : RawType} {a b p : RawTerm}
+  -> Computable (hasTy [] p (tyEq A a b))
+  -> Computable (termEq [] p tmR (tyEq A a b))
+compCEqClosed {A = A} {a = a} {b = b}
+  compp@(compTmClosedEq dp compEqTy (evalEq {A = A} {a = a} {b = b}) evp _ compab) =
+  compTmEqClosedEq
+    (cEq dp dA da db)
+    compp
+    compEqRefl
+    evalEq
+    evp
+    evalR
+    compab
+  where
+  compa : Computable (hasTy [] a A)
+  compa = compTmEqLeft compab
+
+  dA : Derivable (isType [] A)
+  dA = compToDerivable (compTmToCompTy compa)
+
+  da : Derivable (hasTy [] a A)
+  da = compToDerivable compa
+
+  db : Derivable (hasTy [] b A)
+  db = assocTmRight (compToDerivable compab)
+
+  dEqTy : Derivable (typeEq [] (tyEq A a a) (tyEq A a b))
+  dEqTy = fEqEq (reflTy dA) (reflTm da) (compToDerivable compab)
+
+  dEqRefl : Derivable (hasTy [] tmR (tyEq A a b))
+  dEqRefl = conv (iEq da) dEqTy
+
+  compEqRefl : Computable (hasTy [] tmR (tyEq A a b))
+  compEqRefl =
+    compTmClosedEq
+      dEqRefl
+      compEqTy
+      evalEq
+      evalR
+      (cEq dEqRefl dA da db)
+      compab
+compCEqClosed (compTmOpen neq _ _ _ _) = Empty.rec (neq refl)

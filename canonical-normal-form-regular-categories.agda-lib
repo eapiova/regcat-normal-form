@@ -1,0 +1,3 @@
+name: canonical-normal-form-regular-categories
+include: src
+depend: cubical-0.9
