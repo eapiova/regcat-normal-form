@@ -3,6 +3,7 @@
 module TReg.Presupposition where
 
 open import Cubical.Foundations.Prelude
+open import Cubical.Data.Sigma using (Σ ; _,_)
 open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_ ; length)
 open import Cubical.Data.Nat using (ℕ ; zero ; suc)
 open import Cubical.Data.List.Properties using (++-assoc ; length++)
@@ -359,6 +360,157 @@ transportFamilyTyEq {gamma = gamma} {C = C} {D = D} {F = F} dAC dC dDF =
       (λ T -> Derivable (typeEq (C ∷ gamma) (subTy idSubst D) T))
       (subTyId F)
       (substTyEqRule dDF (headTypeTransportFits dAC dC)))
+
+normalizeClosedFitsEq : {sigma : Subst}
+  -> FitsSubst [] [] sigma
+  -> FitsEqSubst [] [] sigma idSubst
+normalizeClosedFitsEq {sigma = sigma} (fitsNil wf) =
+  fitsEqNil {gamma = []} {delta = []} {sigma = sigma} {tau = idSubst} wf
+
+normalizeSingleFitsEq : {A : RawType} {sigma : Subst}
+  -> FitsSubst [] (A ∷ []) sigma
+  -> Σ RawTerm (λ t -> FitsEqSubst [] (A ∷ []) sigma (singleSubst t))
+normalizeSingleFitsEq {A = A} (fitsCons {sigma = sigma} {t = t} (fitsNil wf) dt) =
+  t ,
+  subst
+    (λ tau -> FitsEqSubst [] (A ∷ []) (consSubst t sigma) tau)
+    (sym (singleSubstConsKeep t))
+    (fitsEqCons
+      {gamma = []} {delta = []} {sigma = sigma} {tau = keepSubstBy 0} {A = A} {t = t} {u = t}
+      (fitsEqNil {gamma = []} {delta = []} {sigma = sigma} {tau = keepSubstBy 0} wf)
+      (reflTm dt))
+
+normalizeSingleEqFitsEq : {A : RawType} {sigma tau : Subst}
+  -> FitsEqSubst [] (A ∷ []) sigma tau
+  -> Σ RawTerm (λ u -> FitsEqSubst [] (A ∷ []) sigma (singleSubst u))
+normalizeSingleEqFitsEq {A = A} (fitsEqCons {sigma = sigma} {tau = tau} {t = t} {u = u} (fitsEqNil wf) dtu) =
+  u ,
+  subst
+    (λ tau' -> FitsEqSubst [] (A ∷ []) (consSubst t sigma) tau')
+    (sym (singleSubstConsKeep u))
+    (fitsEqCons
+      {gamma = []} {delta = []} {sigma = sigma} {tau = keepSubstBy 0} {A = A} {t = t} {u = u}
+      (fitsEqNil {gamma = []} {delta = []} {sigma = sigma} {tau = keepSubstBy 0} wf)
+      dtu)
+
+normalizeSigmaFitsEq
+  : {A B : RawType} {sigma : Subst}
+  -> FitsSubst [] (B ∷ A ∷ []) sigma
+  -> Σ RawTerm (λ b -> Σ RawTerm (λ c -> FitsEqSubst [] (B ∷ A ∷ []) sigma (sigmaCompSub b c)))
+normalizeSigmaFitsEq {A = A} {B = B} (fitsCons {sigma = sigmaA} {t = c} inner dc) with inner
+... | fitsCons {sigma = sigma} {t = b} (fitsNil wf) db =
+  b , c ,
+  fitsEqCons
+    {gamma = []} {delta = A ∷ []} {sigma = consSubst b sigma} {tau = consSubst b idSubst}
+    {A = B} {t = c} {u = c}
+    (fitsEqCons
+      {gamma = []} {delta = []} {sigma = sigma} {tau = idSubst}
+      {A = A} {t = b} {u = b}
+      (fitsEqNil {gamma = []} {delta = []} {sigma = sigma} {tau = idSubst} wf)
+      (reflTm db))
+    (reflTm dc)
+
+normalizeClosedTy : {A : RawType} {sigma : Subst}
+  -> Derivable (isType [] A)
+  -> FitsSubst [] [] sigma
+  -> Derivable (typeEq [] (subTy sigma A) A)
+normalizeClosedTy {A = A} {sigma = sigma} dA fits =
+  subst
+    (λ T -> Derivable (typeEq [] (subTy sigma A) T))
+    (subTyId A)
+    (eqSubTyRule dA (normalizeClosedFitsEq fits))
+
+normalizeClosedTyEq : {A B : RawType} {sigma : Subst}
+  -> Derivable (typeEq [] A B)
+  -> FitsSubst [] [] sigma
+  -> Derivable (typeEq [] (subTy sigma A) B)
+normalizeClosedTyEq {A = A} {B = B} {sigma = sigma} dAB fits =
+  subst
+    (λ T -> Derivable (typeEq [] (subTy sigma A) T))
+    (subTyId B)
+    (eqSubTyEqRule dAB (normalizeClosedFitsEq fits))
+
+normalizeClosedTm : {A : RawType} {t : RawTerm} {sigma : Subst}
+  -> Derivable (hasTy [] t A)
+  -> FitsSubst [] [] sigma
+  -> Derivable (termEq [] (subTm sigma t) t (subTy sigma A))
+normalizeClosedTm {A = A} {t = t} {sigma = sigma} dt fits =
+  subst
+    (λ u -> Derivable (termEq [] (subTm sigma t) u (subTy sigma A)))
+    (subTmId t)
+    (eqSubTmRule dt (normalizeClosedFitsEq fits))
+
+normalizeClosedTmEq : {A : RawType} {t u : RawTerm} {sigma : Subst}
+  -> Derivable (termEq [] t u A)
+  -> FitsSubst [] [] sigma
+  -> Derivable (termEq [] (subTm sigma t) u (subTy sigma A))
+normalizeClosedTmEq {A = A} {t = t} {u = u} {sigma = sigma} dtu fits =
+  subst
+    (λ u' -> Derivable (termEq [] (subTm sigma t) u' (subTy sigma A)))
+    (subTmId u)
+    (eqSubTmEqRule dtu (normalizeClosedFitsEq fits))
+
+normalizeSingleTy : {A D : RawType} {sigma : Subst}
+  -> Derivable (isType (A ∷ []) D)
+  -> FitsSubst [] (A ∷ []) sigma
+  -> Σ RawTerm (λ t -> Derivable (typeEq [] (subTy sigma D) (subTy (singleSubst t) D)))
+normalizeSingleTy dD fits with normalizeSingleFitsEq fits
+... | t , fitsEq = t , eqSubTyRule dD fitsEq
+
+normalizeSingleTyEq : {A D F : RawType} {sigma : Subst}
+  -> Derivable (typeEq (A ∷ []) D F)
+  -> FitsSubst [] (A ∷ []) sigma
+  -> Σ RawTerm (λ t -> Derivable (typeEq [] (subTy sigma D) (subTy (singleSubst t) F)))
+normalizeSingleTyEq dDF fits with normalizeSingleFitsEq fits
+... | t , fitsEq = t , eqSubTyEqRule dDF fitsEq
+
+normalizeSingleTm : {A D : RawType} {m : RawTerm} {sigma : Subst}
+  -> Derivable (hasTy (A ∷ []) m D)
+  -> FitsSubst [] (A ∷ []) sigma
+  -> Σ RawTerm
+       (λ t -> Derivable (termEq [] (subTm sigma m) (subTm (singleSubst t) m) (subTy sigma D)))
+normalizeSingleTm dm fits with normalizeSingleFitsEq fits
+... | t , fitsEq = t , eqSubTmRule dm fitsEq
+
+normalizeSingleTmEq : {A D : RawType} {m m' : RawTerm} {sigma : Subst}
+  -> Derivable (termEq (A ∷ []) m m' D)
+  -> FitsSubst [] (A ∷ []) sigma
+  -> Σ RawTerm
+       (λ t -> Derivable (termEq [] (subTm sigma m) (subTm (singleSubst t) m') (subTy sigma D)))
+normalizeSingleTmEq dmm' fits with normalizeSingleFitsEq fits
+... | t , fitsEq = t , eqSubTmEqRule dmm' fitsEq
+
+normalizeSigmaTy : {A B D : RawType} {sigma : Subst}
+  -> Derivable (isType (B ∷ A ∷ []) D)
+  -> FitsSubst [] (B ∷ A ∷ []) sigma
+  -> Σ RawTerm (λ b -> Σ RawTerm (λ c -> Derivable (typeEq [] (subTy sigma D) (subTy (sigmaCompSub b c) D))))
+normalizeSigmaTy dD fits with normalizeSigmaFitsEq fits
+... | b , c , fitsEq = b , c , eqSubTyRule dD fitsEq
+
+normalizeSigmaTyEq : {A B D F : RawType} {sigma : Subst}
+  -> Derivable (typeEq (B ∷ A ∷ []) D F)
+  -> FitsSubst [] (B ∷ A ∷ []) sigma
+  -> Σ RawTerm (λ b -> Σ RawTerm (λ c -> Derivable (typeEq [] (subTy sigma D) (subTy (sigmaCompSub b c) F))))
+normalizeSigmaTyEq dDF fits with normalizeSigmaFitsEq fits
+... | b , c , fitsEq = b , c , eqSubTyEqRule dDF fitsEq
+
+normalizeSigmaTm : {A B D : RawType} {m : RawTerm} {sigma : Subst}
+  -> Derivable (hasTy (B ∷ A ∷ []) m D)
+  -> FitsSubst [] (B ∷ A ∷ []) sigma
+  -> Σ RawTerm
+       (λ b -> Σ RawTerm
+         (λ c -> Derivable (termEq [] (subTm sigma m) (subTm (sigmaCompSub b c) m) (subTy sigma D))))
+normalizeSigmaTm dm fits with normalizeSigmaFitsEq fits
+... | b , c , fitsEq = b , c , eqSubTmRule dm fitsEq
+
+normalizeSigmaTmEq : {A B D : RawType} {m m' : RawTerm} {sigma : Subst}
+  -> Derivable (termEq (B ∷ A ∷ []) m m' D)
+  -> FitsSubst [] (B ∷ A ∷ []) sigma
+  -> Σ RawTerm
+       (λ b -> Σ RawTerm
+         (λ c -> Derivable (termEq [] (subTm sigma m) (subTm (sigmaCompSub b c) m') (subTy sigma D))))
+normalizeSigmaTmEq dmm' fits with normalizeSigmaFitsEq fits
+... | b , c , fitsEq = b , c , eqSubTmEqRule dmm' fitsEq
 
 mutual
   assocTy : {gamma : Ctx} {t : RawTerm} {A : RawType}

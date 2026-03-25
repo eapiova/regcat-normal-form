@@ -242,6 +242,281 @@ compSingleEqSubstTyClosed {t = t} {u = u} (compTyOpen _ _ _ subEq) comptu =
   closedEqSubstCompBody
     (subEq (singleSubst t) (singleSubst u) (compFitsEqToFitsEq (singleCompFitsEqSubstHelper comptu)))
 
+closedSigmaFamily : {G A B : RawType}
+  -> Computable (isType [] G)
+  -> G =>t tySigma A B
+  -> Computable (isType (A ∷ []) B)
+closedSigmaFamily compG ev = ClosedSigmaTyInv.sigmaTyCompFam (invertSigmaTy compG ev)
+
+mutual
+  {-# TERMINATING #-}
+  compConvTmClosed : {t : RawTerm} {A B : RawType}
+    -> Computable (hasTy [] t A)
+    -> Computable (typeEq [] A B)
+    -> Computable (hasTy [] t B)
+  compConvTmClosed comp (compTyEqClosedTop dAB compA compB evA evB) =
+    let
+      inv = invertTopTm comp evA
+      open ClosedTopTmInv inv
+      tyInv = invertTopTy (compTmToCompTy comp) evA
+      open ClosedTopTyInv tyInv
+      topEqB = transTy (symTy topTyCorr) dAB
+    in
+    compTmClosedTop
+      (conv (compToDerivable comp) dAB)
+      compB
+      evB
+      topTmEvalStar
+      (convEq topTmCorrStar topEqB)
+  compConvTmClosed comp (compTyEqClosedSigma dAB compA compB evA evB compCE compDF) =
+    let
+      inv = invertSigmaTm comp evA
+      open ClosedSigmaTmInv inv
+      tyInv = invertSigmaTy (compTmToCompTy comp) evA
+      open ClosedSigmaTyInv tyInv
+      sigmaEqB = transTy (symTy sigmaTyCorr) dAB
+      compaE = compConvTmClosed sigmaTmCompFst compCE
+      compDFa = compSingleSubstTyEqClosed compDF sigmaTmCompFst
+      compbF = compConvTmClosed sigmaTmCompSnd compDFa
+    in
+    compTmClosedSigma
+      (conv sigmaTmDeriv sigmaEqB)
+      compB
+      evB
+      sigmaTmEvalPair
+      (convEq sigmaTmCorrPair sigmaEqB)
+      compaE
+      compbF
+  compConvTmClosed comp (compTyEqClosedEq dAB compA compB evA evB compCD compac compbd) =
+    let
+      inv = invertEqTm comp evA
+      open ClosedEqTmInv inv
+      tyInv = invertEqTy (compTmToCompTy comp) evA
+      open ClosedEqTyInv tyInv
+      eqEqB = transTy (symTy eqTyCorr) dAB
+      compcdC =
+        compTransTmClosed
+          (compTransTmClosed (compSymTmClosed compac) eqTmCompInner)
+          compbd
+      compcdD = compConvTmEqClosed compcdC compCD
+    in
+    compTmClosedEq
+      (conv eqTmDeriv eqEqB)
+      compB
+      evB
+      eqTmEvalRhs
+      (convEq eqTmCorrRhs eqEqB)
+      compcdD
+  compConvTmClosed comp (compTyEqClosedQtr dAB compA compB evA evB compCD) =
+    let
+      inv = invertQtrTm comp evA
+      open ClosedQtrTmInv inv
+      tyInv = invertQtrTy (compTmToCompTy comp) evA
+      open ClosedQtrTyInv tyInv
+      qtrEqB = transTy (symTy qtrTyCorr) dAB
+      compaD = compConvTmClosed qtrTmCompRepr compCD
+    in
+    compTmClosedQtr
+      (conv qtrTmDeriv qtrEqB)
+      compB
+      evB
+      qtrTmEvalClass
+      (convEq qtrTmCorrClass qtrEqB)
+      compaD
+  compConvTmClosed _ (compTyEqOpen neq _ _ _ _) = Empty.rec (neq refl)
+
+  {-# TERMINATING #-}
+  compConvTmEqClosed : {t u : RawTerm} {A B : RawType}
+    -> Computable (termEq [] t u A)
+    -> Computable (typeEq [] A B)
+    -> Computable (termEq [] t u B)
+  compConvTmEqClosed comp compAB@(compTyEqClosedTop dAB compA compB evA evB) with compA
+  ... | compTyClosedTop _ _ corrA =
+    let
+      inv = invertTopTmEq comp evA
+      open ClosedTopTmEqInv inv
+    in
+    compTmEqClosedTop
+      (convEq (compToDerivable comp) dAB)
+      (compConvTmClosed topTmEqCompLeft compAB)
+      (compConvTmClosed topTmEqCompRight compAB)
+      evB
+      topTmEqEvalLeftStar
+      topTmEqEvalRightStar
+  compConvTmEqClosed comp compAB@(compTyEqClosedSigma dAB compA compB evA evB compCE compDF) =
+    let
+      inv = invertSigmaTmEq comp evA
+      open ClosedSigmaTmEqInv inv
+      tyInv = invertSigmaTy (compTmToCompTy sigmaTmEqCompLeft) evA
+      open ClosedSigmaTyInv tyInv
+      sigmaEqB = transTy (symTy sigmaTyCorr) dAB
+      compLeftB = compConvTmClosed sigmaTmEqCompLeft compAB
+      compRightB = compConvTmClosed sigmaTmEqCompRight compAB
+      compFstE = compConvTmEqClosed sigmaTmEqCompFst compCE
+      compDFa = compSingleSubstTyEqClosed compDF (compTmEqLeft sigmaTmEqCompFst)
+      compSndF = compConvTmEqClosed sigmaTmEqCompSnd compDFa
+    in
+    compTmEqClosedSigma
+      (convEq sigmaTmEqDeriv sigmaEqB)
+      compLeftB
+      compRightB
+      evB
+      sigmaTmEqEvalLeftPair
+      sigmaTmEqEvalRightPair
+      compFstE
+      compSndF
+  compConvTmEqClosed comp compAB@(compTyEqClosedEq dAB compA compB evA evB compCD compac compbd) =
+    let
+      inv = invertEqTmEq comp evA
+      open ClosedEqTmEqInv inv
+      tyInv = invertEqTy (compTmToCompTy eqTmEqCompLeft) evA
+      open ClosedEqTyInv tyInv
+      eqEqB = transTy (symTy eqTyCorr) dAB
+      compLeftB = compConvTmClosed eqTmEqCompLeft compAB
+      compRightB = compConvTmClosed eqTmEqCompRight compAB
+      compcdC =
+        compTransTmClosed
+          (compTransTmClosed (compSymTmClosed compac) eqTmEqCompInner)
+          compbd
+      compcdD = compConvTmEqClosed compcdC compCD
+    in
+    compTmEqClosedEq
+      (convEq eqTmEqDeriv eqEqB)
+      compLeftB
+      compRightB
+      evB
+      eqTmEqEvalLeftR
+      eqTmEqEvalRightR
+      compcdD
+  compConvTmEqClosed comp compAB@(compTyEqClosedQtr dAB compA compB evA evB compCD) =
+    let
+      inv = invertQtrTmEq comp evA
+      open ClosedQtrTmEqInv inv
+      tyInv = invertQtrTy (compTmToCompTy qtrTmEqCompLeft) evA
+      open ClosedQtrTyInv tyInv
+      qtrEqB = transTy (symTy qtrTyCorr) dAB
+      compLeftB = compConvTmClosed qtrTmEqCompLeft compAB
+      compRightB = compConvTmClosed qtrTmEqCompRight compAB
+      compaD = compConvTmClosed qtrTmEqCompLeftRepr compCD
+      compbD = compConvTmClosed qtrTmEqCompRightRepr compCD
+    in
+    compTmEqClosedQtr
+      (convEq qtrTmEqDeriv qtrEqB)
+      compLeftB
+      compRightB
+      evB
+      qtrTmEqEvalLeftClass
+      qtrTmEqEvalRightClass
+      compaD
+      compbD
+  compConvTmEqClosed _ (compTyEqOpen neq _ _ _ _) = Empty.rec (neq refl)
+
+  {-# TERMINATING #-}
+  compSymTmClosed : {t u : RawTerm} {A : RawType}
+    -> Computable (termEq [] t u A)
+    -> Computable (termEq [] u t A)
+  compSymTmClosed (compTmEqClosedTop d compt compu evA evt evu) =
+    compTmEqClosedTop (symTm d) compu compt evA evu evt
+  compSymTmClosed comp@(compTmEqClosedSigma d compt compu evA evt evu compac compbd) =
+    let
+      compB = closedSigmaFamily (compTmToCompTy compt) evA
+      compca = compSymTmClosed compac
+      compdb = compSymTmClosed compbd
+      compBac = compSingleEqSubstTyClosed compB compac
+      compdb' = compConvTmEqClosed compdb compBac
+    in
+    compTmEqClosedSigma
+      (symTm d)
+      compu
+      compt
+      evA
+      evu
+      evt
+      compca
+      compdb'
+  compSymTmClosed (compTmEqClosedEq d compt compu evA evt evu compab) =
+    compTmEqClosedEq
+      (symTm d)
+      compu
+      compt
+      evA
+      evu
+      evt
+      compab
+  compSymTmClosed (compTmEqClosedQtr d compt compu evA evt evu compa compb) =
+    compTmEqClosedQtr
+      (symTm d)
+      compu
+      compt
+      evA
+      evu
+      evt
+      compb
+      compa
+  compSymTmClosed (compTmEqOpen neq _ _ _ _) = Empty.rec (neq refl)
+
+  {-# TERMINATING #-}
+  compTransTmClosed : {t u v : RawTerm} {A : RawType}
+    -> Computable (termEq [] t u A)
+    -> Computable (termEq [] u v A)
+    -> Computable (termEq [] t v A)
+  compTransTmClosed (compTmEqClosedTop d₁ compt _ evA evt evu)
+    (compTmEqClosedTop d₂ _ compv _ _ evv) =
+    compTmEqClosedTop
+      (transTm d₁ d₂)
+      compt
+      compv
+      evA
+      evt
+      evv
+  compTransTmClosed comp₁@(compTmEqClosedSigma d₁ compt _ evA evt evu compac compbd) comp₂ =
+    let
+      inv₂ = invertSigmaTmEq comp₂ evA
+      open ClosedSigmaTmEqInv inv₂
+      compB = closedSigmaFamily (compTmToCompTy compt) evA
+      compae = compTransTmClosed compac sigmaTmEqCompFst
+      compDca = compSingleEqSubstTyClosed compB (compSymTmClosed compac)
+      compdfA = compConvTmEqClosed sigmaTmEqCompSnd compDca
+      compbf = compTransTmClosed compbd compdfA
+    in
+    compTmEqClosedSigma
+      (transTm d₁ sigmaTmEqDeriv)
+      compt
+      sigmaTmEqCompRight
+      evA
+      evt
+      sigmaTmEqEvalRightPair
+      compae
+      compbf
+  compTransTmClosed comp₁@(compTmEqClosedEq d₁ compt _ evA evt evu compab) comp₂ =
+    let
+      inv₂ = invertEqTmEq comp₂ evA
+      open ClosedEqTmEqInv inv₂
+    in
+    compTmEqClosedEq
+      (transTm d₁ eqTmEqDeriv)
+      compt
+      eqTmEqCompRight
+      evA
+      evt
+      eqTmEqEvalRightR
+      compab
+  compTransTmClosed comp₁@(compTmEqClosedQtr d₁ compt _ evA evt evu compa compb) comp₂ =
+    let
+      inv₂ = invertQtrTmEq comp₂ evA
+      open ClosedQtrTmEqInv inv₂
+    in
+    compTmEqClosedQtr
+      (transTm d₁ qtrTmEqDeriv)
+      compt
+      qtrTmEqCompRight
+      evA
+      evt
+      qtrTmEqEvalRightClass
+      compa
+      qtrTmEqCompRightRepr
+  compTransTmClosed (compTmEqOpen neq _ _ _ _) _ = Empty.rec (neq refl)
+
 compSubCons : (rho : Subst) (t : RawTerm) (sigma : Subst)
   -> compSub rho (consSubst t sigma) ≡ consSubst (subTm rho t) (compSub rho sigma)
 compSubCons rho t sigma = funExt λ where
