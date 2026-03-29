@@ -1,4 +1,4 @@
-{-# OPTIONS --cubical --guardedness #-}
+{-# OPTIONS --safe #-}
 
 module TReg.Substitution where
 
@@ -296,6 +296,20 @@ mutual
        ∙ cong (λ theta -> subTm theta l) (sym (liftRenSub rho sigma)))
       (renTmSub rho sigma p)
 
+wkTyLiftSubst : (sigma : Subst) (A : RawType)
+  -> subTy (liftSubst sigma) (wkTyBy 1 A) ≡ wkTyBy 1 (subTy sigma A)
+wkTyLiftSubst sigma A =
+  subTyRen (liftSubst sigma) suc A
+  ∙ cong (λ theta -> subTy theta A) (dropLiftRenSub sigma)
+  ∙ sym (renTySub suc sigma A)
+
+wkTmLiftSubst : (sigma : Subst) (t : RawTerm)
+  -> subTm (liftSubst sigma) (wkTmBy 1 t) ≡ wkTmBy 1 (subTm sigma t)
+wkTmLiftSubst sigma t =
+  subTmRen (liftSubst sigma) suc t
+  ∙ cong (λ theta -> subTm theta t) (dropLiftRenSub sigma)
+  ∙ sym (renTmSub suc sigma t)
+
 compSub : Subst -> Subst -> Subst
 compSub sigma tau n = subTm sigma (tau n)
 
@@ -387,3 +401,35 @@ qtrBranchTmComp : (a l : RawTerm)
 qtrBranchTmComp a l =
   subTmComp (consSubst a idSubst) (replace0By 1 (tmClass (var zero))) l
   ∙ cong (λ theta -> subTm theta l) (qtrCompSubSingle a)
+
+qtrCohSubComp : (a b : RawTerm)
+  -> compSub (consSubst b (consSubst a idSubst)) (replace0By 2 (tmClass (var (suc zero))))
+       ≡ singleSubst (tmClass a)
+qtrCohSubComp a b = funExt λ where
+  zero -> refl
+  (suc n) -> refl
+
+qtrCohTyComp : (a b : RawTerm) (L : RawType)
+  -> subTy (consSubst b (consSubst a idSubst)) (subTy (replace0By 2 (tmClass (var (suc zero)))) L)
+       ≡ subTy (singleSubst (tmClass a)) L
+qtrCohTyComp a b L =
+  subTyComp (consSubst b (consSubst a idSubst)) (replace0By 2 (tmClass (var (suc zero)))) L
+  ∙ cong (λ theta -> subTy theta L) (qtrCohSubComp a b)
+
+qtrCohLeftTmComp : (a b l : RawTerm)
+  -> subTm (consSubst b (consSubst a idSubst)) (wkTmBy 1 l)
+       ≡ subTm (consSubst a idSubst) l
+qtrCohLeftTmComp a b l =
+  subTmRen (consSubst b (consSubst a idSubst)) (addRen 1) l
+  ∙ cong (λ theta -> subTm theta l) (funExt λ where
+      zero -> refl
+      (suc n) -> refl)
+
+qtrCohRightTmComp : (a b l : RawTerm)
+  -> subTm (consSubst b (consSubst a idSubst)) (renTm (keep0RenBy 1) l)
+       ≡ subTm (consSubst b idSubst) l
+qtrCohRightTmComp a b l =
+  subTmRen (consSubst b (consSubst a idSubst)) (keep0RenBy 1) l
+  ∙ cong (λ theta -> subTm theta l) (funExt λ where
+      zero -> refl
+      (suc n) -> refl)

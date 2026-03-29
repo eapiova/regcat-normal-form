@@ -1,10 +1,11 @@
-{-# OPTIONS --cubical --guardedness #-}
+
+{-# OPTIONS --safe #-}
 
 module TReg.MainTheorem where
 
 open import Cubical.Foundations.Prelude
 open import Cubical.Data.Empty.Base as Empty using (rec)
-open import Cubical.Data.Sigma
+open import Cubical.Data.Sigma using (Σ-syntax ; _×_ ; _,_)
 open import Cubical.Data.List.Base using ([] ; _∷_)
 
 open import TReg.Syntax

@@ -1,4 +1,5 @@
-{-# OPTIONS --cubical --guardedness #-}
+
+{-# OPTIONS --safe #-}
 
 module TReg.Derivability where
 
@@ -250,22 +251,38 @@ mutual
       -> Derivable (isType ((tyQtr A) ∷ gamma) L)
       -> Derivable (hasTy gamma p (tyQtr A))
       -> Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L))
-      -> Derivable (termEq (A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
+      -> Derivable
+           (termEq (wkTyBy 1 A ∷ A ∷ gamma)
+             (wkTmBy 1 l)
+             (renTm qtrSecondBranchRen l)
+             (qtrCohTy L))
       -> Derivable (hasTy gamma (tmElQtr l p) (subTy (singleSubst p) L))
 
     eQtrEq : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
       -> Derivable (isType ((tyQtr A) ∷ gamma) L)
       -> Derivable (termEq gamma p p' (tyQtr A))
       -> Derivable (termEq (A ∷ gamma) l l' (qtrBranchTy L))
-      -> Derivable (termEq (A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
-      -> Derivable (termEq (A ∷ A ∷ gamma) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L))
+      -> Derivable
+           (termEq (wkTyBy 1 A ∷ A ∷ gamma)
+             (wkTmBy 1 l)
+             (renTm qtrSecondBranchRen l)
+             (qtrCohTy L))
+      -> Derivable
+           (termEq (wkTyBy 1 A ∷ A ∷ gamma)
+             (wkTmBy 1 l')
+             (renTm qtrSecondBranchRen l')
+             (qtrCohTy L))
       -> Derivable (termEq gamma (tmElQtr l p) (tmElQtr l' p') (subTy (singleSubst p) L))
 
     cQtr : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
       -> Derivable (isType ((tyQtr A) ∷ gamma) L)
       -> Derivable (hasTy gamma a A)
       -> Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L))
-      -> Derivable (termEq (A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
+      -> Derivable
+           (termEq (wkTyBy 1 A ∷ A ∷ gamma)
+             (wkTmBy 1 l)
+             (renTm qtrSecondBranchRen l)
+             (qtrCohTy L))
       -> Derivable
            (termEq gamma (tmElQtr l (tmClass a)) (subTm (qtrCompSub a) l)
              (subTy (singleSubst (tmClass a)) L))

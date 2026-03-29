@@ -1,4 +1,5 @@
-{-# OPTIONS --cubical --guardedness #-}
+
+{-# OPTIONS --safe #-}
 
 module TReg.EqComp where
 

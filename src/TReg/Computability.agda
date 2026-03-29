@@ -1,4 +1,5 @@
-{-# OPTIONS --cubical --guardedness #-}
+
+{-# OPTIONS --safe #-}
 
 module TReg.Computability where
 
@@ -11,6 +12,21 @@ open import TReg.Context
 open import TReg.Substitution
 open import TReg.Evaluation
 open import TReg.Derivability
+
+closedSubJ : Subst -> JForm -> JForm
+closedSubJ sigma (isType gamma A) = isType [] (subTy sigma A)
+closedSubJ sigma (typeEq gamma A B) = typeEq [] (subTy sigma A) (subTy sigma B)
+closedSubJ sigma (hasTy gamma t A) = hasTy [] (subTm sigma t) (subTy sigma A)
+closedSubJ sigma (termEq gamma t u A) =
+  termEq [] (subTm sigma t) (subTm sigma u) (subTy sigma A)
+
+closedEqSubJ : Subst -> Subst -> JForm -> JForm
+closedEqSubJ sigma tau (isType gamma A) = typeEq [] (subTy sigma A) (subTy tau A)
+closedEqSubJ sigma tau (typeEq gamma A B) = typeEq [] (subTy sigma A) (subTy tau B)
+closedEqSubJ sigma tau (hasTy gamma t A) =
+  termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A)
+closedEqSubJ sigma tau (termEq gamma t u A) =
+  termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A)
 
 mutual
   data CompFitsSubst : Ctx -> Subst -> Type where
@@ -27,17 +43,19 @@ mutual
       -> Computable (termEq [] t u (subTy sigma A))
       -> CompFitsEqSubst (A ∷ gamma) (consSubst t sigma) (consSubst u tau)
 
-  data ClosedSubstComp : Ctx -> Subst -> JForm -> Type where
-    closeSubstComp : {gamma : Ctx} {sigma : Subst} {J : JForm}
-      -> CompFitsSubst gamma sigma
-      -> Computable J
-      -> ClosedSubstComp gamma sigma J
+  record ClosedSubstComp (J : JForm) (sigma : Subst) : Type where
+    constructor closedSubstComp
+    inductive
+    field
+      closedComp : Computable (closedSubJ sigma J)
+      closedCompFits : CompFitsSubst (ctxOf J) sigma
 
-  data ClosedEqSubstComp : Ctx -> Subst -> Subst -> JForm -> Type where
-    closeEqSubstComp : {gamma : Ctx} {sigma tau : Subst} {J : JForm}
-      -> CompFitsEqSubst gamma sigma tau
-      -> Computable J
-      -> ClosedEqSubstComp gamma sigma tau J
+  record ClosedEqSubstComp (J : JForm) (sigma tau : Subst) : Type where
+    constructor closedEqSubstComp
+    inductive
+    field
+      closedEqComp : Computable (closedEqSubJ sigma tau J)
+      closedEqCompFits : CompFitsEqSubst (ctxOf J) sigma tau
 
   data Computable : JForm -> Type where
     compTyClosedTop : {A : RawType}
@@ -189,9 +207,9 @@ mutual
       -> ((gamma ≡ []) -> ⊥)
       -> Derivable (isType gamma A)
       -> ((sigma : Subst) -> FitsSubst [] gamma sigma
-           -> ClosedSubstComp gamma sigma (isType [] (subTy sigma A)))
+           -> ClosedSubstComp (isType gamma A) sigma)
       -> ((sigma tau : Subst) -> FitsEqSubst [] gamma sigma tau
-           -> ClosedEqSubstComp gamma sigma tau (typeEq [] (subTy sigma A) (subTy tau A)))
+           -> ClosedEqSubstComp (isType gamma A) sigma tau)
       -> Computable (isType gamma A)
 
     compTyEqOpen : {gamma : Ctx} {A B : RawType}
@@ -199,9 +217,9 @@ mutual
       -> Derivable (typeEq gamma A B)
       -> Computable (isType gamma A)
       -> ((sigma : Subst) -> FitsSubst [] gamma sigma
-           -> ClosedSubstComp gamma sigma (typeEq [] (subTy sigma A) (subTy sigma B)))
+           -> ClosedSubstComp (typeEq gamma A B) sigma)
       -> ((sigma tau : Subst) -> FitsEqSubst [] gamma sigma tau
-           -> ClosedEqSubstComp gamma sigma tau (typeEq [] (subTy sigma A) (subTy tau B)))
+           -> ClosedEqSubstComp (typeEq gamma A B) sigma tau)
       -> Computable (typeEq gamma A B)
 
     compTmOpen : {gamma : Ctx} {t : RawTerm} {A : RawType}
@@ -209,9 +227,9 @@ mutual
       -> Derivable (hasTy gamma t A)
       -> Computable (isType gamma A)
       -> ((sigma : Subst) -> FitsSubst [] gamma sigma
-           -> ClosedSubstComp gamma sigma (hasTy [] (subTm sigma t) (subTy sigma A)))
+           -> ClosedSubstComp (hasTy gamma t A) sigma)
       -> ((sigma tau : Subst) -> FitsEqSubst [] gamma sigma tau
-           -> ClosedEqSubstComp gamma sigma tau (termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A)))
+           -> ClosedEqSubstComp (hasTy gamma t A) sigma tau)
       -> Computable (hasTy gamma t A)
 
     compTmEqOpen : {gamma : Ctx} {t u : RawTerm} {A : RawType}
@@ -219,7 +237,7 @@ mutual
       -> Derivable (termEq gamma t u A)
       -> Computable (hasTy gamma t A)
       -> ((sigma : Subst) -> FitsSubst [] gamma sigma
-           -> ClosedSubstComp gamma sigma (termEq [] (subTm sigma t) (subTm sigma u) (subTy sigma A)))
+           -> ClosedSubstComp (termEq gamma t u A) sigma)
       -> ((sigma tau : Subst) -> FitsEqSubst [] gamma sigma tau
-           -> ClosedEqSubstComp gamma sigma tau (termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A)))
+           -> ClosedEqSubstComp (termEq gamma t u A) sigma tau)
       -> Computable (termEq gamma t u A)
