@@ -4,7 +4,6 @@
 module TReg.TopComp where
 
 open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (rec)
 open import Cubical.Data.List.Base using ([])
 
 open import TReg.Syntax
@@ -40,4 +39,3 @@ compCTopClosed comp@(compTmClosedTop d _ evA evt _) =
     evA
     evt
     evalStar
-compCTopClosed (compTmOpen neq _ _ _ _) = Empty.rec (neq refl)

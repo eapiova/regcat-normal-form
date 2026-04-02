@@ -15,4 +15,5 @@ open import TReg.TopComp public
 open import TReg.SigmaComp public
 open import TReg.EqComp public
 open import TReg.QtrComp public
+open import TReg.CompTheorem public
 open import TReg.MainTheorem public

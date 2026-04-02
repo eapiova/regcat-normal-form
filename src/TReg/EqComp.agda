@@ -4,7 +4,6 @@
 module TReg.EqComp where
 
 open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (rec)
 open import Cubical.Data.List.Base using ([])
 
 open import TReg.Syntax
@@ -40,7 +39,7 @@ compIEqClosed compa =
     evalEq
     evalR
     (reflTm (iEq (compToDerivable compa)))
-    (compReflTm compa)
+    (compReflTmClosed compa)
 
 compEEqClosed : {A : RawType} {a b p : RawTerm}
   -> Computable (hasTy [] p (tyEq A a b))
@@ -48,7 +47,6 @@ compEEqClosed : {A : RawType} {a b p : RawTerm}
 compEEqClosed {A = A} {a = a} {b = b}
   (compTmClosedEq _ _ (evalEq {A = A} {a = a} {b = b}) _ _ compab) =
   compab
-compEEqClosed (compTmOpen neq _ _ _ _) = Empty.rec (neq refl)
 
 compCEqClosed : {A : RawType} {a b p : RawTerm}
   -> Computable (hasTy [] p (tyEq A a b))
@@ -91,4 +89,3 @@ compCEqClosed {A = A} {a = a} {b = b}
       evalR
       (cEq dEqRefl dA da db)
       compab
-compCEqClosed (compTmOpen neq _ _ _ _) = Empty.rec (neq refl)
