@@ -32,33 +32,481 @@ nonemptyNeNil {gamma = gamma} p = snotz (cong length p)
 case_of_ : ∀ {ℓ ℓ'} {A : Type ℓ} {B : Type ℓ'} -> A -> (A -> B) -> B
 case x of f = f x
 
-data CompFitsSubst : Ctx -> Subst -> Type where
-  compFitsNil : {sigma : Subst} -> CompFitsSubst [] sigma
-  compFitsCons : {gamma : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
-    -> CompFitsSubst gamma sigma
-    -> Computable (hasTy [] t (subTy sigma A))
-    -> CompFitsSubst (A ∷ gamma) (consSubst t sigma)
+compReflTy : {A : RawType}
+  -> Computable (isType [] A)
+  -> Computable (typeEq [] A A)
+compReflTy = compReflTyClosed
 
-data CompFitsEqSubst : Ctx -> Subst -> Subst -> Type where
-  compFitsEqNil : {sigma tau : Subst} -> CompFitsEqSubst [] sigma tau
-  compFitsEqCons : {gamma : Ctx} {sigma tau : Subst} {A : RawType} {t u : RawTerm}
-    -> CompFitsEqSubst gamma sigma tau
-    -> Computable (termEq [] t u (subTy sigma A))
-    -> CompFitsEqSubst (A ∷ gamma) (consSubst t sigma) (consSubst u tau)
+compReflTm : {t : RawTerm} {A : RawType}
+  -> Computable (hasTy [] t A)
+  -> Computable (termEq [] t t A)
+compReflTm = compReflTmClosed
 
-record ClosedSubstComp (J : JForm) (sigma : Subst) : Type where
-  constructor closedSubstComp
-  field
-    closedComp : Computable (closedSubJ sigma J)
-    closedCompFits : CompFitsSubst (ctxOf J) sigma
+liftFitsNR : {theta gamma : Ctx} {A : RawType} {sigma : Subst}
+  -> FitsSubst theta gamma sigma
+  -> Derivable (isType theta (subTy sigma A))
+  -> FitsSubst (subTy sigma A ∷ theta) (A ∷ gamma)
+       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+liftFitsNR {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} fits dAσ =
+  fitsCons tail headVar
+  where
+  wfAσ : CtxWF (subTy sigma A ∷ theta)
+  wfAσ = wfCons (fitsSubstCtxWF fits) dAσ
 
-record ClosedEqSubstComp (J : JForm) (sigma tau : Subst) : Type where
-  constructor closedEqSubstComp
-  field
-    closedEqComp : Computable (closedEqSubJ sigma tau J)
-    closedEqCompFits : CompFitsEqSubst (ctxOf J) sigma tau
+  tail : FitsSubst (subTy sigma A ∷ theta) gamma (compSub (keepSubstBy 1) sigma)
+  tail =
+    composeFits
+      (fitsKeep {delta = subTy sigma A ∷ []} {gamma = theta} wfAσ)
+      fits
+
+  headVar0 : Derivable
+    (hasTy (subTy sigma A ∷ theta) (var zero) (wkTyBy 1 (subTy sigma A)))
+  headVar0 = varStar {gamma = theta} {delta = []} {A = subTy sigma A} wfAσ dAσ
+
+  headVar : Derivable
+    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstBy 1) sigma) A))
+  headVar =
+    subst
+      (λ T -> Derivable (hasTy (subTy sigma A ∷ theta) (var zero) T))
+      (renTyKeepSubstBy 1 (subTy sigma A) ∙ subTyComp (keepSubstBy 1) sigma A)
+      headVar0
+
+liftFitsOneNR : {gamma : Ctx} {A : RawType} {sigma : Subst}
+  -> FitsSubst [] gamma sigma
+  -> Derivable (isType [] (subTy sigma A))
+  -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma)
+       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+liftFitsOneNR = liftFitsNR
+
+liftFitsEqNR : {theta gamma : Ctx} {A : RawType} {sigma tau : Subst}
+  -> FitsEqSubst theta gamma sigma tau
+  -> Derivable (isType theta (subTy sigma A))
+  -> FitsEqSubst (subTy sigma A ∷ theta) (A ∷ gamma)
+       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+       (consSubst (var zero) (compSub (keepSubstBy 1) tau))
+liftFitsEqNR {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} {tau = tau} fitsEq dAσ =
+  fitsEqCons tail (reflTm headVar)
+  where
+  wfAσ : CtxWF (subTy sigma A ∷ theta)
+  wfAσ = wfCons (fitsEqSubstCtxWF fitsEq) dAσ
+
+  tail : FitsEqSubst (subTy sigma A ∷ theta) gamma
+    (compSub (keepSubstBy 1) sigma)
+    (compSub (keepSubstBy 1) tau)
+  tail =
+    composeFitsEq
+      (fitsKeep {delta = subTy sigma A ∷ []} {gamma = theta} wfAσ)
+      fitsEq
+
+  headVar0 : Derivable
+    (hasTy (subTy sigma A ∷ theta) (var zero) (wkTyBy 1 (subTy sigma A)))
+  headVar0 = varStar {gamma = theta} {delta = []} {A = subTy sigma A} wfAσ dAσ
+
+  headVar : Derivable
+    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstBy 1) sigma) A))
+  headVar =
+    subst
+      (λ T -> Derivable (hasTy (subTy sigma A ∷ theta) (var zero) T))
+      (renTyKeepSubstBy 1 (subTy sigma A) ∙ subTyComp (keepSubstBy 1) sigma A)
+      headVar0
+
+liftFitsEqOneNR : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
+  -> FitsEqSubst [] gamma sigma tau
+  -> Derivable (isType [] (subTy sigma A))
+  -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+       (consSubst (var zero) (compSub (keepSubstBy 1) tau))
+liftFitsEqOneNR = liftFitsEqNR
+
+liftSubstCompKeepNR : (sigma : Subst)
+  -> consSubst (var zero) (compSub (keepSubstBy 1) sigma) ≡ liftSubst sigma
+liftSubstCompKeepNR sigma = funExt λ where
+  zero -> refl
+  (suc n) -> sym (renTmKeepSubstBy 1 (sigma n))
+
+composeOneBinderNR : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
+  -> FitsSubst [] gamma sigma
+  -> Derivable (isType [] (subTy sigma A))
+  -> FitsSubst [] (subTy sigma A ∷ []) tau
+  -> FitsSubst [] (A ∷ gamma) (compSub tau (liftSubst sigma))
+composeOneBinderNR {gamma = gamma} {A = A} {sigma = sigma} {tau = tau} fits dAσ fits2 =
+  subst
+    (λ rho -> FitsSubst [] (A ∷ gamma) rho)
+    (cong (compSub tau) (liftSubstCompKeepNR sigma))
+    (composeFits fits2 (liftFitsOneNR fits dAσ))
+
+composeOneBinderEqNR : {gamma : Ctx} {A : RawType} {sigma tau₁ tau₂ : Subst}
+  -> FitsSubst [] gamma sigma
+  -> Derivable (isType [] (subTy sigma A))
+  -> FitsEqSubst [] (subTy sigma A ∷ []) tau₁ tau₂
+  -> FitsEqSubst [] (A ∷ gamma) (compSub tau₁ (liftSubst sigma)) (compSub tau₂ (liftSubst sigma))
+composeOneBinderEqNR {gamma = gamma} {A = A} {sigma = sigma} {tau₁ = tau₁} {tau₂ = tau₂} fits dAσ fitsEq =
+  subst
+    (λ rho -> FitsEqSubst [] (A ∷ gamma) rho (compSub tau₂ (liftSubst sigma)))
+    (cong (compSub tau₁) (liftSubstCompKeepNR sigma))
+    (subst
+      (λ rho ->
+        FitsEqSubst [] (A ∷ gamma)
+          (compSub tau₁ (consSubst (var zero) (compSub (keepSubstBy 1) sigma)))
+          rho)
+      (cong (compSub tau₂) (liftSubstCompKeepNR sigma))
+      (composeEqFits fitsEq (liftFitsOneNR fits dAσ)))
 
 mutual
+  substDerivTyComp : {gamma : Ctx} {A : RawType} {sigma : Subst}
+    -> Derivable (isType gamma A)
+    -> FitsSubst [] gamma sigma
+    -> Computable (isType [] (subTy sigma A))
+
+  substDerivTmComp : {gamma : Ctx} {t : RawTerm} {A : RawType} {sigma : Subst}
+    -> Derivable (hasTy gamma t A)
+    -> FitsSubst [] gamma sigma
+    -> Computable (hasTy [] (subTm sigma t) (subTy sigma A))
+
+  substDerivTmEqComp : {gamma : Ctx} {t u : RawTerm} {A : RawType} {sigma : Subst}
+    -> Derivable (termEq gamma t u A)
+    -> FitsSubst [] gamma sigma
+    -> Computable (termEq [] (subTm sigma t) (subTm sigma u) (subTy sigma A))
+
+  eqSubDerivTyComp : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
+    -> Derivable (isType gamma A)
+    -> FitsEqSubst [] gamma sigma tau
+    -> Computable (typeEq [] (subTy sigma A) (subTy tau A))
+
+  eqSubDerivTmComp : {gamma : Ctx} {t : RawTerm} {A : RawType} {sigma tau : Subst}
+    -> Derivable (hasTy gamma t A)
+    -> FitsEqSubst [] gamma sigma tau
+    -> Computable (termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A))
+
+  eqSubDerivTmEqComp : {gamma : Ctx} {t u : RawTerm} {A : RawType} {sigma tau : Subst}
+    -> Derivable (termEq gamma t u A)
+    -> FitsEqSubst [] gamma sigma tau
+    -> Computable (termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A))
+
+  substTyClosed : {delta : Ctx} {A : RawType} {sigma : Subst}
+    -> Derivable (isType delta A)
+    -> FitsSubst [] delta sigma
+    -> Computable (isType [] (subTy sigma A))
+
+  eqSubTyClosed : {delta : Ctx} {A : RawType} {sigma tau : Subst}
+    -> Derivable (isType delta A)
+    -> FitsEqSubst [] delta sigma tau
+    -> Computable (typeEq [] (subTy sigma A) (subTy tau A))
+
+  openHypTy1 : {gamma : Ctx} {A B : RawType} {sigma : Subst}
+    -> FitsSubst [] gamma sigma
+    -> Derivable (isType [] (subTy sigma A))
+    -> Derivable (isType (A ∷ gamma) B)
+    -> HypComputable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
+  openHypTy1 {A = A} {B = B} {sigma = sigma} fits dAσ dB =
+    subst
+      (λ T -> HypComputable (isType (subTy sigma A ∷ []) T))
+      (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
+      (hypTyOpen
+        nonemptyNeNil
+        (substTyRule dB (liftFitsOne fits dAσ))
+        (λ tau fits2 _ ->
+          subst
+            (λ T -> Computable (isType [] T))
+            (sym
+              (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
+                ∙ subTyComp tau (liftSubst sigma) B))
+            (substDerivTyComp
+              dB
+              (composeOneBinder fits dAσ fits2)))
+        (λ tau₁ tau₂ fitsEq2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₂ (typeEq [])
+                (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau₁ (liftSubst sigma) B)
+                (cong (λ rho -> subTy tau₂ (subTy rho B)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau₂ (liftSubst sigma) B)))
+            (eqSubDerivTyComp
+              dB
+              (composeOneBinderEq fits dAσ fitsEq2))))
+
+  openHypTy2 : {gamma : Ctx} {A B T : RawType} {sigma : Subst}
+    -> FitsSubst [] gamma sigma
+    -> Derivable (isType [] (subTy sigma A))
+    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
+    -> Derivable (isType (B ∷ A ∷ gamma) T)
+    -> HypComputable
+         (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+           (subTy (liftSubst (liftSubst sigma)) T))
+  openHypTy2 {gamma = gamma} {A = A} {B = B} {T = T} {sigma = sigma}
+    fits dAσ dBσ dT =
+    let
+      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+      lifted1 =
+        subst
+          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+          (liftSubstCompKeep sigma)
+          (liftFitsOne fits dAσ)
+    in
+    subst
+      (λ T' -> HypComputable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
+      (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma)))
+      (hypTyOpen
+        nonemptyNeNil
+        (substTyRule dT (liftFits lifted1 dBσ))
+        (λ tau fits2 _ ->
+          subst
+            (λ T' -> Computable (isType [] T'))
+            (sym
+              (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                ∙ subTyComp tau (liftSubst (liftSubst sigma)) T))
+            (substDerivTyComp
+              dT
+              (composeTwoBinders fits dAσ dBσ fits2)))
+        (λ tau₁ tau₂ fitsEq2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₂ (typeEq [])
+                (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)
+                (cong (λ rho -> subTy tau₂ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTyComp tau₂ (liftSubst (liftSubst sigma)) T)))
+            (eqSubDerivTyComp
+              dT
+              (composeTwoBindersEq fits dAσ dBσ fitsEq2))))
+
+  openHypTm1 : {gamma : Ctx} {A T : RawType} {t : RawTerm} {sigma : Subst}
+    -> FitsSubst [] gamma sigma
+    -> Derivable (isType [] (subTy sigma A))
+    -> Derivable (hasTy (A ∷ gamma) t T)
+    -> HypComputable
+         (hasTy (subTy sigma A ∷ [])
+           (subTm (liftSubst sigma) t)
+           (subTy (liftSubst sigma) T))
+  openHypTm1 {A = A} {T = T} {t = t} {sigma = sigma}
+    fits dAσ dt =
+    subst
+      (λ J -> HypComputable J)
+      (cong₂
+        (hasTy (subTy sigma A ∷ []))
+        (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
+        (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
+      (hypTmOpen
+        nonemptyNeNil
+        (substTmRule dt (liftFitsOne fits dAσ))
+        (subst
+          (λ T' -> HypComputable (isType (subTy sigma A ∷ []) T'))
+          (sym (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
+          (openHypTy1 fits dAσ (assocTy dt)))
+        (λ tau fits2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₂ (hasTy [])
+                (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep sigma)
+                  ∙ subTmComp tau (liftSubst sigma) t)
+                (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau (liftSubst sigma) T)))
+            (substDerivTmComp
+              dt
+              (composeOneBinder fits dAσ fits2)))
+        (λ tau₁ tau₂ fitsEq2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₃ (termEq [])
+                (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep sigma)
+                  ∙ subTmComp tau₁ (liftSubst sigma) t)
+                (cong (λ rho -> subTm tau₂ (subTm rho t)) (liftSubstCompKeep sigma)
+                  ∙ subTmComp tau₂ (liftSubst sigma) t)
+                (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau₁ (liftSubst sigma) T)))
+            (eqSubDerivTmComp
+              dt
+              (composeOneBinderEq fits dAσ fitsEq2))))
+
+  openHypTmEq1 : {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma : Subst}
+    -> FitsSubst [] gamma sigma
+    -> Derivable (isType [] (subTy sigma A))
+    -> Derivable (termEq (A ∷ gamma) t u T)
+    -> HypComputable
+         (termEq (subTy sigma A ∷ [])
+           (subTm (liftSubst sigma) t)
+           (subTm (liftSubst sigma) u)
+           (subTy (liftSubst sigma) T))
+  openHypTmEq1 {A = A} {T = T} {t = t} {u = u} {sigma = sigma}
+    fits dAσ dtu =
+    subst
+      (λ J -> HypComputable J)
+      (cong₃
+        (termEq (subTy sigma A ∷ []))
+        (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
+        (cong (λ rho -> subTm rho u) (liftSubstCompKeep sigma))
+        (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
+      (hypTmEqOpen
+        nonemptyNeNil
+        (substTmEqRule dtu (liftFitsOne fits dAσ))
+        (subst
+          (λ J -> HypComputable J)
+          (sym
+            (cong₂
+              (hasTy (subTy sigma A ∷ []))
+              (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
+              (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma))))
+          (openHypTm1 fits dAσ (assocTmLeft dtu)))
+        (λ tau fits2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₃ (termEq [])
+                (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep sigma)
+                  ∙ subTmComp tau (liftSubst sigma) t)
+                (cong (λ rho -> subTm tau (subTm rho u)) (liftSubstCompKeep sigma)
+                  ∙ subTmComp tau (liftSubst sigma) u)
+                (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau (liftSubst sigma) T)))
+            (substDerivTmEqComp
+              dtu
+              (composeOneBinder fits dAσ fits2)))
+        (λ tau₁ tau₂ fitsEq2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₃ (termEq [])
+                (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep sigma)
+                  ∙ subTmComp tau₁ (liftSubst sigma) t)
+                (cong (λ rho -> subTm tau₂ (subTm rho u)) (liftSubstCompKeep sigma)
+                  ∙ subTmComp tau₂ (liftSubst sigma) u)
+                (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau₁ (liftSubst sigma) T)))
+            (eqSubDerivTmEqComp
+              dtu
+              (composeOneBinderEq fits dAσ fitsEq2))))
+
+  openHypTm2 : {gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma : Subst}
+    -> FitsSubst [] gamma sigma
+    -> Derivable (isType [] (subTy sigma A))
+    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
+    -> Derivable (hasTy (B ∷ A ∷ gamma) t T)
+    -> HypComputable
+         (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+           (subTm (liftSubst (liftSubst sigma)) t)
+           (subTy (liftSubst (liftSubst sigma)) T))
+  openHypTm2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {sigma = sigma}
+    fits dAσ dBσ dt =
+    let
+      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+      lifted1 =
+        subst
+          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+          (liftSubstCompKeep sigma)
+          (liftFitsOne fits dAσ)
+    in
+    subst
+      (λ J -> HypComputable J)
+      (cong₂
+        (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+        (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
+        (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
+      (hypTmOpen
+        nonemptyNeNil
+        (substTmRule dt (liftFits lifted1 dBσ))
+        (subst
+          (λ T' ->
+            HypComputable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
+          (sym (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
+          (openHypTy2 fits dAσ dBσ (assocTy dt)))
+        (λ tau fits2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₂ (hasTy [])
+                (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTmComp tau (liftSubst (liftSubst sigma)) t)
+                (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTyComp tau (liftSubst (liftSubst sigma)) T)))
+            (substDerivTmComp
+              dt
+              (composeTwoBinders fits dAσ dBσ fits2)))
+        (λ tau₁ tau₂ fitsEq2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₃ (termEq [])
+                (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTmComp tau₁ (liftSubst (liftSubst sigma)) t)
+                (cong (λ rho -> subTm tau₂ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) t)
+                (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)))
+            (eqSubDerivTmComp
+              dt
+              (composeTwoBindersEq fits dAσ dBσ fitsEq2))))
+
+  openHypTmEq2 : {gamma : Ctx} {A B T : RawType} {t u : RawTerm} {sigma : Subst}
+    -> FitsSubst [] gamma sigma
+    -> Derivable (isType [] (subTy sigma A))
+    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
+    -> Derivable (termEq (B ∷ A ∷ gamma) t u T)
+    -> HypComputable
+         (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+           (subTm (liftSubst (liftSubst sigma)) t)
+           (subTm (liftSubst (liftSubst sigma)) u)
+           (subTy (liftSubst (liftSubst sigma)) T))
+  openHypTmEq2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {u = u} {sigma = sigma}
+    fits dAσ dBσ dtu =
+    let
+      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+      lifted1 =
+        subst
+          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+          (liftSubstCompKeep sigma)
+          (liftFitsOne fits dAσ)
+    in
+    subst
+      (λ J -> HypComputable J)
+      (cong₃
+        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+        (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
+        (cong (λ rho -> subTm rho u) (liftSubstCompKeep (liftSubst sigma)))
+        (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
+      (hypTmEqOpen
+        nonemptyNeNil
+        (substTmEqRule dtu (liftFits lifted1 dBσ))
+        (subst
+          (λ J -> HypComputable J)
+          (sym
+            (cong₂
+              (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+              (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
+              (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma)))))
+          (openHypTm2 fits dAσ dBσ (assocTmLeft dtu)))
+        (λ tau fits2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₃ (termEq [])
+                (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTmComp tau (liftSubst (liftSubst sigma)) t)
+                (cong (λ rho -> subTm tau (subTm rho u)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTmComp tau (liftSubst (liftSubst sigma)) u)
+                (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTyComp tau (liftSubst (liftSubst sigma)) T)))
+            (substDerivTmEqComp
+              dtu
+              (composeTwoBinders fits dAσ dBσ fits2)))
+        (λ tau₁ tau₂ fitsEq2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₃ (termEq [])
+                (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTmComp tau₁ (liftSubst (liftSubst sigma)) t)
+                (cong (λ rho -> subTm tau₂ (subTm rho u)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) u)
+                (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                  ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)))
+            (eqSubDerivTmEqComp
+              dtu
+              (composeTwoBindersEq fits dAσ dBσ fitsEq2))))
   compFSigmaClosed : {A B : RawType}
     -> Computable (isType [] A)
     -> HypComputable (isType (A ∷ []) B)
@@ -214,15 +662,23 @@ mutual
         compa
   
   compESigmaClosed : {A B M : RawType} {d d' m m' : RawTerm}
+    -> ({t u v : RawTerm} {T : RawType}
+         -> Computable (termEq [] t u T)
+         -> Computable (termEq [] u v T)
+         -> Computable (termEq [] t v T))
+    -> ({t u : RawTerm} {T U : RawType}
+         -> Computable (termEq [] t u T)
+         -> Computable (typeEq [] T U)
+         -> Computable (termEq [] t u U))
     -> HypComputable (isType ((tySigma A B) ∷ []) M)
     -> Computable (termEq [] d d' (tySigma A B))
     -> HypComputable (termEq (B ∷ A ∷ []) m m' (sigmaBranchTy M))
     -> Computable
          (termEq [] (tmElSigma d m) (tmElSigma d' m') (subTy (singleSubst d) M))
   compESigmaClosed {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'}
-    compM compdd'
+    transCl convEqCl compM compdd'
     compmm'@(hypTmEqOpen neq dll' compBranchTy sub subEq) =
-    compTransTmClosed leftCan (compTransTmClosed bodyEqD (compSymTmClosed rightCan))
+    transCl leftCan (transCl bodyEqD rightCanSym)
     where
     open ClosedSigmaTmEqInv (invertSigmaTmEq compdd' evalSigma)
   
@@ -247,6 +703,19 @@ mutual
         evalSigma
         sigmaTmEqEvalLeftPair
         evalPair
+        (compReflTmClosed sigmaTmEqLeftCompFstTy)
+        (compReflTmClosed sigmaTmEqLeftCompSndTy)
+
+    compLeftCorrSym : Computable
+      (termEq [] (tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd) d (tySigma A B))
+    compLeftCorrSym =
+      compTmEqClosedSigma
+        (symTm sigmaTmEqLeftCorrPair)
+        compPairLeft
+        sigmaTmEqCompLeft
+        evalSigma
+        evalPair
+        sigmaTmEqEvalLeftPair
         (compReflTmClosed sigmaTmEqLeftCompFstTy)
         (compReflTmClosed sigmaTmEqLeftCompSndTy)
   
@@ -296,9 +765,9 @@ mutual
         (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
         (subTy (singleSubst d) M))
     bodyEqD =
-      compConvTmEqClosed
+      convEqCl
         branchEqPair
-        (compSingleEqSubstTyClosed compM (compSymTmClosed compLeftCorr))
+        (compSingleEqSubstTyClosed compM compLeftCorrSym)
   
     bodyLeft : Computable
       (hasTy []
@@ -568,6 +1037,105 @@ mutual
         evRhs
         compa
         compa
+
+    mkRightCanonSym :
+      Derivable
+        (termEq []
+          (tmElSigma d' m')
+          (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+          (subTy (singleSubst d) M))
+      -> Derivable (hasTy [] (tmElSigma d' m') (subTy (singleSubst d) M))
+      -> d' =>e tmPair sigmaTmEqRightFst sigmaTmEqRightSnd
+      -> Computable
+           (hasTy []
+             (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+             (subTy (singleSubst d) M))
+      -> Computable
+           (termEq []
+             (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+             (tmElSigma d' m')
+             (subTy (singleSubst d) M))
+    mkRightCanonSym dEq dLeft evd body@(compTmClosedTop _ compTy evTy evRhs corrRhs) =
+      let
+        lhsCorr = transTm dEq corrRhs
+        lhsComp =
+          compTmClosedTop
+            dLeft
+            compTy
+            evTy
+            (evalElSigma evd evRhs)
+            lhsCorr
+      in
+      compTmEqClosedTop
+        (symTm dEq)
+        body
+        lhsComp
+        evTy
+        evRhs
+        (evalElSigma evd evRhs)
+    mkRightCanonSym dEq dLeft evd body@(compTmClosedSigma _ compTy evTy evRhs corrRhs comp₁ comp₂) =
+      let
+        lhsCorr = transTm dEq corrRhs
+        lhsComp =
+          compTmClosedSigma
+            dLeft
+            compTy
+            evTy
+            (evalElSigma evd evRhs)
+            lhsCorr
+            comp₁
+            comp₂
+      in
+      compTmEqClosedSigma
+        (symTm dEq)
+        body
+        lhsComp
+        evTy
+        evRhs
+        (evalElSigma evd evRhs)
+        (compReflTmClosed comp₁)
+        (compReflTmClosed comp₂)
+    mkRightCanonSym dEq dLeft evd body@(compTmClosedEq _ compTy evTy evRhs corrRhs compEq) =
+      let
+        lhsCorr = transTm dEq corrRhs
+        lhsComp =
+          compTmClosedEq
+            dLeft
+            compTy
+            evTy
+            (evalElSigma evd evRhs)
+            lhsCorr
+            compEq
+      in
+      compTmEqClosedEq
+        (symTm dEq)
+        body
+        lhsComp
+        evTy
+        evRhs
+        (evalElSigma evd evRhs)
+        compEq
+    mkRightCanonSym dEq dLeft evd body@(compTmClosedQtr _ compTy evTy evRhs corrRhs compa) =
+      let
+        lhsCorr = transTm dEq corrRhs
+        lhsComp =
+          compTmClosedQtr
+            dLeft
+            compTy
+            evTy
+            (evalElSigma evd evRhs)
+            lhsCorr
+            compa
+      in
+      compTmEqClosedQtr
+        (symTm dEq)
+        body
+        lhsComp
+        evTy
+        evRhs
+        (evalElSigma evd evRhs)
+        compa
+        compa
   
     leftCan : Computable
       (termEq []
@@ -582,6 +1150,13 @@ mutual
         (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
         (subTy (singleSubst d) M))
     rightCan = mkRightCanon dRightEq dRightTy sigmaTmEqEvalRightPair bodyRight
+
+    rightCanSym : Computable
+      (termEq []
+        (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+        (tmElSigma d' m')
+        (subTy (singleSubst d) M))
+    rightCanSym = mkRightCanonSym dRightEq dRightTy sigmaTmEqEvalRightPair bodyRight
   
   compFQtrClosed : {A : RawType}
     -> Computable (isType [] A)
@@ -750,6 +1325,17 @@ mutual
         compx
   
   compEQtrClosed : {A L : RawType} {l l' p p' : RawTerm}
+    -> ({t u v : RawTerm} {T : RawType}
+         -> Computable (termEq [] t u T)
+         -> Computable (termEq [] u v T)
+         -> Computable (termEq [] t v T))
+    -> ({t u : RawTerm} {T : RawType}
+         -> Computable (termEq [] t u T)
+         -> Computable (termEq [] u t T))
+    -> ({t u : RawTerm} {T U : RawType}
+         -> Computable (termEq [] t u T)
+         -> Computable (typeEq [] T U)
+         -> Computable (termEq [] t u U))
     -> HypComputable (isType ((tyQtr A) ∷ []) L)
     -> Computable (termEq [] p p' (tyQtr A))
     -> HypComputable (termEq (A ∷ []) l l' (qtrBranchTy L))
@@ -760,11 +1346,11 @@ mutual
     -> Computable
          (termEq [] (tmElQtr l p) (tmElQtr l' p') (subTy (singleSubst p) L))
   compEQtrClosed {A = A} {L = L} {l = l} {l' = l'} {p = p} {p' = p'}
-    compL comppp'
+    transCl symCl convEqCl compL comppp'
     compll'@(hypTmEqOpen neq dll' compBranchTy sub subEq)
     coh
     coh'@(hypTmEqOpen neqCoh' dcoh'comp compCohTy' subCoh' subEqCoh') =
-    compTransTmClosed leftCan (compTransTmClosed bodyEqP (compSymTmClosed rightCan))
+    transCl leftCan (transCl bodyEqP (symCl rightCan))
     where
     open ClosedQtrTmEqInv (invertQtrTmEq comppp' evalQtr)
   
@@ -924,7 +1510,7 @@ mutual
         (subTm (qtrCompSub qtrTmEqLeftRepr) l)
         (subTm (qtrCompSub qtrTmEqRightRepr) l')
         (subTy (singleSubst (tmClass qtrTmEqLeftRepr)) L))
-    bodyEqClassA = compTransTmClosed branchEqClassA cohEqClassA
+    bodyEqClassA = transCl branchEqClassA cohEqClassA
   
     bodyEqP : Computable
       (termEq []
@@ -932,9 +1518,9 @@ mutual
         (subTm (qtrCompSub qtrTmEqRightRepr) l')
         (subTy (singleSubst p) L))
     bodyEqP =
-      compConvTmEqClosed
+      convEqCl
         bodyEqClassA
-        (compSingleEqSubstTyClosed compL (compSymTmClosed compLeftCorr))
+        (compSingleEqSubstTyClosed compL (symCl compLeftCorr))
   
     bodyLeft : Computable
       (hasTy []
@@ -1385,44 +1971,6 @@ mutual
       (sym (subTyWkStep t sigma (suc (length delta)) A))
       (lookupVarFitsEq {delta = delta} {A = A} {sigma = sigma} {tau = tau} fitsEq)
   
-  lookupCompFits : {delta gamma : Ctx} {A : RawType} {sigma : Subst}
-    -> CompFitsSubst (delta ++ (A ∷ gamma)) sigma
-    -> Computable
-         (hasTy [] (subTm sigma (var (length delta)))
-           (subTy sigma (wkTyBy (suc (length delta)) A)))
-  lookupCompFits {delta = []} {A = A}
-    (compFitsCons {sigma = sigma} {t = t} fits compt) =
-    subst
-      (λ T -> Computable (hasTy [] t T))
-      (sym (subTyWkStep t sigma 0 A ∙ cong (subTy sigma) (wkTyBy0 A)))
-      compt
-  lookupCompFits {delta = D ∷ delta} {A = A}
-    (compFitsCons {sigma = sigma} {t = t} fits compt) =
-    subst
-      (λ T -> Computable (hasTy [] (subTm sigma (var (length delta))) T))
-      (sym (subTyWkStep t sigma (suc (length delta)) A))
-      (lookupCompFits {delta = delta} {A = A} {sigma = sigma} fits)
-  
-  lookupCompFitsEq : {delta gamma : Ctx} {A : RawType} {sigma tau : Subst}
-    -> CompFitsEqSubst (delta ++ (A ∷ gamma)) sigma tau
-    -> Computable
-         (termEq [] (subTm sigma (var (length delta))) (subTm tau (var (length delta)))
-           (subTy sigma (wkTyBy (suc (length delta)) A)))
-  lookupCompFitsEq {delta = []} {A = A}
-    (compFitsEqCons {sigma = sigma} {tau = tau} {t = t} {u = u} fitsEq comptu) =
-    subst
-      (λ T -> Computable (termEq [] t u T))
-      (sym (subTyWkStep t sigma 0 A ∙ cong (subTy sigma) (wkTyBy0 A)))
-      comptu
-  lookupCompFitsEq {delta = D ∷ delta} {A = A}
-    (compFitsEqCons {sigma = sigma} {tau = tau} {t = t} {u = u} fitsEq comptu) =
-    subst
-      (λ T ->
-        Computable
-          (termEq [] (subTm sigma (var (length delta))) (subTm tau (var (length delta))) T))
-      (sym (subTyWkStep t sigma (suc (length delta)) A))
-      (lookupCompFitsEq {delta = delta} {A = A} {sigma = sigma} {tau = tau} fitsEq)
-  
   dropFits : {delta : Ctx} {sigma : Subst}
     -> (drop : Ctx)
     -> FitsSubst [] (drop ++ delta) sigma
@@ -1454,38 +2002,6 @@ mutual
             rho)
         (dropCons u tauTail (length drop))
         (dropFitsEq {delta = delta} {sigma = sigmaTail} {tau = tauTail} drop fitsEq))
-  
-  dropCompFits : {delta : Ctx} {sigma : Subst}
-    -> (drop : Ctx)
-    -> CompFitsSubst (drop ++ delta) sigma
-    -> CompFitsSubst delta (dropSubstBy (length drop) sigma)
-  dropCompFits {delta = delta} {sigma = sigma} [] compFits = compFits
-  dropCompFits {delta = delta} {sigma = sigma} (A ∷ drop)
-    (compFitsCons {sigma = sigmaTail} {t = t} compFits compt) =
-    subst
-      (λ rho -> CompFitsSubst delta rho)
-      (dropCons t sigmaTail (length drop))
-      (dropCompFits {delta = delta} {sigma = sigmaTail} drop compFits)
-  
-  dropCompFitsEq : {delta : Ctx} {sigma tau : Subst}
-    -> (drop : Ctx)
-    -> CompFitsEqSubst (drop ++ delta) sigma tau
-    -> CompFitsEqSubst delta (dropSubstBy (length drop) sigma) (dropSubstBy (length drop) tau)
-  dropCompFitsEq {delta = delta} {sigma = sigma} {tau = tau} [] compFitsEq = compFitsEq
-  dropCompFitsEq {delta = delta} {sigma = sigma} {tau = tau} (A ∷ drop)
-    (compFitsEqCons {sigma = sigmaTail} {tau = tauTail} {t = t} {u = u} compFitsEq comptu) =
-    subst
-      (λ rho ->
-        CompFitsEqSubst delta rho
-          (dropSubstBy (suc (length drop)) (consSubst u tauTail)))
-      (dropCons t sigmaTail (length drop))
-      (subst
-        (λ rho ->
-          CompFitsEqSubst delta
-            (dropSubstBy (suc (length drop)) (consSubst t sigmaTail))
-            rho)
-        (dropCons u tauTail (length drop))
-        (dropCompFitsEq {delta = delta} {sigma = sigmaTail} {tau = tauTail} drop compFitsEq))
   
   closedEqSubTy : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
     -> Derivable (isType [] A)
@@ -1837,1843 +2353,87 @@ mutual
           zero -> refl
           (suc n) -> refl)
   
-  fitsToCompFits : {gamma : Ctx} {sigma : Subst}
+  substSccTyEq1 : {gamma : Ctx} {A B C : RawType} {sigma : Subst}
+    -> ({gamma : Ctx} {A B : RawType} {sigma : Subst}
+         -> FitsSubst [] gamma sigma
+         -> Derivable (isType [] (subTy sigma A))
+         -> Derivable (isType (A ∷ gamma) B)
+         -> HypComputable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B)))
+    -> ({gamma : Ctx} {A B : RawType} {sigma : Subst}
+         -> Derivable (typeEq gamma A B)
+         -> FitsSubst [] gamma sigma
+         -> Computable (typeEq [] (subTy sigma A) (subTy sigma B)))
+    -> ({gamma : Ctx} {A B : RawType} {sigma tau : Subst}
+         -> Derivable (typeEq gamma A B)
+         -> FitsEqSubst [] gamma sigma tau
+         -> Computable (typeEq [] (subTy sigma A) (subTy tau B)))
     -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-  fitsToCompFits (fitsNil wf) = compFitsNil
-  fitsToCompFits (fitsCons {sigma = sigmaTail} {A = A} {t = t} fits dt) =
-    compFitsCons
-      (fitsToCompFits fits)
-      (subst
-        (λ J -> Computable J)
-        (cong₂ (hasTy [])
-          (subTmId t)
-          (subTyId (subTy sigmaTail A)))
-        (substDerivTmComp
-          dt
-          (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)
-          compFitsNil))
-
-  fitsEqToCompFitsEq : {gamma : Ctx} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-  fitsEqToCompFitsEq (fitsEqNil wf) = compFitsEqNil
-  fitsEqToCompFitsEq (fitsEqCons {sigma = sigmaTail} {A = A} {t = t} {u = u} fitsEq dtu) =
-    compFitsEqCons
-      (fitsEqToCompFitsEq fitsEq)
-      (subst
-        (λ J -> Computable J)
-        (cong₃ (termEq [])
-          (subTmId t)
-          (subTmId u)
-          (subTyId (subTy sigmaTail A)))
-        (substDerivTmEqComp
-          dtu
-          (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)
-          compFitsNil))
-
-  packClosedSubst : {J : JForm} {sigma : Subst}
-    -> FitsSubst [] (ctxOf J) sigma
-    -> Computable (closedSubJ sigma J)
-    -> ClosedSubstComp J sigma
-  packClosedSubst fits comp = closedSubstComp comp (fitsToCompFits fits)
-
-  packClosedEqSubst : {J : JForm} {sigma tau : Subst}
-    -> FitsEqSubst [] (ctxOf J) sigma tau
-    -> Computable (closedEqSubJ sigma tau J)
-    -> ClosedEqSubstComp J sigma tau
-  packClosedEqSubst fitsEq comp = closedEqSubstComp comp (fitsEqToCompFitsEq fitsEq)
-
-  composeCompFits : {gamma delta : Ctx} {sigma sigma' : Subst}
-    -> FitsSubst gamma delta sigma'
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> CompFitsSubst delta (compSub sigma sigma')
-  composeCompFits fits' fits cFits =
-    compFitsEqLeft (composeCompFitsEq fits cFits (reflFitsEq fits'))
-
-  composeCompEqFits : {gamma delta : Ctx} {sigma tau sigma' : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> FitsSubst gamma delta sigma'
-    -> CompFitsEqSubst delta (compSub sigma sigma') (compSub tau sigma')
-  composeCompEqFits fitsEq cFitsEq (fitsNil wf) = compFitsEqNil
-  composeCompEqFits {sigma = sigma} {tau = tau} fitsEq cFitsEq
-    (fitsCons {delta = delta} {sigma = sigma'} {A = A} {t = t} fits' dt) =
-    subst
-      (λ zeta -> CompFitsEqSubst (A ∷ delta) zeta (compSub tau (consSubst t sigma')))
-      (sym (compSubCons sigma t sigma'))
-      (subst
-        (λ zeta ->
-          CompFitsEqSubst (A ∷ delta) (consSubst (subTm sigma t) (compSub sigma sigma')) zeta)
-        (sym (compSubCons tau t sigma'))
-        (compFitsEqCons
-          (composeCompEqFits fitsEq cFitsEq fits')
-          (subst
-            (λ T -> Computable (termEq [] (subTm sigma t) (subTm tau t) T))
-            (subTyComp sigma sigma' A)
-            (eqSubDerivTmComp dt fitsEq cFitsEq))))
-
-  composeCompFitsEq : {gamma delta : Ctx} {sigma sigma' tau' : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> FitsEqSubst gamma delta sigma' tau'
-    -> CompFitsEqSubst delta (compSub sigma sigma') (compSub sigma tau')
-  composeCompFitsEq fits cFits fitsEq' =
-    composeCompEqFitsEq (reflFitsEq fits) (reflCompFitsEq cFits) fitsEq'
-
-  composeCompEqFitsEq : {gamma delta : Ctx} {sigma tau sigma' tau' : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> FitsEqSubst gamma delta sigma' tau'
-    -> CompFitsEqSubst delta (compSub sigma sigma') (compSub tau tau')
-  composeCompEqFitsEq fitsEq cFitsEq (fitsEqNil wf) = compFitsEqNil
-  composeCompEqFitsEq {sigma = sigma} {tau = tau} fitsEq cFitsEq
-    (fitsEqCons {delta = delta} {sigma = sigma'} {tau = tau'} {A = A} {t = t} {u = u} fitsEq' dtu) =
-    subst
-      (λ zeta -> CompFitsEqSubst (A ∷ delta) zeta (compSub tau (consSubst u tau')))
-      (sym (compSubCons sigma t sigma'))
-      (subst
-        (λ zeta ->
-          CompFitsEqSubst (A ∷ delta) (consSubst (subTm sigma t) (compSub sigma sigma')) zeta)
-        (sym (compSubCons tau u tau'))
-        (compFitsEqCons
-          (composeCompEqFitsEq fitsEq cFitsEq fitsEq')
-          (subst
-            (λ T -> Computable (termEq [] (subTm sigma t) (subTm tau u) T))
-            (subTyComp sigma sigma' A)
-            (eqSubDerivTmEqComp dtu fitsEq cFitsEq))))
-
-  singleClosedCompFits : {A : RawType} {tau : Subst}
-    -> FitsSubst [] (A ∷ []) tau
-    -> CompFitsSubst (A ∷ []) tau
-  singleClosedCompFits (fitsCons {sigma = sigmaTail} {A = A} {t = t} (fitsNil wf) dt) =
-    compFitsCons
-      {sigma = sigmaTail}
-      compFitsNil
-      (subst
-        (λ J -> Computable J)
-        (cong₂ (hasTy [])
-          (subTmId t)
-          (subTyId (subTy sigmaTail A)))
-        (substDerivTmComp dt (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil) compFitsNil))
-
-  singleClosedCompFitsEq : {A : RawType} {tau₁ tau₂ : Subst}
-    -> FitsEqSubst [] (A ∷ []) tau₁ tau₂
-    -> CompFitsEqSubst (A ∷ []) tau₁ tau₂
-  singleClosedCompFitsEq (fitsEqCons {sigma = sigmaTail} {A = A} {t = t} {u = u} (fitsEqNil wf) dtu) =
-    compFitsEqCons
-      {sigma = sigmaTail}
-      compFitsEqNil
-      (subst
-        (λ J -> Computable J)
-        (cong₃ (termEq [])
-          (subTmId t)
-          (subTmId u)
-          (subTyId (subTy sigmaTail A)))
-        (substDerivTmEqComp dtu (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil) compFitsNil))
-
-  doubleClosedCompFits : {A B : RawType} {tau : Subst}
-    -> FitsSubst [] (B ∷ A ∷ []) tau
-    -> CompFitsSubst (B ∷ A ∷ []) tau
-  doubleClosedCompFits
-    (fitsCons
-      {sigma = sigmaTail1} {A = B} {t = t1}
-      (fitsCons {sigma = sigmaTail0} {A = A} {t = t0} (fitsNil wf) dt0)
-      dt1) =
-    compFitsCons
-      {sigma = sigmaTail1}
-      (compFitsCons
-        {sigma = sigmaTail0}
-        compFitsNil
-        (subst
-          (λ J -> Computable J)
-          (cong₂ (hasTy [])
-            (subTmId t0)
-            (subTyId (subTy sigmaTail0 A)))
-          (substDerivTmComp dt0 (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil) compFitsNil)))
-      (subst
-        (λ J -> Computable J)
-        (cong₂ (hasTy [])
-          (subTmId t1)
-          (subTyId (subTy sigmaTail1 B)))
-        (substDerivTmComp dt1 (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil) compFitsNil))
-
-  doubleClosedCompFitsEq : {A B : RawType} {tau₁ tau₂ : Subst}
-    -> FitsEqSubst [] (B ∷ A ∷ []) tau₁ tau₂
-    -> CompFitsEqSubst (B ∷ A ∷ []) tau₁ tau₂
-  doubleClosedCompFitsEq
-    (fitsEqCons
-      {sigma = sigmaTail1} {tau = tauTail1} {A = B} {t = t1} {u = u1}
-      (fitsEqCons {sigma = sigmaTail0} {tau = tauTail0} {A = A} {t = t0} {u = u0} (fitsEqNil wf) dtu0)
-      dtu1) =
-    compFitsEqCons
-      {sigma = sigmaTail1} {tau = tauTail1}
-      (compFitsEqCons
-        {sigma = sigmaTail0} {tau = tauTail0}
-        compFitsEqNil
-        (subst
-          (λ J -> Computable J)
-          (cong₃ (termEq [])
-            (subTmId t0)
-            (subTmId u0)
-            (subTyId (subTy sigmaTail0 A)))
-          (substDerivTmEqComp dtu0 (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil) compFitsNil)))
-      (subst
-        (λ J -> Computable J)
-        (cong₃ (termEq [])
-          (subTmId t1)
-          (subTmId u1)
-          (subTyId (subTy sigmaTail1 B)))
-        (substDerivTmEqComp dtu1 (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil) compFitsNil))
-
-  substClosedCompFits : {gamma : Ctx} {sigma rho : Subst}
-    -> CompFitsSubst gamma sigma
-    -> CompFitsSubst gamma (compSub rho sigma)
-  substClosedCompFits {rho = rho} compFitsNil = compFitsNil
-  substClosedCompFits {rho = rho}
-    (compFitsCons {gamma = gamma} {sigma = sigma} {A = A} {t = t} cFits compt) =
-    subst
-      (λ zeta -> CompFitsSubst (A ∷ gamma) zeta)
-      (sym (compSubCons rho t sigma))
-      (compFitsCons
-        (substClosedCompFits {sigma = sigma} {rho = rho} cFits)
-        (subst
-          (λ T -> Computable (hasTy [] (subTm rho t) T))
-          (subTyComp rho sigma A)
-          (compTmEqLeft
-            (eqSubDerivTmComp
-              (compToDerivable compt)
-              (fitsEqNil {gamma = []} {delta = []} {sigma = rho} {tau = idSubst} wfNil)
-              compFitsEqNil))))
-
-  eqSubClosedCompFits : {gamma : Ctx} {sigma rho eta : Subst}
-    -> CompFitsSubst gamma sigma
-    -> CompFitsEqSubst gamma (compSub rho sigma) (compSub eta sigma)
-  eqSubClosedCompFits {rho = rho} {eta = eta} compFitsNil = compFitsEqNil
-  eqSubClosedCompFits {rho = rho} {eta = eta}
-    (compFitsCons {gamma = gamma} {sigma = sigma} {A = A} {t = t} cFits compt) =
-    subst
-      (λ zeta -> CompFitsEqSubst (A ∷ gamma) zeta (compSub eta (consSubst t sigma)))
-      (sym (compSubCons rho t sigma))
-      (subst
-        (λ zeta ->
-          CompFitsEqSubst (A ∷ gamma) (consSubst (subTm rho t) (compSub rho sigma)) zeta)
-        (sym (compSubCons eta t sigma))
-        (compFitsEqCons
-          (eqSubClosedCompFits {sigma = sigma} {rho = rho} {eta = eta} cFits)
-          (subst
-            (λ T -> Computable (termEq [] (subTm rho t) (subTm eta t) T))
-            (subTyComp rho sigma A)
-            (eqSubDerivTmComp
-              (compToDerivable compt)
-              (fitsEqNil {gamma = []} {delta = []} {sigma = rho} {tau = eta} wfNil)
-              compFitsEqNil))))
-
-  reflCompFitsEq : {gamma : Ctx} {sigma : Subst}
-    -> CompFitsSubst gamma sigma
-    -> CompFitsEqSubst gamma sigma sigma
-  reflCompFitsEq {gamma = gamma} {sigma = sigma} cFits =
-    subst
-      (λ rho -> CompFitsEqSubst gamma rho sigma)
-      (compSubIdLeft sigma)
-      (subst
-        (λ rho -> CompFitsEqSubst gamma (compSub idSubst sigma) rho)
-        (compSubIdLeft sigma)
-        (eqSubClosedCompFits {sigma = sigma} {rho = idSubst} {eta = idSubst} cFits))
-
-  composeOneBinderComp : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
-    -> FitsSubst [] (subTy sigma A ∷ []) tau
-    -> CompFitsSubst gamma sigma
-    -> CompFitsSubst (A ∷ gamma) (compSub tau (liftSubst sigma))
-  composeOneBinderComp fits cFits =
-    compFitsEqLeft (composeOneBinderCompEq cFits (reflFitsEq fits))
-
-  composeOneBinderCompEq : {gamma : Ctx} {A : RawType} {sigma tau₁ tau₂ : Subst}
-    -> CompFitsSubst gamma sigma
-    -> FitsEqSubst [] (subTy sigma A ∷ []) tau₁ tau₂
-    -> CompFitsEqSubst (A ∷ gamma)
-         (compSub tau₁ (liftSubst sigma))
-         (compSub tau₂ (liftSubst sigma))
-  composeOneBinderCompEq {gamma = gamma} {A = A} {sigma = sigma} {tau₁ = tau₁} {tau₂ = tau₂} cFits
-    (fitsEqCons {sigma = tauTail₁} {tau = tauTail₂} {t = t} {u = u} (fitsEqNil wf) dtu) =
-    subst
-      (λ rho -> CompFitsEqSubst (A ∷ gamma) rho (compSub tau₂ (liftSubst sigma)))
-      (oneBinderCompSub tau₁ sigma)
-      (subst
-        (λ rho ->
-          CompFitsEqSubst (A ∷ gamma)
-            (consSubst t (compSub tauTail₁ sigma))
-            rho)
-        (oneBinderCompSub tau₂ sigma)
-        (compFitsEqCons
-          (eqSubClosedCompFits
-            {rho = tauTail₁}
-            {eta = tauTail₂}
-            cFits)
-          (subst
-            (λ T -> Computable (termEq [] t u T))
-            (subTyComp tauTail₁ sigma A)
-            (subst
-              (λ J -> Computable J)
-              (cong₃ (termEq [])
-                (subTmId t)
-                (subTmId u)
-                (subTyId (subTy tauTail₁ (subTy sigma A))))
-              (substDerivTmEqComp
-                dtu
-                (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)
-                compFitsNil)))))
-
-  composeTwoBindersComp : {gamma : Ctx} {A B : RawType} {sigma tau : Subst}
-    -> CompFitsSubst gamma sigma
-    -> FitsSubst [] (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) tau
-    -> CompFitsSubst (B ∷ A ∷ gamma) (compSub tau (liftSubst (liftSubst sigma)))
-  composeTwoBindersComp cFits fits =
-    compFitsEqLeft (composeTwoBindersCompEq cFits (reflFitsEq fits))
-
-  composeTwoBindersCompEq : {gamma : Ctx} {A B : RawType} {sigma tau₁ tau₂ : Subst}
-    -> CompFitsSubst gamma sigma
-    -> FitsEqSubst [] (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) tau₁ tau₂
-    -> CompFitsEqSubst (B ∷ A ∷ gamma)
-         (compSub tau₁ (liftSubst (liftSubst sigma)))
-         (compSub tau₂ (liftSubst (liftSubst sigma)))
-  composeTwoBindersCompEq {gamma = gamma} {A = A} {B = B} {sigma = sigma} {tau₁ = tau₁} {tau₂ = tau₂}
-    cFits
-    (fitsEqCons {sigma = tauTail₁} {tau = etaTail₁} {t = t₁} {u = u₁}
-      (fitsEqCons {sigma = tauTail₀} {tau = etaTail₀} {t = t₀} {u = u₀} (fitsEqNil wf) dtu₀)
-      dtu₁) =
-    subst
-      (λ rho ->
-        CompFitsEqSubst (B ∷ A ∷ gamma) rho (compSub tau₂ (liftSubst (liftSubst sigma))))
-      (twoBinderCompSub tau₁ sigma)
-      (subst
-        (λ rho ->
-          CompFitsEqSubst (B ∷ A ∷ gamma)
-            (consSubst t₁ (consSubst t₀ (compSub tauTail₀ sigma)))
-            rho)
-        (twoBinderCompSub tau₂ sigma)
-        (compFitsEqCons
-          (compFitsEqCons
-            (eqSubClosedCompFits
-              {rho = tauTail₀}
-              {eta = etaTail₀}
-              cFits)
-            (subst
-              (λ T -> Computable (termEq [] t₀ u₀ T))
-              (subTyComp tauTail₀ sigma A)
-              (subst
-                (λ J -> Computable J)
-                (cong₃ (termEq [])
-                  (subTmId t₀)
-                  (subTmId u₀)
-                  (subTyId (subTy tauTail₀ (subTy sigma A))))
-                (substDerivTmEqComp
-                  dtu₀
-                  (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)
-                  compFitsNil))))
-          (subst
-            (λ T -> Computable (termEq [] t₁ u₁ T))
-            (subTyComp tauTail₁ (liftSubst sigma) B
-              ∙ cong (λ rho -> subTy rho B) (sym (oneBinderCompSub tauTail₁ sigma)))
-            (subst
-              (λ J -> Computable J)
-              (cong₃ (termEq [])
-                (subTmId t₁)
-                (subTmId u₁)
-                (subTyId (subTy tauTail₁ (subTy (liftSubst sigma) B))))
-              (substDerivTmEqComp
-                dtu₁
-                (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)
-                compFitsNil)))))
-
-  eqSubClosedCompFitsEq : {gamma : Ctx} {sigma tau rho eta : Subst}
-    -> CompFitsEqSubst gamma sigma tau
-    -> CompFitsEqSubst gamma (compSub rho sigma) (compSub eta tau)
-  eqSubClosedCompFitsEq {rho = rho} {eta = eta} compFitsEqNil = compFitsEqNil
-  eqSubClosedCompFitsEq {rho = rho} {eta = eta}
-    (compFitsEqCons {gamma = gamma} {sigma = sigma} {tau = tau} {A = A} {t = t} {u = u} cFitsEq comptu) =
-    subst
-      (λ zeta -> CompFitsEqSubst (A ∷ gamma) zeta (compSub eta (consSubst u tau)))
-      (sym (compSubCons rho t sigma))
-      (subst
-        (λ zeta ->
-          CompFitsEqSubst (A ∷ gamma) (consSubst (subTm rho t) (compSub rho sigma)) zeta)
-        (sym (compSubCons eta u tau))
-        (compFitsEqCons
-          (eqSubClosedCompFitsEq {sigma = sigma} {tau = tau} {rho = rho} {eta = eta} cFitsEq)
-          (subst
-            (λ T -> Computable (termEq [] (subTm rho t) (subTm eta u) T))
-            (subTyComp rho sigma A)
-            (eqSubDerivTmEqComp
-              (compToDerivable comptu)
-              (fitsEqNil {gamma = []} {delta = []} {sigma = rho} {tau = eta} wfNil)
-              compFitsEqNil))))
-
-  composeOneBinderEqComp : {gamma : Ctx} {A : RawType} {sigma tau rho : Subst}
-    -> FitsSubst [] (subTy sigma A ∷ []) rho
-    -> CompFitsEqSubst gamma sigma tau
-    -> CompFitsEqSubst (A ∷ gamma)
-         (compSub rho (liftSubst sigma))
-         (compSub rho (liftSubst tau))
-  composeOneBinderEqComp fits cFitsEq =
-    composeOneBinderEqCompEq cFitsEq (reflFitsEq fits)
-
-  composeOneBinderEqCompEq : {gamma : Ctx} {A : RawType} {sigma tau rho eta : Subst}
-    -> CompFitsEqSubst gamma sigma tau
-    -> FitsEqSubst [] (subTy sigma A ∷ []) rho eta
-    -> CompFitsEqSubst (A ∷ gamma)
-         (compSub rho (liftSubst sigma))
-         (compSub eta (liftSubst tau))
-  composeOneBinderEqCompEq {gamma = gamma} {A = A} {sigma = sigma} {tau = tau} {rho = rho} {eta = eta}
-    cFitsEq
-    (fitsEqCons {sigma = rhoTail} {tau = etaTail} {t = t} {u = u} (fitsEqNil wf) dtu) =
-    subst
-      (λ zeta -> CompFitsEqSubst (A ∷ gamma) zeta (compSub eta (liftSubst tau)))
-      (oneBinderCompSub rho sigma)
-      (subst
-        (λ zeta ->
-          CompFitsEqSubst (A ∷ gamma)
-            (consSubst t (compSub rhoTail sigma))
-            zeta)
-        (oneBinderCompSub eta tau)
-        (compFitsEqCons
-          (eqSubClosedCompFitsEq
-            {sigma = sigma}
-            {tau = tau}
-            {rho = rhoTail}
-            {eta = etaTail}
-            cFitsEq)
-          (subst
-            (λ T -> Computable (termEq [] t u T))
-            (subTyComp rhoTail sigma A)
-            (subst
-              (λ J -> Computable J)
-              (cong₃ (termEq [])
-                (subTmId t)
-                (subTmId u)
-                (subTyId (subTy rhoTail (subTy sigma A))))
-              (substDerivTmEqComp
-                dtu
-                (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)
-                compFitsNil)))))
-
-  composeTwoBindersEqComp : {gamma : Ctx} {A B : RawType} {sigma tau rho : Subst}
-    -> CompFitsEqSubst gamma sigma tau
-    -> FitsSubst [] (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) rho
-    -> CompFitsEqSubst (B ∷ A ∷ gamma)
-         (compSub rho (liftSubst (liftSubst sigma)))
-         (compSub rho (liftSubst (liftSubst tau)))
-  composeTwoBindersEqComp cFitsEq fits =
-    composeTwoBindersEqCompEq cFitsEq (reflFitsEq fits)
-
-  composeTwoBindersEqCompEq : {gamma : Ctx} {A B : RawType} {sigma tau rho eta : Subst}
-    -> CompFitsEqSubst gamma sigma tau
-    -> FitsEqSubst [] (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) rho eta
-    -> CompFitsEqSubst (B ∷ A ∷ gamma)
-         (compSub rho (liftSubst (liftSubst sigma)))
-         (compSub eta (liftSubst (liftSubst tau)))
-  composeTwoBindersEqCompEq
-    {gamma = gamma} {A = A} {B = B} {sigma = sigma} {tau = tau} {rho = rho} {eta = eta}
-    cFitsEq
-    (fitsEqCons {sigma = rhoTail₁} {tau = etaTail₁} {t = t₁} {u = u₁}
-      (fitsEqCons {sigma = rhoTail₀} {tau = etaTail₀} {t = t₀} {u = u₀} (fitsEqNil wf) dtu₀)
-      dtu₁) =
-    subst
-      (λ zeta ->
-        CompFitsEqSubst (B ∷ A ∷ gamma) zeta (compSub eta (liftSubst (liftSubst tau))))
-      (twoBinderCompSub rho sigma)
-      (subst
-        (λ zeta ->
-          CompFitsEqSubst (B ∷ A ∷ gamma)
-            (consSubst t₁ (consSubst t₀ (compSub rhoTail₀ sigma)))
-            zeta)
-        (twoBinderCompSub eta tau)
-        (compFitsEqCons
-          (compFitsEqCons
-            (eqSubClosedCompFitsEq
-              {sigma = sigma}
-              {tau = tau}
-              {rho = rhoTail₀}
-              {eta = etaTail₀}
-              cFitsEq)
-            (subst
-              (λ T -> Computable (termEq [] t₀ u₀ T))
-              (subTyComp rhoTail₀ sigma A)
-              (subst
-                (λ J -> Computable J)
-                (cong₃ (termEq [])
-                  (subTmId t₀)
-                  (subTmId u₀)
-                  (subTyId (subTy rhoTail₀ (subTy sigma A))))
-                (substDerivTmEqComp
-                  dtu₀
-                  (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)
-                  compFitsNil))))
-          (subst
-            (λ T -> Computable (termEq [] t₁ u₁ T))
-            (subTyComp rhoTail₁ (liftSubst sigma) B
-              ∙ cong (λ zeta -> subTy zeta B) (sym (oneBinderCompSub rhoTail₁ sigma)))
-            (subst
-              (λ J -> Computable J)
-              (cong₃ (termEq [])
-                (subTmId t₁)
-                (subTmId u₁)
-                (subTyId (subTy rhoTail₁ (subTy (liftSubst sigma) B))))
-              (substDerivTmEqComp
-                dtu₁
-                (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)
-                compFitsNil)))))
-
-  substOpenTy1 : {gamma : Ctx} {A B : RawType} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Computable (isType (A ∷ gamma) B)
-    -> Computable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-  substOpenTy1 {A = A} {B = B} {sigma = sigma} fits cFits dAσ (compTyOpen neqBody dBody sub subEq) =
-    subst
-      (λ T -> Computable (isType (subTy sigma A ∷ []) T))
-      (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
-      (compTyOpen
-        nonemptyNeNil
-        (substTyRule dBody (liftFitsOne fits dAσ))
-        (λ tau fits2 ->
-          let
-            composedFits = composeOneBinder fits dAσ fits2
-            closed =
-              sub
-                (compSub tau (liftSubst sigma))
-                composedFits
-          in
-          packClosedSubst fits2
-            (subst
-              (λ T -> Computable (isType [] T))
-              (sym
-                (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
-                  ∙ subTyComp tau (liftSubst sigma) B))
-              (ClosedSubstComp.closedComp closed)))
-        (λ tau₁ tau₂ fitsEq2 ->
-          let
-            composedFitsEq = composeOneBinderEq fits dAσ fitsEq2
-            closedEq =
-              subEq
-                (compSub tau₁ (liftSubst sigma))
-                (compSub tau₂ (liftSubst sigma))
-                composedFitsEq
-          in
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂ (typeEq [])
-                  (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₁ (liftSubst sigma) B)
-                  (cong (λ rho -> subTy tau₂ (subTy rho B)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₂ (liftSubst sigma) B)))
-              (ClosedEqSubstComp.closedEqComp closedEq))))
-
-  substOpenTyEq1 : {gamma : Ctx} {A B C : RawType} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Computable (typeEq (A ∷ gamma) B C)
-    -> Computable (typeEq (subTy sigma A ∷ []) (subTy (liftSubst sigma) B) (subTy (liftSubst sigma) C))
-  substOpenTyEq1 {A = A} {B = B} {C = C} {sigma = sigma} fits cFits dAσ (compTyEqOpen neqBody dBody compLeft sub subEq) =
-    subst
-      (λ J -> Computable J)
-      (cong₂ (typeEq (subTy sigma A ∷ []))
-        (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTy rho C) (liftSubstCompKeep sigma)))
-      (compTyEqOpen
-        nonemptyNeNil
-        (substTyEqRule dBody (liftFitsOne fits dAσ))
-        (subst
-          (λ T -> Computable (isType (subTy sigma A ∷ []) T))
-          (sym (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma)))
-          (substOpenTy1 fits cFits dAσ compLeft))
-        (λ tau fits2 ->
-          let
-            composedFits = composeOneBinder fits dAσ fits2
-            closed =
-              sub
-                (compSub tau (liftSubst sigma))
-                composedFits
-          in
-          packClosedSubst fits2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂ (typeEq [])
-                  (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau (liftSubst sigma) B)
-                  (cong (λ rho -> subTy tau (subTy rho C)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau (liftSubst sigma) C)))
-              (ClosedSubstComp.closedComp closed)))
-        (λ tau₁ tau₂ fitsEq2 ->
-          let
-            composedFitsEq = composeOneBinderEq fits dAσ fitsEq2
-            closedEq =
-              subEq
-                (compSub tau₁ (liftSubst sigma))
-                (compSub tau₂ (liftSubst sigma))
-                composedFitsEq
-          in
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂ (typeEq [])
-                  (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₁ (liftSubst sigma) B)
-                  (cong (λ rho -> subTy tau₂ (subTy rho C)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₂ (liftSubst sigma) C)))
-              (ClosedEqSubstComp.closedEqComp closedEq))))
-
-  substOpenTm1 : {gamma : Ctx} {A T : RawType} {t : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Computable (hasTy (A ∷ gamma) t T)
-    -> Computable
-         (hasTy (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTy (liftSubst sigma) T))
-  substOpenTm1 {A = A} {T = T} {t = t} {sigma = sigma} fits cFits dAσ (compTmOpen neqBody dBody compTy sub subEq) =
-    subst
-      (λ J -> Computable J)
-      (cong₂
-        (hasTy (subTy sigma A ∷ []))
-        (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
-      (compTmOpen
-        nonemptyNeNil
-        (substTmRule dBody (liftFitsOne fits dAσ))
-        (subst
-          (λ T' -> Computable (isType (subTy sigma A ∷ []) T'))
-          (sym (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
-          (substOpenTy1 fits cFits dAσ compTy))
-        (λ tau fits2 ->
-          let
-            composedFits = composeOneBinder fits dAσ fits2
-            closed =
-              sub
-                (compSub tau (liftSubst sigma))
-                composedFits
-          in
-          packClosedSubst fits2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂ (hasTy [])
-                  (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau (liftSubst sigma) t)
-                  (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau (liftSubst sigma) T)))
-              (ClosedSubstComp.closedComp closed)))
-        (λ tau₁ tau₂ fitsEq2 ->
-          let
-            composedFitsEq = composeOneBinderEq fits dAσ fitsEq2
-            closedEq =
-              subEq
-                (compSub tau₁ (liftSubst sigma))
-                (compSub tau₂ (liftSubst sigma))
-                composedFitsEq
-          in
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau₁ (liftSubst sigma) t)
-                  (cong (λ rho -> subTm tau₂ (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau₂ (liftSubst sigma) t)
-                  (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₁ (liftSubst sigma) T)))
-              (ClosedEqSubstComp.closedEqComp closedEq))))
-
-  substOpenTmEq1 : {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Computable (termEq (A ∷ gamma) t u T)
-    -> Computable
-         (termEq (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTm (liftSubst sigma) u)
-           (subTy (liftSubst sigma) T))
-  substOpenTmEq1 {A = A} {T = T} {t = t} {u = u} {sigma = sigma} fits cFits dAσ (compTmEqOpen neqBody dBody compTm sub subEq) =
-    subst
-      (λ J -> Computable J)
-      (cong₃
-        (termEq (subTy sigma A ∷ []))
-        (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTm rho u) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
-      (compTmEqOpen
-        nonemptyNeNil
-        (substTmEqRule dBody (liftFitsOne fits dAσ))
-        (subst
-          (λ J -> Computable J)
-          (sym
-            (cong₂
-              (hasTy (subTy sigma A ∷ []))
-              (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-              (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma))))
-          (substOpenTm1 fits cFits dAσ compTm))
-        (λ tau fits2 ->
-          let
-            composedFits = composeOneBinder fits dAσ fits2
-            closed =
-              sub
-                (compSub tau (liftSubst sigma))
-                composedFits
-          in
-          packClosedSubst fits2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau (liftSubst sigma) t)
-                  (cong (λ rho -> subTm tau (subTm rho u)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau (liftSubst sigma) u)
-                  (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau (liftSubst sigma) T)))
-              (ClosedSubstComp.closedComp closed)))
-        (λ tau₁ tau₂ fitsEq2 ->
-          let
-            composedFitsEq = composeOneBinderEq fits dAσ fitsEq2
-            closedEq =
-              subEq
-                (compSub tau₁ (liftSubst sigma))
-                (compSub tau₂ (liftSubst sigma))
-                composedFitsEq
-          in
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau₁ (liftSubst sigma) t)
-                  (cong (λ rho -> subTm tau₂ (subTm rho u)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau₂ (liftSubst sigma) u)
-                  (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₁ (liftSubst sigma) T)))
-              (ClosedEqSubstComp.closedEqComp closedEq))))
-
-  substOpenTy2 : {gamma : Ctx} {A B T : RawType} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> Computable (isType (B ∷ A ∷ gamma) T)
-    -> Computable
-         (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-           (subTy (liftSubst (liftSubst sigma)) T))
-  substOpenTy2 {gamma = gamma} {A = A} {B = B} {T = T} {sigma = sigma} fits cFits dAσ dBσ dT =
-    let
-      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-      lifted1 =
-        subst
-          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-          (liftSubstCompKeep sigma)
-          (liftFitsOne fits dAσ)
-    in
-    case dT of λ where
-      (compTyOpen neqBody dBody sub subEq) ->
-        subst
-          (λ T' -> Computable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
-          (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma)))
-          (compTyOpen
-            nonemptyNeNil
-            (substTyRule dBody (liftFits lifted1 dBσ))
-            (λ tau fits2 ->
-              let
-                composedFits = composeTwoBinders fits dAσ dBσ fits2
-                closed =
-                  sub
-                    (compSub tau (liftSubst (liftSubst sigma)))
-                    composedFits
-              in
-              packClosedSubst fits2
-                (subst
-                  (λ T' -> Computable (isType [] T'))
-                  (sym
-                    (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                      ∙ subTyComp tau (liftSubst (liftSubst sigma)) T))
-                  (ClosedSubstComp.closedComp closed)))
-            (λ tau₁ tau₂ fitsEq2 ->
-              let
-                composedFitsEq = composeTwoBindersEq fits dAσ dBσ fitsEq2
-                closedEq =
-                  subEq
-                    (compSub tau₁ (liftSubst (liftSubst sigma)))
-                    (compSub tau₂ (liftSubst (liftSubst sigma)))
-                    composedFitsEq
-              in
-              packClosedEqSubst fitsEq2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)
-                      (cong (λ rho -> subTy tau₂ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTyComp tau₂ (liftSubst (liftSubst sigma)) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq))))
-
-  substOpenTm2 : {gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> Computable (hasTy (B ∷ A ∷ gamma) t T)
-    -> Computable
-         (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-           (subTm (liftSubst (liftSubst sigma)) t)
-           (subTy (liftSubst (liftSubst sigma)) T))
-  substOpenTm2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {sigma = sigma} fits cFits dAσ dBσ dt =
-    let
-      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-      lifted1 =
-        subst
-          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-          (liftSubstCompKeep sigma)
-          (liftFitsOne fits dAσ)
-    in
-    case dt of λ where
-      (compTmOpen neqBody dBody compTy sub subEq) ->
-        subst
-          (λ J -> Computable J)
-          (cong₂
-            (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
-            (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
-            (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
-          (compTmOpen
-            nonemptyNeNil
-            (substTmRule dBody (liftFits lifted1 dBσ))
-            (subst
-              (λ T' ->
-                Computable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
-              (sym (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
-              (substOpenTy2 fits cFits dAσ dBσ compTy))
-            (λ tau fits2 ->
-              let
-                composedFits = composeTwoBinders fits dAσ dBσ fits2
-                closed =
-                  sub
-                    (compSub tau (liftSubst (liftSubst sigma)))
-                    composedFits
-              in
-              packClosedSubst fits2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (hasTy [])
-                      (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTmComp tau (liftSubst (liftSubst sigma)) t)
-                      (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTyComp tau (liftSubst (liftSubst sigma)) T)))
-                  (ClosedSubstComp.closedComp closed)))
-            (λ tau₁ tau₂ fitsEq2 ->
-              let
-                composedFitsEq = composeTwoBindersEq fits dAσ dBσ fitsEq2
-                closedEq =
-                  subEq
-                    (compSub tau₁ (liftSubst (liftSubst sigma)))
-                    (compSub tau₂ (liftSubst (liftSubst sigma)))
-                    composedFitsEq
-              in
-              packClosedEqSubst fitsEq2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTmComp tau₁ (liftSubst (liftSubst sigma)) t)
-                      (cong (λ rho -> subTm tau₂ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) t)
-                      (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq))))
-
-  substOpenTmEq2 : {gamma : Ctx} {A B T : RawType} {t u : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> Computable (termEq (B ∷ A ∷ gamma) t u T)
-    -> Computable
-         (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-           (subTm (liftSubst (liftSubst sigma)) t)
-           (subTm (liftSubst (liftSubst sigma)) u)
-           (subTy (liftSubst (liftSubst sigma)) T))
-  substOpenTmEq2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {u = u} {sigma = sigma} fits cFits dAσ dBσ dtu =
-    let
-      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-      lifted1 =
-        subst
-          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-          (liftSubstCompKeep sigma)
-          (liftFitsOne fits dAσ)
-    in
-    case dtu of λ where
-      (compTmEqOpen neqBody dBody compTm sub subEq) ->
-        subst
-          (λ J -> Computable J)
-          (cong₃
-            (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
-            (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
-            (cong (λ rho -> subTm rho u) (liftSubstCompKeep (liftSubst sigma)))
-            (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
-          (compTmEqOpen
-            nonemptyNeNil
-            (substTmEqRule dBody (liftFits lifted1 dBσ))
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂
-                  (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
-                  (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
-                  (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma)))))
-              (substOpenTm2 fits cFits dAσ dBσ compTm))
-            (λ tau fits2 ->
-              let
-                composedFits = composeTwoBinders fits dAσ dBσ fits2
-                closed =
-                  sub
-                    (compSub tau (liftSubst (liftSubst sigma)))
-                    composedFits
-              in
-              packClosedSubst fits2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTmComp tau (liftSubst (liftSubst sigma)) t)
-                      (cong (λ rho -> subTm tau (subTm rho u)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTmComp tau (liftSubst (liftSubst sigma)) u)
-                      (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTyComp tau (liftSubst (liftSubst sigma)) T)))
-                  (ClosedSubstComp.closedComp closed)))
-            (λ tau₁ tau₂ fitsEq2 ->
-              let
-                composedFitsEq = composeTwoBindersEq fits dAσ dBσ fitsEq2
-                closedEq =
-                  subEq
-                    (compSub tau₁ (liftSubst (liftSubst sigma)))
-                    (compSub tau₂ (liftSubst (liftSubst sigma)))
-                    composedFitsEq
-              in
-              packClosedEqSubst fitsEq2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTmComp tau₁ (liftSubst (liftSubst sigma)) t)
-                      (cong (λ rho -> subTm tau₂ (subTm rho u)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) u)
-                    (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                        ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq))))
-
-  substSccTy1 : {gamma : Ctx} {A B : RawType} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (A ∷ gamma) B)
-    -> Computable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-  substSccTy1 {A = A} {B = B} {sigma = sigma} fits cFits dAσ dB =
-    subst
-      (λ T -> Computable (isType (subTy sigma A ∷ []) T))
-      (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
-      (compTyOpen
-        nonemptyNeNil
-        (substTyRule dB (liftFitsOne fits dAσ))
-        (λ tau fits2 ->
-          packClosedSubst fits2
-            (subst
-              (λ T -> Computable (isType [] T))
-              (sym
-                (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
-                  ∙ subTyComp tau (liftSubst sigma) B))
-              (substDerivTyComp
-                dB
-                (composeOneBinder fits dAσ fits2)
-                (composeOneBinderComp fits2 cFits))))
-        (λ tau₁ tau₂ fitsEq2 ->
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂ (typeEq [])
-                  (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₁ (liftSubst sigma) B)
-                  (cong (λ rho -> subTy tau₂ (subTy rho B)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₂ (liftSubst sigma) B)))
-              (eqSubDerivTyComp
-                dB
-                (composeOneBinderEq fits dAσ fitsEq2)
-                (composeOneBinderCompEq cFits fitsEq2)))))
-
-  substSccTy2 : {gamma : Ctx} {A B T : RawType} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> Derivable (isType (B ∷ A ∷ gamma) T)
-    -> Computable
-         (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-           (subTy (liftSubst (liftSubst sigma)) T))
-  substSccTy2 {gamma = gamma} {A = A} {B = B} {T = T} {sigma = sigma} fits cFits dAσ dBσ dT =
-    let
-      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-      lifted1 =
-        subst
-          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-          (liftSubstCompKeep sigma)
-          (liftFitsOne fits dAσ)
-    in
-    subst
-      (λ T' -> Computable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
-      (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma)))
-      (compTyOpen
-        nonemptyNeNil
-        (substTyRule dT (liftFits lifted1 dBσ))
-        (λ tau fits2 ->
-          packClosedSubst fits2
-            (subst
-              (λ T' -> Computable (isType [] T'))
-              (sym
-                (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                  ∙ subTyComp tau (liftSubst (liftSubst sigma)) T))
-              (substDerivTyComp
-                dT
-                (composeTwoBinders fits dAσ dBσ fits2)
-                (composeTwoBindersComp cFits fits2))))
-        (λ tau₁ tau₂ fitsEq2 ->
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂ (typeEq [])
-                  (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)
-                  (cong (λ rho -> subTy tau₂ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTyComp tau₂ (liftSubst (liftSubst sigma)) T)))
-              (eqSubDerivTyComp
-                dT
-                (composeTwoBindersEq fits dAσ dBσ fitsEq2)
-                (composeTwoBindersCompEq cFits fitsEq2)))))
-
-  substSccTm1 : {gamma : Ctx} {A T : RawType} {t : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (hasTy (A ∷ gamma) t T)
-    -> Computable
-         (hasTy (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTy (liftSubst sigma) T))
-  substSccTm1 {A = A} {T = T} {t = t} {sigma = sigma} fits cFits dAσ dt =
-    subst
-      (λ J -> Computable J)
-      (cong₂
-        (hasTy (subTy sigma A ∷ []))
-        (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
-      (compTmOpen
-        nonemptyNeNil
-        (substTmRule dt (liftFitsOne fits dAσ))
-        (subst
-          (λ T' -> Computable (isType (subTy sigma A ∷ []) T'))
-          (sym (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
-          (substSccTy1 fits cFits dAσ (assocTy dt)))
-        (λ tau fits2 ->
-          packClosedSubst fits2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂ (hasTy [])
-                  (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau (liftSubst sigma) t)
-                  (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau (liftSubst sigma) T)))
-              (substDerivTmComp
-                dt
-                (composeOneBinder fits dAσ fits2)
-                (composeOneBinderComp fits2 cFits))))
-        (λ tau₁ tau₂ fitsEq2 ->
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau₁ (liftSubst sigma) t)
-                  (cong (λ rho -> subTm tau₂ (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau₂ (liftSubst sigma) t)
-                  (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₁ (liftSubst sigma) T)))
-              (eqSubDerivTmComp
-                dt
-                (composeOneBinderEq fits dAσ fitsEq2)
-                (composeOneBinderCompEq cFits fitsEq2)))))
-
-  substSccTmEq1 : {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (termEq (A ∷ gamma) t u T)
-    -> Computable
-         (termEq (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTm (liftSubst sigma) u)
-           (subTy (liftSubst sigma) T))
-  substSccTmEq1 {A = A} {T = T} {t = t} {u = u} {sigma = sigma} fits cFits dAσ dtu =
-    subst
-      (λ J -> Computable J)
-      (cong₃
-        (termEq (subTy sigma A ∷ []))
-        (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTm rho u) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
-      (compTmEqOpen
-        nonemptyNeNil
-        (substTmEqRule dtu (liftFitsOne fits dAσ))
-        (subst
-          (λ J -> Computable J)
-          (sym
-            (cong₂
-              (hasTy (subTy sigma A ∷ []))
-              (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-              (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma))))
-          (substSccTm1 fits cFits dAσ (assocTmLeft dtu)))
-        (λ tau fits2 ->
-          packClosedSubst fits2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau (liftSubst sigma) t)
-                  (cong (λ rho -> subTm tau (subTm rho u)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau (liftSubst sigma) u)
-                  (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau (liftSubst sigma) T)))
-              (substDerivTmEqComp
-                dtu
-                (composeOneBinder fits dAσ fits2)
-                (composeOneBinderComp fits2 cFits))))
-        (λ tau₁ tau₂ fitsEq2 ->
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau₁ (liftSubst sigma) t)
-                  (cong (λ rho -> subTm tau₂ (subTm rho u)) (liftSubstCompKeep sigma)
-                    ∙ subTmComp tau₂ (liftSubst sigma) u)
-                  (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp tau₁ (liftSubst sigma) T)))
-              (eqSubDerivTmEqComp
-                dtu
-                (composeOneBinderEq fits dAσ fitsEq2)
-                (composeOneBinderCompEq cFits fitsEq2)))))
-
-  substSccTm2 : {gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> Derivable (hasTy (B ∷ A ∷ gamma) t T)
-    -> Computable
-         (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-           (subTm (liftSubst (liftSubst sigma)) t)
-           (subTy (liftSubst (liftSubst sigma)) T))
-  substSccTm2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {sigma = sigma} fits cFits dAσ dBσ dt =
-    let
-      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-      lifted1 =
-        subst
-          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-          (liftSubstCompKeep sigma)
-          (liftFitsOne fits dAσ)
-    in
-    subst
-      (λ J -> Computable J)
-      (cong₂
-        (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
-        (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
-        (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
-      (compTmOpen
-        nonemptyNeNil
-        (substTmRule dt (liftFits lifted1 dBσ))
-        (subst
-          (λ T' ->
-            Computable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
-          (sym (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
-          (substSccTy2 fits cFits dAσ dBσ (assocTy dt)))
-        (λ tau fits2 ->
-          packClosedSubst fits2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₂ (hasTy [])
-                  (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTmComp tau (liftSubst (liftSubst sigma)) t)
-                  (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTyComp tau (liftSubst (liftSubst sigma)) T)))
-              (substDerivTmComp
-                dt
-                (composeTwoBinders fits dAσ dBσ fits2)
-                (composeTwoBindersComp cFits fits2))))
-        (λ tau₁ tau₂ fitsEq2 ->
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTmComp tau₁ (liftSubst (liftSubst sigma)) t)
-                  (cong (λ rho -> subTm tau₂ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) t)
-                  (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)))
-              (eqSubDerivTmComp
-                dt
-                (composeTwoBindersEq fits dAσ dBσ fitsEq2)
-                (composeTwoBindersCompEq cFits fitsEq2)))))
-
-  substSccTmEq2 : {gamma : Ctx} {A B T : RawType} {t u : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> Derivable (termEq (B ∷ A ∷ gamma) t u T)
-    -> Computable
-         (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-           (subTm (liftSubst (liftSubst sigma)) t)
-           (subTm (liftSubst (liftSubst sigma)) u)
-           (subTy (liftSubst (liftSubst sigma)) T))
-  substSccTmEq2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {u = u} {sigma = sigma}
-    fits cFits dAσ dBσ dtu =
-    let
-      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-      lifted1 =
-        subst
-          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-          (liftSubstCompKeep sigma)
-          (liftFitsOne fits dAσ)
-    in
-    subst
-      (λ J -> Computable J)
-      (cong₃
-        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
-        (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
-        (cong (λ rho -> subTm rho u) (liftSubstCompKeep (liftSubst sigma)))
-        (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
-      (compTmEqOpen
-        nonemptyNeNil
-        (substTmEqRule dtu (liftFits lifted1 dBσ))
-        (subst
-          (λ J -> Computable J)
-          (sym
-            (cong₂
-              (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
-              (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
-              (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma)))))
-          (substSccTm2 fits cFits dAσ dBσ (assocTmLeft dtu)))
-        (λ tau fits2 ->
-          packClosedSubst fits2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTmComp tau (liftSubst (liftSubst sigma)) t)
-                  (cong (λ rho -> subTm tau (subTm rho u)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTmComp tau (liftSubst (liftSubst sigma)) u)
-                  (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTyComp tau (liftSubst (liftSubst sigma)) T)))
-              (substDerivTmEqComp
-                dtu
-                (composeTwoBinders fits dAσ dBσ fits2)
-                (composeTwoBindersComp cFits fits2))))
-        (λ tau₁ tau₂ fitsEq2 ->
-          packClosedEqSubst fitsEq2
-            (subst
-              (λ J -> Computable J)
-              (sym
-                (cong₃ (termEq [])
-                  (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTmComp tau₁ (liftSubst (liftSubst sigma)) t)
-                  (cong (λ rho -> subTm tau₂ (subTm rho u)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) u)
-                  (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
-                    ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)))
-              (eqSubDerivTmEqComp
-                dtu
-                (composeTwoBindersEq fits dAσ dBσ fitsEq2)
-                (composeTwoBindersCompEq cFits fitsEq2)))))
-
-  eqSubOpenTy1 : {gamma : Ctx} {A B : RawType} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Derivable (isType [] (subTy sigma A))
-    -> Computable (isType (A ∷ gamma) B)
-    -> Computable (typeEq (subTy sigma A ∷ []) (subTy (liftSubst sigma) B) (subTy (liftSubst tau) B))
-  eqSubOpenTy1 {gamma = gamma} {A = A} {B = B} {sigma = sigma} {tau = tau} fitsEq cFitsEq dAσ dB =
-    let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      liftedEq :
-        FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-          (liftSubst sigma)
-          (liftSubst tau)
-      liftedEq =
-        subst
-          (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
-          (liftSubstCompKeep sigma)
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-                rho)
-            (liftSubstCompKeep tau)
-            (liftFitsEqOne fitsEq dAσ))
-    in
-    case dB of λ where
-      (compTyOpen neqBody dBody sub subEq) ->
-        compTyEqOpen
-          nonemptyNeNil
-          (eqSubTyRule dBody liftedEq)
-          (substOpenTy1 sigmaFits sigmaCFits dAσ dB)
-          (λ rho fits2 ->
-            let
-              composedFitsEq = composeFitsEq fits2 liftedEq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst sigma))
-                  (compSub rho (liftSubst tau))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (subTyComp rho (liftSubst sigma) B)
-                      (subTyComp rho (liftSubst tau) B)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedSubst fits2 body)
-          (λ rho eta fitsEq2 ->
-            let
-              composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst sigma))
-                  (compSub eta (liftSubst tau))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (subTyComp rho (liftSubst sigma) B)
-                      (subTyComp eta (liftSubst tau) B)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedEqSubst fitsEq2 body)
-
-  eqSubOpenTyEq1 : {gamma : Ctx} {A B C : RawType} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Derivable (isType [] (subTy sigma A))
-    -> Computable (typeEq (A ∷ gamma) B C)
-    -> Computable (typeEq (subTy sigma A ∷ []) (subTy (liftSubst sigma) B) (subTy (liftSubst tau) C))
-  eqSubOpenTyEq1 {gamma = gamma} {A = A} {B = B} {C = C} {sigma = sigma} {tau = tau} fitsEq cFitsEq dAσ dBC =
-    let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      liftedEq :
-        FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-          (liftSubst sigma)
-          (liftSubst tau)
-      liftedEq =
-        subst
-          (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
-          (liftSubstCompKeep sigma)
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-                rho)
-            (liftSubstCompKeep tau)
-            (liftFitsEqOne fitsEq dAσ))
-    in
-    case dBC of λ where
-      (compTyEqOpen neqBody dBody compLeft sub subEq) ->
-        compTyEqOpen
-          nonemptyNeNil
-          (eqSubTyEqRule dBody liftedEq)
-          (substOpenTy1 sigmaFits sigmaCFits dAσ compLeft)
-          (λ rho fits2 ->
-            let
-              composedFitsEq = composeFitsEq fits2 liftedEq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst sigma))
-                  (compSub rho (liftSubst tau))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (subTyComp rho (liftSubst sigma) B)
-                      (subTyComp rho (liftSubst tau) C)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedSubst fits2 body)
-          (λ rho eta fitsEq2 ->
-            let
-              composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst sigma))
-                  (compSub eta (liftSubst tau))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (subTyComp rho (liftSubst sigma) B)
-                      (subTyComp eta (liftSubst tau) C)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedEqSubst fitsEq2 body)
-
-  eqSubOpenTm1 : {gamma : Ctx} {A T : RawType} {t : RawTerm} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Derivable (isType [] (subTy sigma A))
-    -> Computable (hasTy (A ∷ gamma) t T)
-    -> Computable
-         (termEq (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTm (liftSubst tau) t)
-           (subTy (liftSubst sigma) T))
-  eqSubOpenTm1 {gamma = gamma} {A = A} {T = T} {t = t} {sigma = sigma} {tau = tau}
-    fitsEq cFitsEq dAσ dt =
-    let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      liftedEq :
-        FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-          (liftSubst sigma)
-          (liftSubst tau)
-      liftedEq =
-        subst
-          (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
-          (liftSubstCompKeep sigma)
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-                rho)
-            (liftSubstCompKeep tau)
-            (liftFitsEqOne fitsEq dAσ))
-    in
-    case dt of λ where
-      (compTmOpen neqBody dBody compTy sub subEq) ->
-        compTmEqOpen
-          nonemptyNeNil
-          (eqSubTmRule dBody liftedEq)
-          (substOpenTm1 sigmaFits sigmaCFits dAσ dt)
-          (λ rho fits2 ->
-            let
-              composedFitsEq = composeFitsEq fits2 liftedEq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst sigma))
-                  (compSub rho (liftSubst tau))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (subTmComp rho (liftSubst sigma) t)
-                      (subTmComp rho (liftSubst tau) t)
-                      (subTyComp rho (liftSubst sigma) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedSubst fits2 body)
-          (λ rho eta fitsEq2 ->
-            let
-              composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst sigma))
-                  (compSub eta (liftSubst tau))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (subTmComp rho (liftSubst sigma) t)
-                      (subTmComp eta (liftSubst tau) t)
-                      (subTyComp rho (liftSubst sigma) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedEqSubst fitsEq2 body)
-
-  eqSubOpenTmEq1 : {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Derivable (isType [] (subTy sigma A))
-    -> Computable (termEq (A ∷ gamma) t u T)
-    -> Computable
-         (termEq (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTm (liftSubst tau) u)
-           (subTy (liftSubst sigma) T))
-  eqSubOpenTmEq1 {gamma = gamma} {A = A} {T = T} {t = t} {u = u} {sigma = sigma} {tau = tau}
-    fitsEq cFitsEq dAσ dtu =
-    let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      liftedEq :
-        FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-          (liftSubst sigma)
-          (liftSubst tau)
-      liftedEq =
-        subst
-          (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
-          (liftSubstCompKeep sigma)
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-                rho)
-            (liftSubstCompKeep tau)
-            (liftFitsEqOne fitsEq dAσ))
-    in
-    case dtu of λ where
-      (compTmEqOpen neqBody dBody compTm sub subEq) ->
-        compTmEqOpen
-          nonemptyNeNil
-          (eqSubTmEqRule dBody liftedEq)
-          (substOpenTm1 sigmaFits sigmaCFits dAσ compTm)
-          (λ rho fits2 ->
-            let
-              composedFitsEq = composeFitsEq fits2 liftedEq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst sigma))
-                  (compSub rho (liftSubst tau))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (subTmComp rho (liftSubst sigma) t)
-                      (subTmComp rho (liftSubst tau) u)
-                      (subTyComp rho (liftSubst sigma) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedSubst fits2 body)
-          (λ rho eta fitsEq2 ->
-            let
-              composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst sigma))
-                  (compSub eta (liftSubst tau))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (subTmComp rho (liftSubst sigma) t)
-                      (subTmComp eta (liftSubst tau) u)
-                      (subTyComp rho (liftSubst sigma) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedEqSubst fitsEq2 body)
-
-  eqSubOpenTm2 : {gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> Computable (hasTy (B ∷ A ∷ gamma) t T)
-    -> Computable
-         (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-           (subTm (liftSubst (liftSubst sigma)) t)
-           (subTm (liftSubst (liftSubst tau)) t)
-           (subTy (liftSubst (liftSubst sigma)) T))
-  eqSubOpenTm2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {sigma = sigma} {tau = tau}
-    fitsEq cFitsEq dAσ dBσ dt =
-    let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      lifted1Eq :
-        FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-          (liftSubst sigma)
-          (liftSubst tau)
-      lifted1Eq =
-        subst
-          (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
-          (liftSubstCompKeep sigma)
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-                rho)
-            (liftSubstCompKeep tau)
-            (liftFitsEqOne fitsEq dAσ))
-      lifted2Eq :
-        FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
-          (liftSubst (liftSubst sigma))
-          (liftSubst (liftSubst tau))
-      lifted2Eq =
-        subst
-          (λ rho ->
-            FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
-              rho
-              (liftSubst (liftSubst tau)))
-          (liftSubstCompKeep (liftSubst sigma))
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
-                rho)
-            (liftSubstCompKeep (liftSubst tau))
-            (liftFitsEq lifted1Eq dBσ))
-    in
-    case dt of λ where
-      (compTmOpen neqBody dBody compTy sub subEq) ->
-        compTmEqOpen
-          nonemptyNeNil
-          (eqSubTmRule dBody lifted2Eq)
-          (substOpenTm2 sigmaFits sigmaCFits dAσ dBσ dt)
-          (λ rho fits2 ->
-            let
-              composedFitsEq = composeFitsEq fits2 lifted2Eq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst (liftSubst sigma)))
-                  (compSub rho (liftSubst (liftSubst tau)))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (subTmComp rho (liftSubst (liftSubst sigma)) t)
-                      (subTmComp rho (liftSubst (liftSubst tau)) t)
-                      (subTyComp rho (liftSubst (liftSubst sigma)) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedSubst fits2 body)
-          (λ rho eta fitsEq2 ->
-            let
-              composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst (liftSubst sigma)))
-                  (compSub eta (liftSubst (liftSubst tau)))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (subTmComp rho (liftSubst (liftSubst sigma)) t)
-                      (subTmComp eta (liftSubst (liftSubst tau)) t)
-                      (subTyComp rho (liftSubst (liftSubst sigma)) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedEqSubst fitsEq2 body)
-
-  eqSubOpenTmEq2 : {gamma : Ctx} {A B T : RawType} {t u : RawTerm} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> Computable (termEq (B ∷ A ∷ gamma) t u T)
-    -> Computable
-         (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-           (subTm (liftSubst (liftSubst sigma)) t)
-           (subTm (liftSubst (liftSubst tau)) u)
-           (subTy (liftSubst (liftSubst sigma)) T))
-  eqSubOpenTmEq2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {u = u} {sigma = sigma} {tau = tau}
-    fitsEq cFitsEq dAσ dBσ dtu =
-    let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      lifted1Eq :
-        FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-          (liftSubst sigma)
-          (liftSubst tau)
-      lifted1Eq =
-        subst
-          (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
-          (liftSubstCompKeep sigma)
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-                rho)
-            (liftSubstCompKeep tau)
-            (liftFitsEqOne fitsEq dAσ))
-      lifted2Eq :
-        FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
-          (liftSubst (liftSubst sigma))
-          (liftSubst (liftSubst tau))
-      lifted2Eq =
-        subst
-          (λ rho ->
-            FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
-              rho
-              (liftSubst (liftSubst tau)))
-          (liftSubstCompKeep (liftSubst sigma))
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
-                rho)
-            (liftSubstCompKeep (liftSubst tau))
-            (liftFitsEq lifted1Eq dBσ))
-    in
-    case dtu of λ where
-      (compTmEqOpen neqBody dBody compTm sub subEq) ->
-        compTmEqOpen
-          nonemptyNeNil
-          (eqSubTmEqRule dBody lifted2Eq)
-          (substOpenTm2 sigmaFits sigmaCFits dAσ dBσ compTm)
-          (λ rho fits2 ->
-            let
-              composedFitsEq = composeFitsEq fits2 lifted2Eq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst (liftSubst sigma)))
-                  (compSub rho (liftSubst (liftSubst tau)))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (subTmComp rho (liftSubst (liftSubst sigma)) t)
-                      (subTmComp rho (liftSubst (liftSubst tau)) u)
-                      (subTyComp rho (liftSubst (liftSubst sigma)) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedSubst fits2 body)
-          (λ rho eta fitsEq2 ->
-            let
-              composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
-              closedEq =
-                subEq
-                  (compSub rho (liftSubst (liftSubst sigma)))
-                  (compSub eta (liftSubst (liftSubst tau)))
-                  composedFitsEq
-              body =
-                subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₃ (termEq [])
-                      (subTmComp rho (liftSubst (liftSubst sigma)) t)
-                      (subTmComp eta (liftSubst (liftSubst tau)) u)
-                      (subTyComp rho (liftSubst (liftSubst sigma)) T)))
-                  (ClosedEqSubstComp.closedEqComp closedEq)
-            in
-            packClosedEqSubst fitsEq2 body)
-
-  eqSubSccTy1 : {gamma : Ctx} {A B : RawType} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Derivable (isType [] (subTy sigma A))
-    -> Derivable (isType (A ∷ gamma) B)
-    -> Computable (typeEq (subTy sigma A ∷ []) (subTy (liftSubst sigma) B) (subTy (liftSubst tau) B))
-  eqSubSccTy1 {gamma = gamma} {A = A} {B = B} {sigma = sigma} {tau = tau} fitsEq cFitsEq dAσ dB =
-    let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      liftedEq :
-        FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-          (liftSubst sigma)
-          (liftSubst tau)
-      liftedEq =
-        subst
-          (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
-          (liftSubstCompKeep sigma)
-          (subst
-            (λ rho ->
-              FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
-                (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-                rho)
-            (liftSubstCompKeep tau)
-            (liftFitsEqOne fitsEq dAσ))
-    in
-    compTyEqOpen
-      nonemptyNeNil
-      (eqSubTyRule dB liftedEq)
-      (substSccTy1 sigmaFits sigmaCFits dAσ dB)
-      (λ rho fits2 ->
-        let
-          composedFitsEq = composeFitsEq fits2 liftedEq
-        in
-        packClosedSubst fits2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₂ (typeEq [])
-                (subTyComp rho (liftSubst sigma) B)
-                (subTyComp rho (liftSubst tau) B)))
-            (eqSubDerivTyComp
-              dB
-              composedFitsEq
-              (composeOneBinderEqComp fits2 cFitsEq))))
-      (λ rho eta fitsEq2 ->
-        let
-          composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
-        in
-        packClosedEqSubst fitsEq2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₂ (typeEq [])
-                (subTyComp rho (liftSubst sigma) B)
-                (subTyComp eta (liftSubst tau) B)))
-            (eqSubDerivTyComp
-              dB
-              composedFitsEq
-              (composeOneBinderEqCompEq cFitsEq fitsEq2))))
-
-  eqSubSccTyEq1 : {gamma : Ctx} {A B C : RawType} {sigma tau : Subst}
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Derivable (isType [] (subTy sigma A))
     -> Derivable (typeEq (A ∷ gamma) B C)
-    -> Computable (typeEq (subTy sigma A ∷ []) (subTy (liftSubst sigma) B) (subTy (liftSubst tau) C))
-  eqSubSccTyEq1 {gamma = gamma} {A = A} {B = B} {C = C} {sigma = sigma} {tau = tau} fitsEq cFitsEq dAσ dBC =
+    -> HypComputable
+         (typeEq (subTy sigma A ∷ [])
+           (subTy (liftSubst sigma) B)
+           (subTy (liftSubst sigma) C))
+  substSccTyEq1 {A = A} {B = B} {C = C} {sigma = sigma}
+    sccTy1Cl subTyEqCl eqSubTyEqCl fits dAσ dBC =
+    subst
+      (λ J -> HypComputable J)
+      (cong₂
+        (typeEq (subTy sigma A ∷ []))
+        (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
+        (cong (λ rho -> subTy rho C) (liftSubstCompKeep sigma)))
+      (hypTyEqOpen
+        nonemptyNeNil
+        (substTyEqRule dBC (liftFitsOne fits dAσ))
+        (subst
+          (λ T -> HypComputable (isType (subTy sigma A ∷ []) T))
+          (sym (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma)))
+          (sccTy1Cl fits dAσ (assocTyLeft dBC)))
+        (λ tau fits2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₂ (typeEq [])
+                (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau (liftSubst sigma) B)
+                (cong (λ rho -> subTy tau (subTy rho C)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau (liftSubst sigma) C)))
+            (subTyEqCl
+              dBC
+              (composeOneBinder fits dAσ fits2)))
+        (λ tau₁ tau₂ fitsEq2 _ ->
+          subst
+            (λ J -> Computable J)
+            (sym
+              (cong₂ (typeEq [])
+                (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau₁ (liftSubst sigma) B)
+                (cong (λ rho -> subTy tau₂ (subTy rho C)) (liftSubstCompKeep sigma)
+                  ∙ subTyComp tau₂ (liftSubst sigma) C)))
+            (eqSubTyEqCl
+              dBC
+              (composeOneBinderEq fits dAσ fitsEq2))))
+
+  eqSubSccTy1 : {gamma : Ctx} {A B : RawType} {sigma tau : Subst}
+    -> ({gamma : Ctx} {A B : RawType} {sigma : Subst}
+         -> FitsSubst [] gamma sigma
+         -> Derivable (isType [] (subTy sigma A))
+         -> Derivable (isType (A ∷ gamma) B)
+         -> HypComputable
+              (isType (subTy sigma A ∷ [])
+                (subTy (liftSubst sigma) B)))
+    -> ({gamma : Ctx} {A : RawType} {sigma tau : Subst}
+         -> Derivable (isType gamma A)
+         -> FitsEqSubst [] gamma sigma tau
+         -> Computable (typeEq [] (subTy sigma A) (subTy tau A)))
+    -> FitsEqSubst [] gamma sigma tau
+    -> Derivable (isType [] (subTy sigma A))
+    -> Derivable (isType (A ∷ gamma) B)
+    -> HypComputable (typeEq (subTy sigma A ∷ []) (subTy (liftSubst sigma) B) (subTy (liftSubst tau) B))
+  eqSubSccTy1 {gamma = gamma} {A = A} {B = B} {sigma = sigma} {tau = tau}
+    sccTy1Cl eqSubTyCl fitsEq dAσ dB =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
       liftedEq :
         FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
           (liftSubst sigma)
@@ -3690,56 +2450,129 @@ mutual
             (liftSubstCompKeep tau)
             (liftFitsEqOne fitsEq dAσ))
     in
-    compTyEqOpen
+    hypTyEqOpen
       nonemptyNeNil
-      (eqSubTyEqRule dBC liftedEq)
-      (substSccTy1 sigmaFits sigmaCFits dAσ (assocTyLeft dBC))
-      (λ rho fits2 ->
+      (eqSubTyRule dB liftedEq)
+      (sccTy1Cl sigmaFits dAσ dB)
+      (λ rho fits2 _ ->
         let
           composedFitsEq = composeFitsEq fits2 liftedEq
         in
-        packClosedSubst fits2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₂ (typeEq [])
-                (subTyComp rho (liftSubst sigma) B)
-                (subTyComp rho (liftSubst tau) C)))
-            (eqSubDerivTyEqComp
-              dBC
-              composedFitsEq
-              (composeOneBinderEqComp fits2 cFitsEq))))
-      (λ rho eta fitsEq2 ->
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₂ (typeEq [])
+              (subTyComp rho (liftSubst sigma) B)
+              (subTyComp rho (liftSubst tau) B)))
+          (eqSubTyCl
+            dB
+            composedFitsEq))
+      (λ rho eta fitsEq2 _ ->
         let
           composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
         in
-        packClosedEqSubst fitsEq2
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₂ (typeEq [])
+              (subTyComp rho (liftSubst sigma) B)
+              (subTyComp eta (liftSubst tau) B)))
+          (eqSubTyCl
+            dB
+            composedFitsEq))
+
+  eqSubSccTyEq1 : {gamma : Ctx} {A B C : RawType} {sigma tau : Subst}
+    -> ({gamma : Ctx} {A B : RawType} {sigma : Subst}
+         -> FitsSubst [] gamma sigma
+         -> Derivable (isType [] (subTy sigma A))
+         -> Derivable (isType (A ∷ gamma) B)
+         -> HypComputable
+              (isType (subTy sigma A ∷ [])
+                (subTy (liftSubst sigma) B)))
+    -> ({gamma : Ctx} {A B : RawType} {sigma tau : Subst}
+         -> Derivable (typeEq gamma A B)
+         -> FitsEqSubst [] gamma sigma tau
+         -> Computable (typeEq [] (subTy sigma A) (subTy tau B)))
+    -> FitsEqSubst [] gamma sigma tau
+    -> Derivable (isType [] (subTy sigma A))
+    -> Derivable (typeEq (A ∷ gamma) B C)
+    -> HypComputable (typeEq (subTy sigma A ∷ []) (subTy (liftSubst sigma) B) (subTy (liftSubst tau) C))
+  eqSubSccTyEq1 {gamma = gamma} {A = A} {B = B} {C = C} {sigma = sigma} {tau = tau}
+    sccTy1Cl eqSubTyEqCl fitsEq dAσ dBC =
+    let
+      sigmaFits = fitsEqSubstLeft fitsEq
+      liftedEq :
+        FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+          (liftSubst sigma)
+          (liftSubst tau)
+      liftedEq =
+        subst
+          (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+          (liftSubstCompKeep sigma)
           (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₂ (typeEq [])
-                (subTyComp rho (liftSubst sigma) B)
-                (subTyComp eta (liftSubst tau) C)))
-            (eqSubDerivTyEqComp
-              dBC
-              composedFitsEq
-              (composeOneBinderEqCompEq cFitsEq fitsEq2))))
+            (λ rho ->
+              FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                rho)
+            (liftSubstCompKeep tau)
+            (liftFitsEqOne fitsEq dAσ))
+    in
+    hypTyEqOpen
+      nonemptyNeNil
+      (eqSubTyEqRule dBC liftedEq)
+      (sccTy1Cl sigmaFits dAσ (assocTyLeft dBC))
+      (λ rho fits2 _ ->
+        let
+          composedFitsEq = composeFitsEq fits2 liftedEq
+        in
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₂ (typeEq [])
+              (subTyComp rho (liftSubst sigma) B)
+              (subTyComp rho (liftSubst tau) C)))
+          (eqSubTyEqCl
+            dBC
+            composedFitsEq))
+      (λ rho eta fitsEq2 _ ->
+        let
+          composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
+        in
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₂ (typeEq [])
+              (subTyComp rho (liftSubst sigma) B)
+              (subTyComp eta (liftSubst tau) C)))
+          (eqSubTyEqCl
+            dBC
+            composedFitsEq))
 
   eqSubSccTm1 : {gamma : Ctx} {A T : RawType} {t : RawTerm} {sigma tau : Subst}
+    -> ({gamma : Ctx} {A T : RawType} {t : RawTerm} {sigma : Subst}
+         -> FitsSubst [] gamma sigma
+         -> Derivable (isType [] (subTy sigma A))
+         -> Derivable (hasTy (A ∷ gamma) t T)
+         -> HypComputable
+              (hasTy (subTy sigma A ∷ [])
+                (subTm (liftSubst sigma) t)
+                (subTy (liftSubst sigma) T)))
+    -> ({gamma : Ctx} {t : RawTerm} {A : RawType} {sigma tau : Subst}
+         -> Derivable (hasTy gamma t A)
+         -> FitsEqSubst [] gamma sigma tau
+         -> Computable (termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A)))
     -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Derivable (isType [] (subTy sigma A))
     -> Derivable (hasTy (A ∷ gamma) t T)
-    -> Computable
+    -> HypComputable
          (termEq (subTy sigma A ∷ [])
            (subTm (liftSubst sigma) t)
            (subTm (liftSubst tau) t)
            (subTy (liftSubst sigma) T))
   eqSubSccTm1 {gamma = gamma} {A = A} {T = T} {t = t} {sigma = sigma} {tau = tau}
-    fitsEq cFitsEq dAσ dt =
+    sccTm1Cl eqSubTmCl fitsEq dAσ dt =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
       liftedEq :
         FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
           (liftSubst sigma)
@@ -3756,58 +2589,64 @@ mutual
             (liftSubstCompKeep tau)
             (liftFitsEqOne fitsEq dAσ))
     in
-    compTmEqOpen
+    hypTmEqOpen
       nonemptyNeNil
       (eqSubTmRule dt liftedEq)
-      (substSccTm1 sigmaFits sigmaCFits dAσ dt)
-      (λ rho fits2 ->
+      (sccTm1Cl sigmaFits dAσ dt)
+      (λ rho fits2 _ ->
         let
           composedFitsEq = composeFitsEq fits2 liftedEq
         in
-        packClosedSubst fits2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₃ (termEq [])
-                (subTmComp rho (liftSubst sigma) t)
-                (subTmComp rho (liftSubst tau) t)
-                (subTyComp rho (liftSubst sigma) T)))
-            (eqSubDerivTmComp
-              dt
-              composedFitsEq
-              (composeOneBinderEqComp fits2 cFitsEq))))
-      (λ rho eta fitsEq2 ->
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₃ (termEq [])
+              (subTmComp rho (liftSubst sigma) t)
+              (subTmComp rho (liftSubst tau) t)
+              (subTyComp rho (liftSubst sigma) T)))
+          (eqSubTmCl
+            dt
+            composedFitsEq))
+      (λ rho eta fitsEq2 _ ->
         let
           composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
         in
-        packClosedEqSubst fitsEq2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₃ (termEq [])
-                (subTmComp rho (liftSubst sigma) t)
-                (subTmComp eta (liftSubst tau) t)
-                (subTyComp rho (liftSubst sigma) T)))
-            (eqSubDerivTmComp
-              dt
-              composedFitsEq
-              (composeOneBinderEqCompEq cFitsEq fitsEq2))))
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₃ (termEq [])
+              (subTmComp rho (liftSubst sigma) t)
+              (subTmComp eta (liftSubst tau) t)
+              (subTyComp rho (liftSubst sigma) T)))
+          (eqSubTmCl
+            dt
+            composedFitsEq))
 
   eqSubSccTmEq1 : {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma tau : Subst}
+    -> ({gamma : Ctx} {A T : RawType} {t : RawTerm} {sigma : Subst}
+         -> FitsSubst [] gamma sigma
+         -> Derivable (isType [] (subTy sigma A))
+         -> Derivable (hasTy (A ∷ gamma) t T)
+         -> HypComputable
+              (hasTy (subTy sigma A ∷ [])
+                (subTm (liftSubst sigma) t)
+                (subTy (liftSubst sigma) T)))
+    -> ({gamma : Ctx} {t u : RawTerm} {A : RawType} {sigma tau : Subst}
+         -> Derivable (termEq gamma t u A)
+         -> FitsEqSubst [] gamma sigma tau
+         -> Computable (termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A)))
     -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Derivable (isType [] (subTy sigma A))
     -> Derivable (termEq (A ∷ gamma) t u T)
-    -> Computable
+    -> HypComputable
          (termEq (subTy sigma A ∷ [])
            (subTm (liftSubst sigma) t)
            (subTm (liftSubst tau) u)
            (subTy (liftSubst sigma) T))
   eqSubSccTmEq1 {gamma = gamma} {A = A} {T = T} {t = t} {u = u} {sigma = sigma} {tau = tau}
-    fitsEq cFitsEq dAσ dtu =
+    sccTm1Cl eqSubTmEqCl fitsEq dAσ dtu =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
       liftedEq :
         FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
           (liftSubst sigma)
@@ -3824,59 +2663,66 @@ mutual
             (liftSubstCompKeep tau)
             (liftFitsEqOne fitsEq dAσ))
     in
-    compTmEqOpen
+    hypTmEqOpen
       nonemptyNeNil
       (eqSubTmEqRule dtu liftedEq)
-      (substSccTm1 sigmaFits sigmaCFits dAσ (assocTmLeft dtu))
-      (λ rho fits2 ->
+      (sccTm1Cl sigmaFits dAσ (assocTmLeft dtu))
+      (λ rho fits2 _ ->
         let
           composedFitsEq = composeFitsEq fits2 liftedEq
         in
-        packClosedSubst fits2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₃ (termEq [])
-                (subTmComp rho (liftSubst sigma) t)
-                (subTmComp rho (liftSubst tau) u)
-                (subTyComp rho (liftSubst sigma) T)))
-            (eqSubDerivTmEqComp
-              dtu
-              composedFitsEq
-              (composeOneBinderEqComp fits2 cFitsEq))))
-      (λ rho eta fitsEq2 ->
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₃ (termEq [])
+              (subTmComp rho (liftSubst sigma) t)
+              (subTmComp rho (liftSubst tau) u)
+              (subTyComp rho (liftSubst sigma) T)))
+          (eqSubTmEqCl
+            dtu
+            composedFitsEq))
+      (λ rho eta fitsEq2 _ ->
         let
           composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
         in
-        packClosedEqSubst fitsEq2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₃ (termEq [])
-                (subTmComp rho (liftSubst sigma) t)
-                (subTmComp eta (liftSubst tau) u)
-                (subTyComp rho (liftSubst sigma) T)))
-            (eqSubDerivTmEqComp
-              dtu
-              composedFitsEq
-              (composeOneBinderEqCompEq cFitsEq fitsEq2))))
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₃ (termEq [])
+              (subTmComp rho (liftSubst sigma) t)
+              (subTmComp eta (liftSubst tau) u)
+              (subTyComp rho (liftSubst sigma) T)))
+          (eqSubTmEqCl
+            dtu
+            composedFitsEq))
 
   eqSubSccTm2 : {gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma tau : Subst}
+    -> ({gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma : Subst}
+         -> FitsSubst [] gamma sigma
+         -> Derivable (isType [] (subTy sigma A))
+         -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
+         -> Derivable (hasTy (B ∷ A ∷ gamma) t T)
+         -> HypComputable
+              (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+                (subTm (liftSubst (liftSubst sigma)) t)
+                (subTy (liftSubst (liftSubst sigma)) T)))
+    -> ({gamma : Ctx} {t : RawTerm} {A : RawType} {sigma tau : Subst}
+         -> Derivable (hasTy gamma t A)
+         -> FitsEqSubst [] gamma sigma tau
+         -> Computable (termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A)))
     -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Derivable (isType [] (subTy sigma A))
     -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
     -> Derivable (hasTy (B ∷ A ∷ gamma) t T)
-    -> Computable
+    -> HypComputable
          (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
            (subTm (liftSubst (liftSubst sigma)) t)
            (subTm (liftSubst (liftSubst tau)) t)
            (subTy (liftSubst (liftSubst sigma)) T))
   eqSubSccTm2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {sigma = sigma} {tau = tau}
-    fitsEq cFitsEq dAσ dBσ dt =
+    sccTm2Cl eqSubTmCl fitsEq dAσ dBσ dt =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
       lifted1Eq :
         FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
           (liftSubst sigma)
@@ -3911,59 +2757,66 @@ mutual
             (liftSubstCompKeep (liftSubst tau))
             (liftFitsEq lifted1Eq dBσ))
     in
-    compTmEqOpen
+    hypTmEqOpen
       nonemptyNeNil
       (eqSubTmRule dt lifted2Eq)
-      (substSccTm2 sigmaFits sigmaCFits dAσ dBσ dt)
-      (λ rho fits2 ->
+      (sccTm2Cl sigmaFits dAσ dBσ dt)
+      (λ rho fits2 _ ->
         let
           composedFitsEq = composeFitsEq fits2 lifted2Eq
         in
-        packClosedSubst fits2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₃ (termEq [])
-                (subTmComp rho (liftSubst (liftSubst sigma)) t)
-                (subTmComp rho (liftSubst (liftSubst tau)) t)
-                (subTyComp rho (liftSubst (liftSubst sigma)) T)))
-            (eqSubDerivTmComp
-              dt
-              composedFitsEq
-              (composeTwoBindersEqComp cFitsEq fits2))))
-      (λ rho eta fitsEq2 ->
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₃ (termEq [])
+              (subTmComp rho (liftSubst (liftSubst sigma)) t)
+              (subTmComp rho (liftSubst (liftSubst tau)) t)
+              (subTyComp rho (liftSubst (liftSubst sigma)) T)))
+          (eqSubTmCl
+            dt
+            composedFitsEq))
+      (λ rho eta fitsEq2 _ ->
         let
           composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
         in
-        packClosedEqSubst fitsEq2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₃ (termEq [])
-                (subTmComp rho (liftSubst (liftSubst sigma)) t)
-                (subTmComp eta (liftSubst (liftSubst tau)) t)
-                (subTyComp rho (liftSubst (liftSubst sigma)) T)))
-            (eqSubDerivTmComp
-              dt
-              composedFitsEq
-              (composeTwoBindersEqCompEq cFitsEq fitsEq2))))
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₃ (termEq [])
+              (subTmComp rho (liftSubst (liftSubst sigma)) t)
+              (subTmComp eta (liftSubst (liftSubst tau)) t)
+              (subTyComp rho (liftSubst (liftSubst sigma)) T)))
+          (eqSubTmCl
+            dt
+            composedFitsEq))
 
   eqSubSccTmEq2 : {gamma : Ctx} {A B T : RawType} {t u : RawTerm} {sigma tau : Subst}
+    -> ({gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma : Subst}
+         -> FitsSubst [] gamma sigma
+         -> Derivable (isType [] (subTy sigma A))
+         -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
+         -> Derivable (hasTy (B ∷ A ∷ gamma) t T)
+         -> HypComputable
+              (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+                (subTm (liftSubst (liftSubst sigma)) t)
+                (subTy (liftSubst (liftSubst sigma)) T)))
+    -> ({gamma : Ctx} {t u : RawTerm} {A : RawType} {sigma tau : Subst}
+         -> Derivable (termEq gamma t u A)
+         -> FitsEqSubst [] gamma sigma tau
+         -> Computable (termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A)))
     -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Derivable (isType [] (subTy sigma A))
     -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
     -> Derivable (termEq (B ∷ A ∷ gamma) t u T)
-    -> Computable
+    -> HypComputable
          (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
            (subTm (liftSubst (liftSubst sigma)) t)
            (subTm (liftSubst (liftSubst tau)) u)
            (subTy (liftSubst (liftSubst sigma)) T))
   eqSubSccTmEq2 {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {u = u} {sigma = sigma} {tau = tau}
-    fitsEq cFitsEq dAσ dBσ dtu =
+    sccTm2Cl eqSubTmEqCl fitsEq dAσ dBσ dtu =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
       lifted1Eq :
         FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
           (liftSubst sigma)
@@ -3998,215 +2851,204 @@ mutual
             (liftSubstCompKeep (liftSubst tau))
             (liftFitsEq lifted1Eq dBσ))
     in
-    compTmEqOpen
+    hypTmEqOpen
       nonemptyNeNil
       (eqSubTmEqRule dtu lifted2Eq)
-      (substSccTm2 sigmaFits sigmaCFits dAσ dBσ (assocTmLeft dtu))
-      (λ rho fits2 ->
+      (sccTm2Cl sigmaFits dAσ dBσ (assocTmLeft dtu))
+      (λ rho fits2 _ ->
         let
           composedFitsEq = composeFitsEq fits2 lifted2Eq
         in
-        packClosedSubst fits2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₃ (termEq [])
-                (subTmComp rho (liftSubst (liftSubst sigma)) t)
-                (subTmComp rho (liftSubst (liftSubst tau)) u)
-                (subTyComp rho (liftSubst (liftSubst sigma)) T)))
-            (eqSubDerivTmEqComp
-              dtu
-              composedFitsEq
-              (composeTwoBindersEqComp cFitsEq fits2))))
-      (λ rho eta fitsEq2 ->
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₃ (termEq [])
+              (subTmComp rho (liftSubst (liftSubst sigma)) t)
+              (subTmComp rho (liftSubst (liftSubst tau)) u)
+              (subTyComp rho (liftSubst (liftSubst sigma)) T)))
+          (eqSubTmEqCl
+            dtu
+            composedFitsEq))
+      (λ rho eta fitsEq2 _ ->
         let
           composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
         in
-        packClosedEqSubst fitsEq2
-          (subst
-            (λ J -> Computable J)
-            (sym
-              (cong₃ (termEq [])
-                (subTmComp rho (liftSubst (liftSubst sigma)) t)
-                (subTmComp eta (liftSubst (liftSubst tau)) u)
-                (subTyComp rho (liftSubst (liftSubst sigma)) T)))
-            (eqSubDerivTmEqComp
-              dtu
-              composedFitsEq
-              (composeTwoBindersEqCompEq cFitsEq fitsEq2))))
+        subst
+          (λ J -> Computable J)
+          (sym
+            (cong₃ (termEq [])
+              (subTmComp rho (liftSubst (liftSubst sigma)) t)
+              (subTmComp eta (liftSubst (liftSubst tau)) u)
+              (subTyComp rho (liftSubst (liftSubst sigma)) T)))
+          (eqSubTmEqCl
+            dtu
+            composedFitsEq))
 
-  substDerivTyComp : {gamma : Ctx} {A : RawType} {sigma : Subst}
-    -> Derivable (isType gamma A)
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Computable (isType [] (subTy sigma A))
-  substDerivTyComp (fTop wf) fits cFits = compFTopClosed
-  substDerivTyComp {sigma = sigma} (fSigma {A = A} {B = B} dA dB) fits cFits =
+  substDerivTyComp (fTop wf) fits = compFTopClosed
+  substDerivTyComp {gamma = gamma} {sigma = sigma} (fSigma {A = A} {B = B} dA dB) fits =
     let
-      compA = substDerivTyComp dA fits cFits
-      dAσ = compToDerivable compA
+      compA = substDerivTyComp dA fits
+      dAσ = substTyRule dA fits
       compB =
         subst
-          (λ T -> Computable (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
-          (compTyOpen
+          (hypTyOpen
             nonemptyNeNil
             (substTyRule dB (liftFitsOne fits dAσ))
-            (λ tau fits2 ->
-              packClosedSubst fits2
-                (subst
-                  (λ T -> Computable (isType [] T))
-                  (sym
-                    (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
-                      ∙ subTyComp tau (liftSubst sigma) B))
-                  (substDerivTyComp
-                    dB
-                    (composeOneBinder fits dAσ fits2)
-                    (composeOneBinderComp fits2 cFits))))
-            (λ tau₁ tau₂ fitsEq2 ->
-              packClosedEqSubst fitsEq2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
-                        ∙ subTyComp tau₁ (liftSubst sigma) B)
-                      (cong (λ rho -> subTy tau₂ (subTy rho B)) (liftSubstCompKeep sigma)
-                        ∙ subTyComp tau₂ (liftSubst sigma) B)))
-                  (eqSubDerivTyComp
-                    dB
-                    (composeOneBinderEq fits dAσ fitsEq2)
-                    (composeOneBinderCompEq cFits fitsEq2)))))
+            (λ tau fits2 _ ->
+              subst
+                (λ T -> Computable (isType [] T))
+                (sym
+                  (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
+                    ∙ subTyComp tau (liftSubst sigma) B))
+                (substDerivTyComp
+                  dB
+                  (composeOneBinder fits dAσ fits2)))
+            (λ tau₁ tau₂ fitsEq2 _ ->
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₂ (typeEq [])
+                    (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp tau₁ (liftSubst sigma) B)
+                    (cong (λ rho -> subTy tau₂ (subTy rho B)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp tau₂ (liftSubst sigma) B)))
+                (eqSubDerivTyComp
+                  dB
+                  (composeOneBinderEq fits dAσ fitsEq2))))
     in
     compFSigmaClosed compA compB
-  substDerivTyComp (fEq dA da db) fits cFits =
+  substDerivTyComp (fEq dA da db) fits =
     compFEqClosed
-      (substDerivTyComp dA fits cFits)
-      (substDerivTmComp da fits cFits)
-      (substDerivTmComp db fits cFits)
-  substDerivTyComp (fQtr dA) fits cFits =
-    compFQtrClosed (substDerivTyComp dA fits cFits)
-  substDerivTyComp {sigma = sigma} (weakenTy {delta = delta} {A = A} d wf) fits cFits =
+      (substDerivTyComp dA fits)
+      (substDerivTmComp da fits)
+      (substDerivTmComp db fits)
+  substDerivTyComp (fQtr dA) fits =
+    compFQtrClosed (substDerivTyComp dA fits)
+  substDerivTyComp {sigma = sigma} (weakenTy {delta = delta} {A = A} d wf) fits =
     subst
       (λ T -> Computable (isType [] T))
       (sym (subTyWkBy sigma (length delta) A))
-      (substDerivTyComp d (dropFits delta fits) (dropCompFits delta cFits))
-  substDerivTyComp {sigma = sigma} (substTyRule {sigma = sigma'} {A = A} d fits') fits cFits =
+      (substDerivTyComp d (dropFits delta fits))
+  substDerivTyComp {sigma = sigma} (substTyRule {sigma = sigma'} {A = A} d fits') fits =
     let
       composedFits = composeFits fits fits'
-      composedCFits = composeCompFits fits' fits cFits
     in
     subst
       (λ T -> Computable (isType [] T))
       (sym (subTyComp sigma sigma' A))
-      (substDerivTyComp d composedFits composedCFits)
+      (substDerivTyComp d composedFits)
 
   substDerivTyEqComp : {gamma : Ctx} {A B : RawType} {sigma : Subst}
     -> Derivable (typeEq gamma A B)
     -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
     -> Computable (typeEq [] (subTy sigma A) (subTy sigma B))
-  substDerivTyEqComp (reflTy d) fits cFits =
-    compReflTy (substDerivTyComp d fits cFits)
-  substDerivTyEqComp (symTy d) fits cFits =
-    compSymTyClosed (substDerivTyEqComp d fits cFits)
-  substDerivTyEqComp (transTy d₁ d₂) fits cFits =
-    compTransTyClosed (substDerivTyEqComp d₁ fits cFits) (substDerivTyEqComp d₂ fits cFits)
-  substDerivTyEqComp {sigma = sigma} (fSigmaEq {A = A} {B = B} {D = D} dAC dBD) fits cFits =
+  substDerivTyEqComp (reflTy d) fits =
+    compReflTy (substDerivTyComp d fits)
+  substDerivTyEqComp (symTy d) fits =
+    compSymTyClosed (substDerivTyEqComp d fits)
+  substDerivTyEqComp (transTy d₁ d₂) fits =
+    compTransTyClosed (substDerivTyEqComp d₁ fits) (substDerivTyEqComp d₂ fits)
+  substDerivTyEqComp {sigma = sigma} (fSigmaEq {A = A} {B = B} {D = D} dAC dBD) fits =
     let
-      compAC = substDerivTyEqComp dAC fits cFits
+      compAC = substDerivTyEqComp dAC fits
       compA = compTyEqLeft compAC
-      compC = compTyEqRight compAC
-      dAσ = compToDerivable compA
+      compC = compTyEqRightClosed compAC
+      dAσ = substTyRule (assocTyLeft dAC) fits
+      compB =
+        subst
+          (λ T -> HypComputable (isType (subTy sigma A ∷ []) T))
+          (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
+          (hypTyOpen
+            nonemptyNeNil
+            (substTyRule (assocTyLeft dBD) (liftFitsOne fits dAσ))
+            (λ tau fits2 _ ->
+              subst
+                (λ T -> Computable (isType [] T))
+                (sym
+                  (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
+                    ∙ subTyComp tau (liftSubst sigma) B))
+                (compTyEqLeft
+                  (substDerivTyEqComp
+                    dBD
+                    (composeOneBinder fits dAσ fits2))))
+            (λ tau₁ tau₂ fitsEq2 _ ->
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₂ (typeEq [])
+                    (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp tau₁ (liftSubst sigma) B)
+                    (cong (λ rho -> subTy tau₂ (subTy rho B)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp tau₂ (liftSubst sigma) B)))
+                (compTransTyClosed
+                  (eqSubDerivTyEqComp
+                    dBD
+                    (composeOneBinderEq fits dAσ fitsEq2))
+                  (compSymTyClosed
+                    (substDerivTyEqComp
+                      dBD
+                      (composeOneBinder
+                        fits
+                        dAσ
+                        (fitsEqSubstRight (wfCons wfNil dAσ) fitsEq2)))))))
       compBD =
         subst
-          (λ J -> Computable J)
-          (cong₂ (typeEq (subTy sigma A ∷ []))
+          (λ J -> HypComputable J)
+          (cong₂
+            (typeEq (subTy sigma A ∷ []))
             (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
             (cong (λ rho -> subTy rho D) (liftSubstCompKeep sigma)))
-          (compTyEqOpen
+          (hypTyEqOpen
             nonemptyNeNil
             (substTyEqRule dBD (liftFitsOne fits dAσ))
             (subst
-              (λ T -> Computable (isType (subTy sigma A ∷ []) T))
+              (λ T -> HypComputable (isType (subTy sigma A ∷ []) T))
               (sym (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma)))
-              (subst
-                (λ T -> Computable (isType (subTy sigma A ∷ []) T))
-                (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
-                (compTyOpen
-                  nonemptyNeNil
-                  (substTyRule (assocTyLeft dBD) (liftFitsOne fits dAσ))
-                  (λ tau fits2 ->
-                    packClosedSubst fits2
-                      (subst
-                        (λ T -> Computable (isType [] T))
-                        (sym
-                          (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
-                            ∙ subTyComp tau (liftSubst sigma) B))
-                        (substDerivTyComp
-                          (assocTyLeft dBD)
-                          (composeOneBinder fits dAσ fits2)
-                          (composeOneBinderComp fits2 cFits))))
-                  (λ tau₁ tau₂ fitsEq2 ->
-                    packClosedEqSubst fitsEq2
-                      (subst
-                        (λ J -> Computable J)
-                        (sym
-                          (cong₂ (typeEq [])
-                            (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
-                              ∙ subTyComp tau₁ (liftSubst sigma) B)
-                            (cong (λ rho -> subTy tau₂ (subTy rho B)) (liftSubstCompKeep sigma)
-                              ∙ subTyComp tau₂ (liftSubst sigma) B)))
-                        (eqSubDerivTyComp
-                          (assocTyLeft dBD)
-                          (composeOneBinderEq fits dAσ fitsEq2)
-                          (composeOneBinderCompEq cFits fitsEq2)))))))
-            (λ tau fits2 ->
-              packClosedSubst fits2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
-                        ∙ subTyComp tau (liftSubst sigma) B)
-                      (cong (λ rho -> subTy tau (subTy rho D)) (liftSubstCompKeep sigma)
-                        ∙ subTyComp tau (liftSubst sigma) D)))
-                  (substDerivTyEqComp
-                    dBD
-                    (composeOneBinder fits dAσ fits2)
-                    (composeOneBinderComp fits2 cFits))))
-            (λ tau₁ tau₂ fitsEq2 ->
-              packClosedEqSubst fitsEq2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
-                        ∙ subTyComp tau₁ (liftSubst sigma) B)
-                      (cong (λ rho -> subTy tau₂ (subTy rho D)) (liftSubstCompKeep sigma)
-                        ∙ subTyComp tau₂ (liftSubst sigma) D)))
-                  (eqSubDerivTyEqComp
-                    dBD
-                    (composeOneBinderEq fits dAσ fitsEq2)
-                    (composeOneBinderCompEq cFits fitsEq2)))))
-      compSigmaA = compFSigmaClosed compA (compTyEqLeft compBD)
-      compSigmaC = compFSigmaClosed compC (compTransportFamilyTy compAC (compTyEqRight compBD))
+              compB)
+            (λ tau fits2 _ ->
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₂ (typeEq [])
+                    (cong (λ rho -> subTy tau (subTy rho B)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp tau (liftSubst sigma) B)
+                    (cong (λ rho -> subTy tau (subTy rho D)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp tau (liftSubst sigma) D)))
+                (substDerivTyEqComp
+                  dBD
+                  (composeOneBinder fits dAσ fits2)))
+            (λ tau₁ tau₂ fitsEq2 _ ->
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₂ (typeEq [])
+                    (cong (λ rho -> subTy tau₁ (subTy rho B)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp tau₁ (liftSubst sigma) B)
+                    (cong (λ rho -> subTy tau₂ (subTy rho D)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp tau₂ (liftSubst sigma) D)))
+                (eqSubDerivTyEqComp
+                  dBD
+                  (composeOneBinderEq fits dAσ fitsEq2))))
+      compSigmaA = compFSigmaClosed compA (hypTyEqLeft compBD)
+      compSigmaC = compFSigmaClosed compC (compTransportFamilyTy compAC (hypTyEqRight compBD))
     in
     compTyEqClosedSigma
-      (fSigmaEq (compToDerivable compAC) (compToDerivable compBD))
+      (fSigmaEq (compToDerivable compAC) (hypCompToDerivable compBD))
       compSigmaA
       compSigmaC
       evalSigma
       evalSigma
       compAC
-      compBD
-  substDerivTyEqComp (fEqEq dAC dac dbd) fits cFits =
+      (hypCompToDerivable compBD)
+  substDerivTyEqComp (fEqEq dAC dac dbd) fits =
     let
-      compAC = substDerivTyEqComp dAC fits cFits
-      compac = substDerivTmEqComp dac fits cFits
-      compbd = substDerivTmEqComp dbd fits cFits
+      compAC = substDerivTyEqComp dAC fits
+      compac = substDerivTmEqComp dac fits
+      compbd = substDerivTmEqComp dbd fits
       compA = compTyEqLeft compAC
-      compC = compTyEqRight compAC
+      compC = compTyEqRightClosed compAC
       compa = compTmEqLeft compac
       compb = compTmEqLeft compbd
       compcA = compTmEqRightClosed compac
@@ -4225,226 +3067,54 @@ mutual
       compAC
       compac
       compbd
-  substDerivTyEqComp (fQtrEq dAB) fits cFits =
+  substDerivTyEqComp (fQtrEq dAB) fits =
     let
-      compAB = substDerivTyEqComp dAB fits cFits
+      compAB = substDerivTyEqComp dAB fits
     in
     compTyEqClosedQtr
       (fQtrEq (compToDerivable compAB))
       (compFQtrClosed (compTyEqLeft compAB))
-      (compFQtrClosed (compTyEqRight compAB))
+      (compFQtrClosed (compTyEqRightClosed compAB))
       evalQtr
       evalQtr
       compAB
-  substDerivTyEqComp {sigma = sigma} (weakenTyEq {delta = delta} {A = A} {B = B} d wf) fits cFits =
+  substDerivTyEqComp {sigma = sigma} (weakenTyEq {delta = delta} {A = A} {B = B} d wf) fits =
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyWkBy sigma (length delta) A))
         (sym (subTyWkBy sigma (length delta) B)))
-      (substDerivTyEqComp d (dropFits delta fits) (dropCompFits delta cFits))
-  substDerivTyEqComp {sigma = sigma} (substTyEqRule {sigma = sigma'} {A = A} {B = B} d fits') fits cFits =
+      (substDerivTyEqComp d (dropFits delta fits))
+  substDerivTyEqComp {sigma = sigma} (substTyEqRule {sigma = sigma'} {A = A} {B = B} d fits') fits =
     let
       composedFits = composeFits fits fits'
-      composedCFits = composeCompFits fits' fits cFits
     in
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyComp sigma sigma' A))
         (sym (subTyComp sigma sigma' B)))
-      (substDerivTyEqComp d composedFits composedCFits)
-  substDerivTyEqComp {sigma = sigma} (eqSubTyRule {sigma = sigma'} {tau = tau'} {A = A} d fitsEq') fits cFits =
+      (substDerivTyEqComp d composedFits)
+  substDerivTyEqComp {sigma = sigma} (eqSubTyRule {sigma = sigma'} {tau = tau'} {A = A} d fitsEq') fits =
     let
       composedFitsEq = composeFitsEq fits fitsEq'
-      composedCFitsEq = composeCompFitsEq fits cFits fitsEq'
     in
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyComp sigma sigma' A))
         (sym (subTyComp sigma tau' A)))
-      (eqSubDerivTyComp d composedFitsEq composedCFitsEq)
-  substDerivTyEqComp {sigma = sigma} (eqSubTyEqRule {sigma = sigma'} {tau = tau'} {A = A} {B = B} d fitsEq') fits cFits =
+      (eqSubDerivTyComp d composedFitsEq)
+  substDerivTyEqComp {sigma = sigma} (eqSubTyEqRule {sigma = sigma'} {tau = tau'} {A = A} {B = B} d fitsEq') fits =
     let
       composedFitsEq = composeFitsEq fits fitsEq'
-      composedCFitsEq = composeCompFitsEq fits cFits fitsEq'
     in
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyComp sigma sigma' A))
         (sym (subTyComp sigma tau' B)))
-      (eqSubDerivTyEqComp d composedFitsEq composedCFitsEq)
-
-  substDerivTmComp : {gamma : Ctx} {t : RawTerm} {A : RawType} {sigma : Subst}
-    -> Derivable (hasTy gamma t A)
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Computable (hasTy [] (subTm sigma t) (subTy sigma A))
-  substDerivTmCompESigma : {gamma : Ctx} {A B M : RawType} {d m : RawTerm} {sigma : Subst}
-    -> Derivable (isType ((tySigma A B) ∷ gamma) M)
-    -> Derivable (hasTy gamma d (tySigma A B))
-    -> Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M))
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Computable (hasTy [] (subTm sigma (tmElSigma d m)) (subTy sigma (subTy (singleSubst d) M)))
-  substDerivTmCompESigma {gamma = gamma} {A = A} {B = B} {M = M} {d = d} {m = m} {sigma = sigma} dM dd dm fits cFits =
-    let
-      compdd = substDerivTmComp dd fits cFits
-      compSigma = compTmToCompTy compdd
-      dSigmaσ = compToDerivable compSigma
-      tyInv = invertSigmaTy compSigma evalSigma
-      compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      compBσ = ClosedSigmaTyInv.sigmaTyCompFam tyInv
-      dAσ = compToDerivable compAσ
-      dBσ = compToDerivable compBσ
-      compM =
-        subst
-          (λ T -> Computable (isType (subTy sigma (tySigma A B) ∷ []) T))
-          (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
-          (compTyOpen
-            nonemptyNeNil
-            (substTyRule dM (liftFitsOne fits dSigmaσ))
-            (λ tau fits2 ->
-              packClosedSubst fits2
-                (subst
-                  (λ T -> Computable (isType [] T))
-                  (sym
-                    (cong (λ rho -> subTy tau (subTy rho M)) (liftSubstCompKeep sigma)
-                      ∙ subTyComp tau (liftSubst sigma) M))
-                  (substDerivTyComp
-                    dM
-                    (composeOneBinder fits dSigmaσ fits2)
-                    (composeOneBinderComp fits2 cFits))))
-            (λ tau₁ tau₂ fitsEq2 ->
-              packClosedEqSubst fitsEq2
-                (subst
-                  (λ J -> Computable J)
-                  (sym
-                    (cong₂ (typeEq [])
-                      (cong (λ rho -> subTy tau₁ (subTy rho M)) (liftSubstCompKeep sigma)
-                        ∙ subTyComp tau₁ (liftSubst sigma) M)
-                      (cong (λ rho -> subTy tau₂ (subTy rho M)) (liftSubstCompKeep sigma)
-                        ∙ subTyComp tau₂ (liftSubst sigma) M)))
-                  (eqSubDerivTyComp
-                    dM
-                    (composeOneBinderEq fits dSigmaσ fitsEq2)
-                    (composeOneBinderCompEq cFits fitsEq2)))))
-
-      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-      lifted1 =
-        subst
-          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-          (liftSubstCompKeep sigma)
-          (liftFitsOne fits dAσ)
-
-      compdm =
-        subst
-          (λ J -> Computable J)
-          (cong
-            (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-              (subTm (liftSubst (liftSubst sigma)) m))
-            (sigmaBranchTyLiftComp sigma M))
-          (subst
-            (λ J -> Computable J)
-            (cong₂
-              (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
-              (cong (λ rho -> subTm rho m) (liftSubstCompKeep (liftSubst sigma)))
-              (cong (λ rho -> subTy rho (sigmaBranchTy M)) (liftSubstCompKeep (liftSubst sigma))))
-            (compTmOpen
-              nonemptyNeNil
-              (substTmRule dm (liftFits lifted1 dBσ))
-              (subst
-                (λ T ->
-                  Computable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
-                (sym (cong (λ rho -> subTy rho (sigmaBranchTy M)) (liftSubstCompKeep (liftSubst sigma))))
-                (subst
-                  (λ T ->
-                    Computable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
-                  (cong (λ rho -> subTy rho (sigmaBranchTy M)) (liftSubstCompKeep (liftSubst sigma)))
-                  (compTyOpen
-                    nonemptyNeNil
-                    (substTyRule (assocTy dm) (liftFits lifted1 dBσ))
-                    (λ tau fits2 ->
-                      packClosedSubst fits2
-                        (subst
-                          (λ T -> Computable (isType [] T))
-                          (sym
-                            (cong (λ rho -> subTy tau (subTy rho (sigmaBranchTy M)))
-                              (liftSubstCompKeep (liftSubst sigma))
-                              ∙ subTyComp tau (liftSubst (liftSubst sigma)) (sigmaBranchTy M)))
-                          (substDerivTyComp
-                            (assocTy dm)
-                            (composeTwoBinders fits dAσ dBσ fits2)
-                            (composeTwoBindersComp cFits fits2))))
-                    (λ tau₁ tau₂ fitsEq2 ->
-                      packClosedEqSubst fitsEq2
-                        (subst
-                          (λ J -> Computable J)
-                          (sym
-                            (cong₂ (typeEq [])
-                              (cong (λ rho -> subTy tau₁ (subTy rho (sigmaBranchTy M)))
-                                (liftSubstCompKeep (liftSubst sigma))
-                                ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) (sigmaBranchTy M))
-                              (cong (λ rho -> subTy tau₂ (subTy rho (sigmaBranchTy M)))
-                                (liftSubstCompKeep (liftSubst sigma))
-                                ∙ subTyComp tau₂ (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
-                          (eqSubDerivTyComp
-                            (assocTy dm)
-                            (composeTwoBindersEq fits dAσ dBσ fitsEq2)
-                            (composeTwoBindersCompEq cFits fitsEq2)))))))
-              (λ tau fits2 ->
-                packClosedSubst fits2
-                  (subst
-                    (λ J -> Computable J)
-                    (sym
-                      (cong₂ (hasTy [])
-                        (cong (λ rho -> subTm tau (subTm rho m)) (liftSubstCompKeep (liftSubst sigma))
-                          ∙ subTmComp tau (liftSubst (liftSubst sigma)) m)
-                        (cong (λ rho -> subTy tau (subTy rho (sigmaBranchTy M)))
-                          (liftSubstCompKeep (liftSubst sigma))
-                          ∙ subTyComp tau (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
-                    (substDerivTmComp
-                      dm
-                      (composeTwoBinders fits dAσ dBσ fits2)
-                      (composeTwoBindersComp cFits fits2))))
-              (λ tau₁ tau₂ fitsEq2 ->
-                packClosedEqSubst fitsEq2
-                  (subst
-                    (λ J -> Computable J)
-                    (sym
-                      (cong₃ (termEq [])
-                        (cong (λ rho -> subTm tau₁ (subTm rho m)) (liftSubstCompKeep (liftSubst sigma))
-                          ∙ subTmComp tau₁ (liftSubst (liftSubst sigma)) m)
-                        (cong (λ rho -> subTm tau₂ (subTm rho m)) (liftSubstCompKeep (liftSubst sigma))
-                          ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) m)
-                        (cong (λ rho -> subTy tau₁ (subTy rho (sigmaBranchTy M)))
-                          (liftSubstCompKeep (liftSubst sigma))
-                          ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
-                    (eqSubDerivTmComp
-                      dm
-                      (composeTwoBindersEq fits dAσ dBσ fitsEq2)
-                      (composeTwoBindersCompEq cFits fitsEq2))))))
-
-      resultPath :
-        hasTy [] (subTm sigma (tmElSigma d m)) (subTy sigma (subTy (singleSubst d) M))
-          ≡
-        hasTy []
-          (tmElSigma (subTm sigma d) (subTm (liftSubst (liftSubst sigma)) m))
-          (subTy (singleSubst (subTm sigma d)) (subTy (liftSubst sigma) M))
-      resultPath =
-        cong₂
-          (hasTy [])
-          refl
-          (subTyComp sigma (singleSubst d) M
-            ∙ cong (λ rho -> subTy rho M) (sym (singleSubstCompLift sigma d))
-            ∙ sym (subTyComp (singleSubst (subTm sigma d)) (liftSubst sigma) M))
-    in
-    subst
-      (λ J -> Computable J)
-      (sym resultPath)
-      (compTmEqLeft (compESigmaClosed compM (compReflTm compdd) (compReflTm compdm)))
+      (eqSubDerivTyEqComp d composedFitsEq)
 
   substDerivTmCompEQtr
     : {gamma : Ctx} {A L : RawType} {l p : RawTerm} {sigma : Subst}
@@ -4457,15 +3127,14 @@ mutual
            (renTm qtrSecondBranchRen l)
            (qtrCohTy L))
     -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
     -> Computable
          (hasTy [] (subTm sigma (tmElQtr l p))
            (subTy sigma (subTy (singleSubst p) L)))
   substDerivTmCompEQtr
     {gamma = gamma} {A = A} {L = L} {l = l} {p = p} {sigma = sigma}
-    dL dp dl dcoh fits cFits =
+    dL dp dl dcoh fits =
     let
-      compdp = substDerivTmComp dp fits cFits
+      compdp = substDerivTmComp dp fits
       compQtrσ = compTmToCompTy compdp
       dQtrσ = compToDerivable compQtrσ
       tyInv = invertQtrTy compQtrσ evalQtr
@@ -4476,21 +3145,24 @@ mutual
           (λ T -> Derivable (isType (subTy sigma A ∷ []) T))
           (sym (wkTyLiftSubst sigma A))
           (weakenTy dAσ (wfCons wfNil dAσ))
-      compL = substSccTy1 fits cFits dQtrσ dL
+      compL = openHypTy1 fits dQtrσ dL
 
       compl =
         subst
           (λ T ->
-            Computable
+            HypComputable
               (hasTy (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 T))
           (qtrBranchTyLiftComp sigma L)
-          (substSccTm1 fits cFits dAσ dl)
+          (openHypTm1
+            fits
+            dAσ
+            dl)
 
       compcoh =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -4519,7 +3191,11 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (substSccTmEq2 fits cFits dAσ dWkAσ dcoh)
+          (openHypTmEq2
+            fits
+            dAσ
+            dWkAσ
+            dcoh)
 
       resultPath :
         hasTy []
@@ -4542,68 +3218,192 @@ mutual
       (sym resultPath)
       (compTmEqLeft
         (compEQtrClosed
+          compTransTmClosed
+          compSymTmClosed
+          compConvTmEqClosed
           compL
           (compReflTm compdp)
-          (compReflTm compl)
+          (hypReflTm compl)
           compcoh
           compcoh))
 
-  substDerivTmComp (varStar {delta = delta} {A = A} wf dA) fits cFits =
-    lookupCompFits {delta = delta} {A = A} cFits
-  substDerivTmComp (iTop wf) fits cFits = compITopClosed
+  substDerivTmComp (varStar {delta = delta} {A = A} wf dA) fits =
+    computableTmClosed (lookupVarFits {delta = delta} {A = A} fits)
+  substDerivTmComp (iTop wf) fits = compITopClosed
   substDerivTmComp {sigma = sigma}
-    (iSigma {a = a} {b = b} {A = A} {B = B} da db dSigma) fits cFits =
+    (iSigma {a = a} {b = b} {A = A} {B = B} da db dSigma) fits =
     let
-      compa = substDerivTmComp da fits cFits
+      compa = substDerivTmComp da fits
       compb =
         subst
           (λ T -> Computable (hasTy [] (subTm sigma b) T))
           (subTyComp sigma (singleSubst a) B
             ∙ cong (λ rho -> subTy rho B) (sym (singleSubstCompLift sigma a))
             ∙ sym (subTyComp (singleSubst (subTm sigma a)) (liftSubst sigma) B))
-          (substDerivTmComp db fits cFits)
+          (substDerivTmComp db fits)
     in
-    compISigmaClosed compa compb (substDerivTyComp dSigma fits cFits)
-  substDerivTmComp (iEq da) fits cFits =
-    compIEqClosed (substDerivTmComp da fits cFits)
-  substDerivTmComp (iQtr da) fits cFits =
-    compIQtrClosed (substDerivTmComp da fits cFits)
-  substDerivTmComp (eSigma dM dd dm) fits cFits =
-    substDerivTmCompESigma dM dd dm fits cFits
-  substDerivTmComp (eQtr dL dp dl dcoh) fits cFits =
-    substDerivTmCompEQtr dL dp dl dcoh fits cFits
-  substDerivTmComp (conv d dAB) fits cFits =
-    compConvTmClosed (substDerivTmComp d fits cFits) (substDerivTyEqComp dAB fits cFits)
-  substDerivTmComp {sigma = sigma} (weakenTm {delta = delta} {t = t} {A = A} d wf) fits cFits =
+    compISigmaClosed compa compb (substDerivTyComp dSigma fits)
+  substDerivTmComp (iEq da) fits =
+    compIEqClosed (substDerivTmComp da fits)
+  substDerivTmComp (iQtr da) fits =
+    compIQtrClosed (substDerivTmComp da fits)
+  substDerivTmComp {gamma = gamma} {sigma = sigma}
+    (eSigma {A = A} {B = B} {M = M} {d = d} {m = m} dM dd dm) fits =
+    let
+      compdd = substDerivTmComp dd fits
+      compSigma = compTmToCompTy compdd
+      dSigmaσ = compToDerivable compSigma
+      tyInv = invertSigmaTy compSigma evalSigma
+      compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
+      dAσ = compToDerivable compAσ
+      compBσ = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
+      dBσ = hypCompToDerivable compBσ
+      compM = openHypTy1 fits dSigmaσ dM
+
+      compdm =
+        let
+          lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+          lifted1 =
+            subst
+              (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+              (liftSubstCompKeep sigma)
+              (liftFitsOne fits dAσ)
+          compBranchTy =
+            subst
+              (λ T' ->
+                HypComputable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
+              (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                (liftSubstCompKeep (liftSubst sigma)))
+              (hypTyOpen
+                nonemptyNeNil
+                (substTyRule (assocTy dm) (liftFits lifted1 dBσ))
+                (λ rho fits2 _ ->
+                  subst
+                    (λ T' -> Computable (isType [] T'))
+                    (sym
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M)))
+                    (substDerivTyComp
+                      (assocTy dm)
+                      (composeTwoBinders fits dAσ dBσ fits2)))
+                (λ rho eta fitsEq2 _ ->
+                  subst
+                    (λ J -> Computable J)
+                    (sym
+                      (cong₂ (typeEq [])
+                        (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))
+                        (cong (λ theta -> subTy eta (subTy theta (sigmaBranchTy M)))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTyComp eta (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                    (eqSubDerivTyComp
+                      (assocTy dm)
+                      (composeTwoBindersEq fits dAσ dBσ fitsEq2))))
+        in
+        subst
+          (λ J -> HypComputable J)
+          (cong
+            (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+              (subTm (liftSubst (liftSubst sigma)) m))
+            (sigmaBranchTyLiftComp sigma M))
+          (subst
+            (λ J -> HypComputable J)
+            (cong₂
+              (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+              (cong (λ rho -> subTm rho m) (liftSubstCompKeep (liftSubst sigma)))
+              (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                (liftSubstCompKeep (liftSubst sigma))))
+            (hypTmOpen
+              nonemptyNeNil
+              (substTmRule dm (liftFits lifted1 dBσ))
+              (subst
+                (λ T' ->
+                  HypComputable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
+                (sym
+                  (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                    (liftSubstCompKeep (liftSubst sigma))))
+                compBranchTy)
+              (λ rho fits2 _ ->
+                subst
+                  (λ J -> Computable J)
+                  (sym
+                    (cong₂ (hasTy [])
+                      (cong (λ theta -> subTm rho (subTm theta m))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp rho (liftSubst (liftSubst sigma)) m)
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                  (substDerivTmComp
+                    dm
+                    (composeTwoBinders fits dAσ dBσ fits2)))
+              (λ rho eta fitsEq2 _ ->
+                subst
+                  (λ J -> Computable J)
+                  (sym
+                    (cong₃ (termEq [])
+                      (cong (λ theta -> subTm rho (subTm theta m))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp rho (liftSubst (liftSubst sigma)) m)
+                      (cong (λ theta -> subTm eta (subTm theta m))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp eta (liftSubst (liftSubst sigma)) m)
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                  (eqSubDerivTmComp
+                    dm
+                    (composeTwoBindersEq fits dAσ dBσ fitsEq2)))))
+
+      resultPath :
+        hasTy [] (subTm sigma (tmElSigma d m)) (subTy sigma (subTy (singleSubst d) M))
+          ≡
+        hasTy []
+          (tmElSigma (subTm sigma d) (subTm (liftSubst (liftSubst sigma)) m))
+          (subTy (singleSubst (subTm sigma d)) (subTy (liftSubst sigma) M))
+      resultPath =
+        cong₂
+          (hasTy [])
+          refl
+          (subTyComp sigma (singleSubst d) M
+            ∙ cong (λ rho -> subTy rho M) (sym (singleSubstCompLift sigma d))
+            ∙ sym (subTyComp (singleSubst (subTm sigma d)) (liftSubst sigma) M))
+    in
+    subst
+      (λ J -> Computable J)
+      (sym resultPath)
+      (compTmEqLeft
+        (compESigmaClosed compTransTmClosed compConvTmEqClosed
+          compM (compReflTm compdd) (hypReflTm compdm)))
+  substDerivTmComp (eQtr dL dp dl dcoh) fits =
+    substDerivTmCompEQtr dL dp dl dcoh fits
+  substDerivTmComp (conv d dAB) fits =
+    compConvTmClosed (substDerivTmComp d fits) (substDerivTyEqComp dAB fits)
+  substDerivTmComp {sigma = sigma} (weakenTm {delta = delta} {t = t} {A = A} d wf) fits =
     subst
       (λ J -> Computable J)
       (cong₂ (hasTy [])
         (sym (subTmWkBy sigma (length delta) t))
         (sym (subTyWkBy sigma (length delta) A)))
-      (substDerivTmComp d (dropFits delta fits) (dropCompFits delta cFits))
-  substDerivTmComp {sigma = sigma} (substTmRule {sigma = sigma'} {t = t} {A = A} d fits') fits cFits =
+      (substDerivTmComp d (dropFits delta fits))
+  substDerivTmComp {sigma = sigma} (substTmRule {sigma = sigma'} {t = t} {A = A} d fits') fits =
     let
       composedFits = composeFits fits fits'
-      composedCFits = composeCompFits fits' fits cFits
     in
     subst
       (λ J -> Computable J)
       (cong₂ (hasTy [])
         (sym (subTmComp sigma sigma' t))
         (sym (subTyComp sigma sigma' A)))
-      (substDerivTmComp d composedFits composedCFits)
-  substDerivTmEqComp : {gamma : Ctx} {t u : RawTerm} {A : RawType} {sigma : Subst}
-    -> Derivable (termEq gamma t u A)
-    -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
-    -> Computable (termEq [] (subTm sigma t) (subTm sigma u) (subTy sigma A))
+      (substDerivTmComp d composedFits)
   substDerivTmEqCompESigmaEq
     : {gamma : Ctx} {A B M : RawType} {d d' m m' : RawTerm} {sigma : Subst}
     -> Derivable (isType ((tySigma A B) ∷ gamma) M)
     -> Derivable (termEq gamma d d' (tySigma A B))
     -> Derivable (termEq (B ∷ A ∷ gamma) m m' (sigmaBranchTy M))
     -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
     -> Computable
          (termEq []
            (subTm sigma (tmElSigma d m))
@@ -4611,27 +3411,170 @@ mutual
            (subTy sigma (subTy (singleSubst d) M)))
   substDerivTmEqCompESigmaEq
     {gamma = gamma} {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'} {sigma = sigma}
-    dM dd dm fits cFits =
+    dM dd dm fits =
     let
-      compdd = substDerivTmEqComp dd fits cFits
+      compdd = substDerivTmEqComp dd fits
       compSigma = compTmToCompTy (compTmEqLeft compdd)
       dSigmaσ = compToDerivable compSigma
       tyInv = invertSigmaTy compSigma evalSigma
       compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      compBσ = ClosedSigmaTyInv.sigmaTyCompFam tyInv
       dAσ = compToDerivable compAσ
-      dBσ = compToDerivable compBσ
-      compM = substSccTy1 fits cFits dSigmaσ dM
+      compBσ = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
+      dBσ = hypCompToDerivable compBσ
+      compM = openHypTy1 fits dSigmaσ dM
 
       compdm =
+        let
+          lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+          lifted1 =
+            subst
+              (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+              (liftSubstCompKeep sigma)
+              (liftFitsOne fits dAσ)
+          compBranchTy =
+            subst
+              (λ T' ->
+                HypComputable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
+              (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                (liftSubstCompKeep (liftSubst sigma)))
+              (hypTyOpen
+                nonemptyNeNil
+                (substTyRule (assocTy (assocTmLeft dm)) (liftFits lifted1 dBσ))
+                (λ rho fits2 _ ->
+                  subst
+                    (λ T' -> Computable (isType [] T'))
+                    (sym
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M)))
+                    (substDerivTyComp
+                      (assocTy (assocTmLeft dm))
+                      (composeTwoBinders fits dAσ dBσ fits2)))
+                (λ rho eta fitsEq2 _ ->
+                  subst
+                    (λ J -> Computable J)
+                    (sym
+                      (cong₂ (typeEq [])
+                        (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))
+                        (cong (λ theta -> subTy eta (subTy theta (sigmaBranchTy M)))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTyComp eta (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                    (eqSubDerivTyComp
+                      (assocTy (assocTmLeft dm))
+                      (composeTwoBindersEq fits dAσ dBσ fitsEq2))))
+          compAssoc =
+            subst
+              (λ J -> HypComputable J)
+              (cong₂
+                (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+                (cong (λ rho -> subTm rho m) (liftSubstCompKeep (liftSubst sigma)))
+                (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                  (liftSubstCompKeep (liftSubst sigma))))
+              (hypTmOpen
+                nonemptyNeNil
+                (substTmRule (assocTmLeft dm) (liftFits lifted1 dBσ))
+                (subst
+                  (λ T' ->
+                    HypComputable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
+                  (sym
+                    (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                      (liftSubstCompKeep (liftSubst sigma))))
+                  compBranchTy)
+                (λ rho fits2 _ ->
+                  subst
+                    (λ J -> Computable J)
+                    (sym
+                      (cong₂ (hasTy [])
+                        (cong (λ theta -> subTm rho (subTm theta m))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTmComp rho (liftSubst (liftSubst sigma)) m)
+                        (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                    (substDerivTmComp
+                      (assocTmLeft dm)
+                      (composeTwoBinders fits dAσ dBσ fits2)))
+                (λ rho eta fitsEq2 _ ->
+                  subst
+                    (λ J -> Computable J)
+                    (sym
+                      (cong₃ (termEq [])
+                        (cong (λ theta -> subTm rho (subTm theta m))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTmComp rho (liftSubst (liftSubst sigma)) m)
+                        (cong (λ theta -> subTm eta (subTm theta m))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTmComp eta (liftSubst (liftSubst sigma)) m)
+                        (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                    (eqSubDerivTmComp
+                      (assocTmLeft dm)
+                      (composeTwoBindersEq fits dAσ dBσ fitsEq2))))
+        in
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m)
               (subTm (liftSubst (liftSubst sigma)) m'))
             (sigmaBranchTyLiftComp sigma M))
-          (substSccTmEq2 fits cFits dAσ dBσ dm)
+          (subst
+            (λ J -> HypComputable J)
+            (cong₃
+              (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+              (cong (λ rho -> subTm rho m) (liftSubstCompKeep (liftSubst sigma)))
+              (cong (λ rho -> subTm rho m') (liftSubstCompKeep (liftSubst sigma)))
+              (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                (liftSubstCompKeep (liftSubst sigma))))
+            (hypTmEqOpen
+              nonemptyNeNil
+              (substTmEqRule dm (liftFits lifted1 dBσ))
+              (subst
+                (λ J -> HypComputable J)
+                (sym
+                  (cong₂
+                    (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+                    (cong (λ rho -> subTm rho m) (liftSubstCompKeep (liftSubst sigma)))
+                    (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                      (liftSubstCompKeep (liftSubst sigma)))))
+                compAssoc)
+              (λ rho fits2 _ ->
+                subst
+                  (λ J -> Computable J)
+                  (sym
+                    (cong₃ (termEq [])
+                      (cong (λ theta -> subTm rho (subTm theta m))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp rho (liftSubst (liftSubst sigma)) m)
+                      (cong (λ theta -> subTm rho (subTm theta m'))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp rho (liftSubst (liftSubst sigma)) m')
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                  (substDerivTmEqComp
+                    dm
+                    (composeTwoBinders fits dAσ dBσ fits2)))
+              (λ rho eta fitsEq2 _ ->
+                subst
+                  (λ J -> Computable J)
+                  (sym
+                    (cong₃ (termEq [])
+                      (cong (λ theta -> subTm rho (subTm theta m))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp rho (liftSubst (liftSubst sigma)) m)
+                      (cong (λ theta -> subTm eta (subTm theta m'))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp eta (liftSubst (liftSubst sigma)) m')
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                  (eqSubDerivTmEqComp
+                    dm
+                    (composeTwoBindersEq fits dAσ dBσ fitsEq2)))))
 
       resultPath :
         termEq []
@@ -4655,7 +3598,7 @@ mutual
     subst
       (λ J -> Computable J)
       (sym resultPath)
-      (compESigmaClosed compM compdd compdm)
+      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd compdm)
 
   substDerivTmEqCompEQtrEq
     : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm} {sigma : Subst}
@@ -4673,7 +3616,6 @@ mutual
            (renTm qtrSecondBranchRen l')
            (qtrCohTy L))
     -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
     -> Computable
          (termEq []
            (subTm sigma (tmElQtr l p))
@@ -4681,9 +3623,9 @@ mutual
            (subTy sigma (subTy (singleSubst p) L)))
   substDerivTmEqCompEQtrEq
     {gamma = gamma} {A = A} {L = L} {l = l} {l' = l'} {p = p} {p' = p'} {sigma = sigma}
-    dL dp dl dcoh dcoh' fits cFits =
+    dL dp dl dcoh dcoh' fits =
     let
-      compdp = substDerivTmEqComp dp fits cFits
+      compdp = substDerivTmEqComp dp fits
       compQtrσ = compTmToCompTy (compTmEqLeft compdp)
       dQtrσ = compToDerivable compQtrσ
       tyInv = invertQtrTy compQtrσ evalQtr
@@ -4694,22 +3636,25 @@ mutual
           (λ T -> Derivable (isType (subTy sigma A ∷ []) T))
           (sym (wkTyLiftSubst sigma A))
           (weakenTy dAσ (wfCons wfNil dAσ))
-      compL = substSccTy1 fits cFits dQtrσ dL
+      compL = openHypTy1 fits dQtrσ dL
 
       compl =
         subst
           (λ T ->
-            Computable
+            HypComputable
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 (subTm (liftSubst sigma) l')
                 T))
           (qtrBranchTyLiftComp sigma L)
-          (substSccTmEq1 fits cFits dAσ dl)
+          (openHypTmEq1
+            fits
+            dAσ
+            dl)
 
       compcoh =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -4738,11 +3683,15 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (substSccTmEq2 fits cFits dAσ dWkAσ dcoh)
+          (openHypTmEq2
+            fits
+            dAσ
+            dWkAσ
+            dcoh)
 
       compcoh' =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -4771,7 +3720,11 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l'))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (substSccTmEq2 fits cFits dAσ dWkAσ dcoh')
+          (openHypTmEq2
+            fits
+            dAσ
+            dWkAσ
+            dcoh')
 
       resultPath :
         termEq []
@@ -4795,7 +3748,8 @@ mutual
     subst
       (λ J -> Computable J)
       (sym resultPath)
-      (compEQtrClosed compL compdp compl compcoh compcoh')
+      (compEQtrClosed compTransTmClosed compSymTmClosed compConvTmEqClosed
+        compL compdp compl compcoh compcoh')
 
   substDerivTmEqCompCQtr
     : {gamma : Ctx} {A L : RawType} {a l : RawTerm} {sigma : Subst}
@@ -4808,7 +3762,6 @@ mutual
            (renTm qtrSecondBranchRen l)
            (qtrCohTy L))
     -> FitsSubst [] gamma sigma
-    -> CompFitsSubst gamma sigma
     -> Computable
          (termEq []
            (subTm sigma (tmElQtr l (tmClass a)))
@@ -4816,9 +3769,9 @@ mutual
            (subTy sigma (subTy (singleSubst (tmClass a)) L)))
   substDerivTmEqCompCQtr
     {gamma = gamma} {A = A} {L = L} {a = a} {l = l} {sigma = sigma}
-    dL da dl dcoh fits cFits =
+    dL da dl dcoh fits =
     let
-      compa = substDerivTmComp da fits cFits
+      compa = substDerivTmComp da fits
       compAσ = compTmToCompTy compa
       dAσ = compToDerivable compAσ
       dQtrσ = compToDerivable (compFQtrClosed compAσ)
@@ -4827,21 +3780,24 @@ mutual
           (λ T -> Derivable (isType (subTy sigma A ∷ []) T))
           (sym (wkTyLiftSubst sigma A))
           (weakenTy dAσ (wfCons wfNil dAσ))
-      compL = substSccTy1 fits cFits dQtrσ dL
+      compL = openHypTy1 fits dQtrσ dL
 
       compl =
         subst
           (λ T ->
-            Computable
+            HypComputable
               (hasTy (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 T))
           (qtrBranchTyLiftComp sigma L)
-          (substSccTm1 fits cFits dAσ dl)
+          (openHypTm1
+            fits
+            dAσ
+            dl)
 
       compcoh =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -4870,7 +3826,11 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (substSccTmEq2 fits cFits dAσ dWkAσ dcoh)
+          (openHypTmEq2
+            fits
+            dAσ
+            dWkAσ
+            dcoh)
 
       resultPath :
         termEq []
@@ -4898,24 +3858,24 @@ mutual
       (sym resultPath)
       (compCQtrClosed compL compa compl compcoh)
 
-  substDerivTmEqComp (reflTm d) fits cFits =
-    compReflTmClosed (substDerivTmComp d fits cFits)
-  substDerivTmEqComp (symTm d) fits cFits =
-    compSymTmClosed (substDerivTmEqComp d fits cFits)
-  substDerivTmEqComp (transTm d₁ d₂) fits cFits =
-    compTransTmClosed (substDerivTmEqComp d₁ fits cFits) (substDerivTmEqComp d₂ fits cFits)
-  substDerivTmEqComp (convEq d dAB) fits cFits =
-    compConvTmEqClosed (substDerivTmEqComp d fits cFits) (substDerivTyEqComp dAB fits cFits)
-  substDerivTmEqComp (cTop d) fits cFits =
-    compCTopClosed (substDerivTmComp d fits cFits)
+  substDerivTmEqComp (reflTm d) fits =
+    compReflTmClosed (substDerivTmComp d fits)
+  substDerivTmEqComp (symTm d) fits =
+    compSymTmClosed (substDerivTmEqComp d fits)
+  substDerivTmEqComp (transTm d₁ d₂) fits =
+    compTransTmClosed (substDerivTmEqComp d₁ fits) (substDerivTmEqComp d₂ fits)
+  substDerivTmEqComp (convEq d dAB) fits =
+    compConvTmEqClosed (substDerivTmEqComp d fits) (substDerivTyEqComp dAB fits)
+  substDerivTmEqComp (cTop d) fits =
+    compCTopClosed (substDerivTmComp d fits)
   substDerivTmEqComp {sigma = sigma}
-    (iSigmaEq {a = a} {b = b} {d = d} {A = A} {B = B} dac dbd dA dB) fits cFits =
+    (iSigmaEq {a = a} {b = b} {d = d} {A = A} {B = B} dac dbd dA dB) fits =
     let
-      compac = substDerivTmEqComp dac fits cFits
-      compbdRaw = substDerivTmEqComp dbd fits cFits
-      compA = substDerivTyComp dA fits cFits
+      compac = substDerivTmEqComp dac fits
+      compbdRaw = substDerivTmEqComp dbd fits
+      compA = substDerivTyComp dA fits
       dAσ = compToDerivable compA
-      compB = substSccTy1 fits cFits dAσ dB
+      compB = openHypTy1 fits dAσ dB
       compa = compTmEqLeft compac
       compcA = compTmEqRightClosed compac
       compbd =
@@ -4933,7 +3893,7 @@ mutual
       compPairRight = compISigmaClosed compcA compd (compFSigmaClosed compA compB)
     in
     compTmEqClosedSigma
-      (iSigmaEq (compToDerivable compac) (compToDerivable compbd) dAσ (compToDerivable compB))
+      (iSigmaEq (compToDerivable compac) (compToDerivable compbd) dAσ (hypCompToDerivable compB))
       compPairLeft
       compPairRight
       evalSigma
@@ -4941,34 +3901,122 @@ mutual
       evalPair
       compac
       compbd
-  substDerivTmEqComp (eSigmaEq dM dd dm) fits cFits =
-    substDerivTmEqCompESigmaEq dM dd dm fits cFits
-  substDerivTmEqComp (eQtrEq dL dp dl dcoh dcoh') fits cFits =
-    substDerivTmEqCompEQtrEq dL dp dl dcoh dcoh' fits cFits
+  substDerivTmEqComp (eSigmaEq dM dd dm) fits =
+    substDerivTmEqCompESigmaEq dM dd dm fits
+  substDerivTmEqComp (eQtrEq dL dp dl dcoh dcoh') fits =
+    substDerivTmEqCompEQtrEq dL dp dl dcoh dcoh' fits
   substDerivTmEqComp {gamma = gamma} {sigma = sigma}
-    (cSigma {A = A} {B = B} {M = M} {b = b} {c = c} {m = m} dM db dc dm) fits cFits =
+    (cSigma {A = A} {B = B} {M = M} {b = b} {c = c} {m = m} dM db dc dm) fits =
     let
-      compb = substDerivTmComp db fits cFits
+      compb = substDerivTmComp db fits
       sigmaTy = ctxSuffixTy {delta = []} {gamma = gamma} {A = tySigma A B} (derivToCtxWF dM)
-      compSigma = substDerivTyComp sigmaTy fits cFits
+      compSigma = substDerivTyComp sigmaTy fits
       dSigmaσ = compToDerivable compSigma
       tyInv = invertSigmaTy compSigma evalSigma
       compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      compBσ = ClosedSigmaTyInv.sigmaTyCompFam tyInv
       dAσ = compToDerivable compAσ
-      dBσ = compToDerivable compBσ
-      compM = substSccTy1 fits cFits dSigmaσ dM
+      compBσ = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
+      dBσ = hypCompToDerivable compBσ
+      compM = openHypTy1 fits dSigmaσ dM
 
       compdm =
+        let
+          lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+          lifted1 =
+            subst
+              (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+              (liftSubstCompKeep sigma)
+              (liftFitsOne fits dAσ)
+          compBranchTy =
+            subst
+              (λ T' ->
+                HypComputable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
+              (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                (liftSubstCompKeep (liftSubst sigma)))
+              (hypTyOpen
+                nonemptyNeNil
+                (substTyRule (assocTy dm) (liftFits lifted1 dBσ))
+                (λ rho fits2 _ ->
+                  subst
+                    (λ T' -> Computable (isType [] T'))
+                    (sym
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M)))
+                    (substDerivTyComp
+                      (assocTy dm)
+                      (composeTwoBinders fits dAσ dBσ fits2)))
+                (λ rho eta fitsEq2 _ ->
+                  subst
+                    (λ J -> Computable J)
+                    (sym
+                      (cong₂ (typeEq [])
+                        (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))
+                        (cong (λ theta -> subTy eta (subTy theta (sigmaBranchTy M)))
+                          (liftSubstCompKeep (liftSubst sigma))
+                          ∙ subTyComp eta (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                    (eqSubDerivTyComp
+                      (assocTy dm)
+                      (composeTwoBindersEq fits dAσ dBσ fitsEq2))))
+        in
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m))
             (sigmaBranchTyLiftComp sigma M))
-          (substSccTm2 fits cFits dAσ dBσ dm)
+          (subst
+            (λ J -> HypComputable J)
+            (cong₂
+              (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+              (cong (λ rho -> subTm rho m) (liftSubstCompKeep (liftSubst sigma)))
+              (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                (liftSubstCompKeep (liftSubst sigma))))
+            (hypTmOpen
+              nonemptyNeNil
+              (substTmRule dm (liftFits lifted1 dBσ))
+              (subst
+                (λ T' ->
+                  HypComputable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T'))
+                (sym
+                  (cong (λ rho -> subTy rho (sigmaBranchTy M))
+                    (liftSubstCompKeep (liftSubst sigma))))
+                compBranchTy)
+              (λ rho fits2 _ ->
+                subst
+                  (λ J -> Computable J)
+                  (sym
+                    (cong₂ (hasTy [])
+                      (cong (λ theta -> subTm rho (subTm theta m))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp rho (liftSubst (liftSubst sigma)) m)
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                  (substDerivTmComp
+                    dm
+                    (composeTwoBinders fits dAσ dBσ fits2)))
+              (λ rho eta fitsEq2 _ ->
+                subst
+                  (λ J -> Computable J)
+                  (sym
+                    (cong₃ (termEq [])
+                      (cong (λ theta -> subTm rho (subTm theta m))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp rho (liftSubst (liftSubst sigma)) m)
+                      (cong (λ theta -> subTm eta (subTm theta m))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTmComp eta (liftSubst (liftSubst sigma)) m)
+                      (cong (λ theta -> subTy rho (subTy theta (sigmaBranchTy M)))
+                        (liftSubstCompKeep (liftSubst sigma))
+                        ∙ subTyComp rho (liftSubst (liftSubst sigma)) (sigmaBranchTy M))))
+                  (eqSubDerivTmComp
+                    dm
+                    (composeTwoBindersEq fits dAσ dBσ fitsEq2)))))
 
-      compcRaw = substDerivTmComp dc fits cFits
+      compcRaw = substDerivTmComp dc fits
       compc =
         subst
           (λ T -> Computable (hasTy [] (subTm sigma c) T))
@@ -5007,28 +4055,27 @@ mutual
       (λ J -> Computable J)
       (sym resultPath)
       (compCSigmaClosed compM compb compc compdm)
-  substDerivTmEqComp (iEqEq d) fits cFits =
-    compReflTm (compIEqClosed (compTmEqLeft (substDerivTmEqComp d fits cFits)))
-  substDerivTmEqComp (eEqStar dp dA da db) fits cFits =
-    compEEqClosed (substDerivTmComp dp fits cFits)
-  substDerivTmEqComp (cEq dp dA da db) fits cFits =
-    compCEqClosed (substDerivTmComp dp fits cFits)
-  substDerivTmEqComp (iQtrEq da db) fits cFits =
-    compIQtrEqClosed (substDerivTmComp da fits cFits) (substDerivTmComp db fits cFits)
-  substDerivTmEqComp (cQtr dL da dl dcoh) fits cFits =
-    substDerivTmEqCompCQtr dL da dl dcoh fits cFits
-  substDerivTmEqComp {sigma = sigma} (weakenTmEq {delta = delta} {t = t} {u = u} {A = A} d wf) fits cFits =
+  substDerivTmEqComp (iEqEq d) fits =
+    compReflTm (compIEqClosed (compTmEqLeft (substDerivTmEqComp d fits)))
+  substDerivTmEqComp (eEqStar dp dA da db) fits =
+    compEEqClosed (substDerivTmComp dp fits)
+  substDerivTmEqComp (cEq dp dA da db) fits =
+    compCEqClosed (substDerivTmComp dp fits)
+  substDerivTmEqComp (iQtrEq da db) fits =
+    compIQtrEqClosed (substDerivTmComp da fits) (substDerivTmComp db fits)
+  substDerivTmEqComp (cQtr dL da dl dcoh) fits =
+    substDerivTmEqCompCQtr dL da dl dcoh fits
+  substDerivTmEqComp {sigma = sigma} (weakenTmEq {delta = delta} {t = t} {u = u} {A = A} d wf) fits =
     subst
       (λ J -> Computable J)
       (cong₃ (termEq [])
         (sym (subTmWkBy sigma (length delta) t))
         (sym (subTmWkBy sigma (length delta) u))
         (sym (subTyWkBy sigma (length delta) A)))
-      (substDerivTmEqComp d (dropFits delta fits) (dropCompFits delta cFits))
-  substDerivTmEqComp {sigma = sigma} (substTmEqRule {sigma = sigma'} {t = t} {u = u} {A = A} d fits') fits cFits =
+      (substDerivTmEqComp d (dropFits delta fits))
+  substDerivTmEqComp {sigma = sigma} (substTmEqRule {sigma = sigma'} {t = t} {u = u} {A = A} d fits') fits =
     let
       composedFits = composeFits fits fits'
-      composedCFits = composeCompFits fits' fits cFits
     in
     subst
       (λ J -> Computable J)
@@ -5036,12 +4083,11 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTmComp sigma sigma' u))
         (sym (subTyComp sigma sigma' A)))
-      (substDerivTmEqComp d composedFits composedCFits)
+      (substDerivTmEqComp d composedFits)
   substDerivTmEqComp {sigma = sigma}
-    (eqSubTmRule {sigma = sigma'} {tau = tau'} {t = t} {A = A} d fitsEq') fits cFits =
+    (eqSubTmRule {sigma = sigma'} {tau = tau'} {t = t} {A = A} d fitsEq') fits =
     let
       composedFitsEq = composeFitsEq fits fitsEq'
-      composedCFitsEq = composeCompFitsEq fits cFits fitsEq'
     in
     subst
       (λ J -> Computable J)
@@ -5049,12 +4095,11 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTmComp sigma tau' t))
         (sym (subTyComp sigma sigma' A)))
-      (eqSubDerivTmComp d composedFitsEq composedCFitsEq)
+      (eqSubDerivTmComp d composedFitsEq)
   substDerivTmEqComp {sigma = sigma}
-    (eqSubTmEqRule {sigma = sigma'} {tau = tau'} {t = t} {u = u} {A = A} d fitsEq') fits cFits =
+    (eqSubTmEqRule {sigma = sigma'} {tau = tau'} {t = t} {u = u} {A = A} d fitsEq') fits =
     let
       composedFitsEq = composeFitsEq fits fitsEq'
-      composedCFitsEq = composeCompFitsEq fits cFits fitsEq'
     in
     subst
       (λ J -> Computable J)
@@ -5062,39 +4107,110 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTmComp sigma tau' u))
         (sym (subTyComp sigma sigma' A)))
-      (eqSubDerivTmEqComp d composedFitsEq composedCFitsEq)
-  eqSubDerivTyComp : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
-    -> Derivable (isType gamma A)
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Computable (typeEq [] (subTy sigma A) (subTy tau A))
-  eqSubDerivTyComp (fTop wf) fitsEq cFitsEq = compReflTy compFTopClosed
-  eqSubDerivTyComp {sigma = sigma} {tau = tau}
-    (fSigma {A = A} {B = B} dA dB) fitsEq cFitsEq =
+      (eqSubDerivTmEqComp d composedFitsEq)
+  eqSubDerivTyComp (fTop wf) fitsEq = compReflTy compFTopClosed
+  eqSubDerivTyComp {gamma = gamma} {sigma = sigma} {tau = tau}
+    (fSigma {A = A} {B = B} dA dB) fitsEq =
     let
-      compAA' = eqSubDerivTyComp dA fitsEq cFitsEq
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compAA' = eqSubDerivTyComp dA fitsEq
       compA = compTyEqLeft compAA'
-      compA' = compTyEqRight compAA'
-      dAσ = compToDerivable compA
-      compBD = eqSubSccTy1 fitsEq cFitsEq dAσ dB
-      compSigmaA = compFSigmaClosed compA (compTyEqLeft compBD)
-      compSigmaA' = compFSigmaClosed compA' (compTransportFamilyTy compAA' (compTyEqRight compBD))
+      compA' = compTyEqRightClosed compAA'
+      dAσ = substTyRule dA sigmaFits
+      compB =
+        subst
+          (λ T -> HypComputable (isType (subTy sigma A ∷ []) T))
+          (cong (λ rho -> subTy rho B) (liftSubstCompKeepNR sigma))
+          (hypTyOpen
+            nonemptyNeNil
+            (substTyRule dB (liftFitsOneNR sigmaFits dAσ))
+            (λ rho fits2 _ ->
+              subst
+                (λ T -> Computable (isType [] T))
+                (sym
+                  (cong (λ theta -> subTy rho (subTy theta B)) (liftSubstCompKeepNR sigma)
+                    ∙ subTyComp rho (liftSubst sigma) B))
+                (substDerivTyComp
+                  dB
+                  (composeOneBinderNR sigmaFits dAσ fits2)))
+            (λ rho eta fitsEq2 _ ->
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₂ (typeEq [])
+                    (cong (λ theta -> subTy rho (subTy theta B)) (liftSubstCompKeepNR sigma)
+                      ∙ subTyComp rho (liftSubst sigma) B)
+                    (cong (λ theta -> subTy eta (subTy theta B)) (liftSubstCompKeepNR sigma)
+                      ∙ subTyComp eta (liftSubst sigma) B)))
+                (eqSubDerivTyComp
+                  dB
+                  (composeOneBinderEqNR sigmaFits dAσ fitsEq2))))
+      compBD =
+        let
+          liftedEq :
+            FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+              (liftSubst sigma)
+              (liftSubst tau)
+          liftedEq =
+            subst
+              (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+              (liftSubstCompKeepNR sigma)
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                    rho)
+                (liftSubstCompKeepNR tau)
+                (liftFitsEqOneNR fitsEq dAσ))
+        in
+        hypTyEqOpen
+          nonemptyNeNil
+          (eqSubTyRule dB liftedEq)
+          compB
+          (λ rho fits2 _ ->
+            let
+              composedFitsEq = composeFitsEq fits2 liftedEq
+            in
+            subst
+              (λ J -> Computable J)
+              (sym
+                (cong₂ (typeEq [])
+                  (subTyComp rho (liftSubst sigma) B)
+                  (subTyComp rho (liftSubst tau) B)))
+              (eqSubDerivTyComp
+                dB
+                composedFitsEq))
+          (λ rho eta fitsEq2 _ ->
+            let
+              composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
+            in
+            subst
+              (λ J -> Computable J)
+              (sym
+                (cong₂ (typeEq [])
+                  (subTyComp rho (liftSubst sigma) B)
+                  (subTyComp eta (liftSubst tau) B)))
+              (eqSubDerivTyComp
+                dB
+                composedFitsEq))
+      compSigmaA = compFSigmaClosed compA (hypTyEqLeft compBD)
+      compSigmaA' = compFSigmaClosed compA' (compTransportFamilyTy compAA' (hypTyEqRight compBD))
     in
     compTyEqClosedSigma
-      (fSigmaEq (compToDerivable compAA') (compToDerivable compBD))
+      (fSigmaEq (compToDerivable compAA') (hypCompToDerivable compBD))
       compSigmaA
       compSigmaA'
       evalSigma
       evalSigma
       compAA'
-      compBD
-  eqSubDerivTyComp (fEq dA da db) fitsEq cFitsEq =
+      (hypCompToDerivable compBD)
+  eqSubDerivTyComp (fEq dA da db) fitsEq =
     let
-      compAA' = eqSubDerivTyComp dA fitsEq cFitsEq
-      compac = eqSubDerivTmComp da fitsEq cFitsEq
-      compbd = eqSubDerivTmComp db fitsEq cFitsEq
+      compAA' = eqSubDerivTyComp dA fitsEq
+      compac = eqSubDerivTmComp da fitsEq
+      compbd = eqSubDerivTmComp db fitsEq
       compA = compTyEqLeft compAA'
-      compA' = compTyEqRight compAA'
+      compA' = compTyEqRightClosed compAA'
       compa = compTmEqLeft compac
       compb = compTmEqLeft compbd
       compcA = compTmEqRightClosed compac
@@ -5113,131 +4229,172 @@ mutual
       compAA'
       compac
       compbd
-  eqSubDerivTyComp (fQtr dA) fitsEq cFitsEq =
+  eqSubDerivTyComp (fQtr dA) fitsEq =
     let
-      compAA' = eqSubDerivTyComp dA fitsEq cFitsEq
+      compAA' = eqSubDerivTyComp dA fitsEq
     in
     compTyEqClosedQtr
       (fQtrEq (compToDerivable compAA'))
       (compFQtrClosed (compTyEqLeft compAA'))
-      (compFQtrClosed (compTyEqRight compAA'))
+      (compFQtrClosed (compTyEqRightClosed compAA'))
       evalQtr
       evalQtr
       compAA'
   eqSubDerivTyComp {sigma = sigma} {tau = tau}
-    (weakenTy {delta = delta} {A = A} d wf) fitsEq cFitsEq =
+    (weakenTy {delta = delta} {A = A} d wf) fitsEq =
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyWkBy sigma (length delta) A))
         (sym (subTyWkBy tau (length delta) A)))
-      (eqSubDerivTyComp d (dropFitsEq delta fitsEq) (dropCompFitsEq delta cFitsEq))
+      (eqSubDerivTyComp d (dropFitsEq delta fitsEq))
   eqSubDerivTyComp {sigma = sigma} {tau = tau}
-    (substTyRule {sigma = sigma'} {A = A} d fits') fitsEq cFitsEq =
+    (substTyRule {sigma = sigma'} {A = A} d fits') fitsEq =
     let
       composedFitsEq = composeEqFits fitsEq fits'
-      composedCFitsEq = composeCompEqFits fitsEq cFitsEq fits'
     in
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyComp sigma sigma' A))
         (sym (subTyComp tau sigma' A)))
-      (eqSubDerivTyComp d composedFitsEq composedCFitsEq)
+      (eqSubDerivTyComp d composedFitsEq)
 
   eqSubDerivTyEqComp : {gamma : Ctx} {A B : RawType} {sigma tau : Subst}
     -> Derivable (typeEq gamma A B)
     -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Computable (typeEq [] (subTy sigma A) (subTy tau B))
-  eqSubDerivTyEqComp (reflTy d) fitsEq cFitsEq =
-    eqSubDerivTyComp d fitsEq cFitsEq
-  eqSubDerivTyEqComp (symTy d) fitsEq cFitsEq =
+  eqSubDerivTyEqComp (reflTy d) fitsEq =
+    eqSubDerivTyComp d fitsEq
+  eqSubDerivTyEqComp (symTy d) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
     in
     compTransTyClosed
-      (compSymTyClosed (substDerivTyEqComp d sigmaFits sigmaCFits))
-      (eqSubDerivTyComp (assocTyLeft d) fitsEq cFitsEq)
-  eqSubDerivTyEqComp (transTy d₁ d₂) fitsEq cFitsEq =
+      (compSymTyClosed (substDerivTyEqComp d sigmaFits))
+      (eqSubDerivTyComp (assocTyLeft d) fitsEq)
+  eqSubDerivTyEqComp (transTy d₁ d₂) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
     in
     compTransTyClosed
-      (substDerivTyEqComp d₁ sigmaFits sigmaCFits)
-      (eqSubDerivTyEqComp d₂ fitsEq cFitsEq)
-  eqSubDerivTyEqComp {sigma = sigma} {tau = tau}
-    (fSigmaEq {A = A} {B = B} {D = D} dAC dBD) fitsEq cFitsEq =
+      (substDerivTyEqComp d₁ sigmaFits)
+      (eqSubDerivTyEqComp d₂ fitsEq)
+  eqSubDerivTyEqComp {gamma = gamma} {sigma = sigma} {tau = tau}
+    (fSigmaEq {A = A} {B = B} {D = D} dAC dBD) fitsEq =
     let
-      compAC = eqSubDerivTyEqComp dAC fitsEq cFitsEq
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compAC = eqSubDerivTyEqComp dAC fitsEq
       compA = compTyEqLeft compAC
-      compC = compTyEqRight compAC
+      compC = compTyEqRightClosed compAC
       dAσ = compToDerivable compA
-      compBD = eqSubSccTyEq1 fitsEq cFitsEq dAσ dBD
-      compSigmaA = compFSigmaClosed compA (compTyEqLeft compBD)
-      compSigmaC = compFSigmaClosed compC (compTransportFamilyTy compAC (compTyEqRight compBD))
+      compBD =
+        let
+          liftedEq :
+            FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+              (liftSubst sigma)
+              (liftSubst tau)
+          liftedEq =
+            subst
+              (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+              (liftSubstCompKeep sigma)
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                    rho)
+                (liftSubstCompKeep tau)
+                (liftFitsEqOne fitsEq dAσ))
+        in
+        hypTyEqOpen
+          nonemptyNeNil
+          (eqSubTyEqRule dBD liftedEq)
+          (openHypTy1 sigmaFits dAσ (assocTyLeft dBD))
+          (λ rho fits2 _ ->
+            let
+              composedFitsEq = composeFitsEq fits2 liftedEq
+            in
+            subst
+              (λ J -> Computable J)
+              (sym
+                (cong₂ (typeEq [])
+                  (subTyComp rho (liftSubst sigma) B)
+                  (subTyComp rho (liftSubst tau) D)))
+              (eqSubDerivTyEqComp
+                dBD
+                composedFitsEq))
+          (λ rho eta fitsEq2 _ ->
+            let
+              composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
+            in
+            subst
+              (λ J -> Computable J)
+              (sym
+                (cong₂ (typeEq [])
+                  (subTyComp rho (liftSubst sigma) B)
+                  (subTyComp eta (liftSubst tau) D)))
+              (eqSubDerivTyEqComp
+                dBD
+                composedFitsEq))
+      compSigmaA = compFSigmaClosed compA (hypTyEqLeft compBD)
+      compSigmaC = compFSigmaClosed compC (compTransportFamilyTy compAC (hypTyEqRight compBD))
     in
     compTyEqClosedSigma
-      (fSigmaEq (compToDerivable compAC) (compToDerivable compBD))
+      (fSigmaEq (compToDerivable compAC) (hypCompToDerivable compBD))
       compSigmaA
       compSigmaC
       evalSigma
       evalSigma
       compAC
-      compBD
+      (hypCompToDerivable compBD)
   eqSubDerivTyEqComp {sigma = sigma} {tau = tau}
-    (weakenTyEq {delta = delta} {A = A} {B = B} d wf) fitsEq cFitsEq =
+    (weakenTyEq {delta = delta} {A = A} {B = B} d wf) fitsEq =
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyWkBy sigma (length delta) A))
         (sym (subTyWkBy tau (length delta) B)))
-      (eqSubDerivTyEqComp d (dropFitsEq delta fitsEq) (dropCompFitsEq delta cFitsEq))
+      (eqSubDerivTyEqComp d (dropFitsEq delta fitsEq))
   eqSubDerivTyEqComp {sigma = sigma} {tau = tau}
-    (substTyEqRule {sigma = sigma'} {A = A} {B = B} d fits') fitsEq cFitsEq =
+    (substTyEqRule {sigma = sigma'} {A = A} {B = B} d fits') fitsEq =
     let
       composedFitsEq = composeEqFits fitsEq fits'
-      composedCFitsEq = composeCompEqFits fitsEq cFitsEq fits'
     in
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyComp sigma sigma' A))
         (sym (subTyComp tau sigma' B)))
-      (eqSubDerivTyEqComp d composedFitsEq composedCFitsEq)
+      (eqSubDerivTyEqComp d composedFitsEq)
   eqSubDerivTyEqComp {sigma = sigma} {tau = tau}
-    (eqSubTyRule {sigma = sigma'} {tau = tau'} {A = A} d fitsEq') fitsEq cFitsEq =
+    (eqSubTyRule {sigma = sigma'} {tau = tau'} {A = A} d fitsEq') fitsEq =
     let
       composedFitsEq = composeEqFitsEq fitsEq fitsEq'
-      composedCFitsEq = composeCompEqFitsEq fitsEq cFitsEq fitsEq'
     in
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyComp sigma sigma' A))
         (sym (subTyComp tau tau' A)))
-      (eqSubDerivTyComp d composedFitsEq composedCFitsEq)
+      (eqSubDerivTyComp d composedFitsEq)
   eqSubDerivTyEqComp {sigma = sigma} {tau = tau}
-    (eqSubTyEqRule {sigma = sigma'} {tau = tau'} {A = A} {B = B} d fitsEq') fitsEq cFitsEq =
+    (eqSubTyEqRule {sigma = sigma'} {tau = tau'} {A = A} {B = B} d fitsEq') fitsEq =
     let
       composedFitsEq = composeEqFitsEq fitsEq fitsEq'
-      composedCFitsEq = composeCompEqFitsEq fitsEq cFitsEq fitsEq'
     in
     subst
       (λ J -> Computable J)
       (cong₂ (typeEq [])
         (sym (subTyComp sigma sigma' A))
         (sym (subTyComp tau tau' B)))
-      (eqSubDerivTyEqComp d composedFitsEq composedCFitsEq)
-  eqSubDerivTyEqComp (fEqEq dAC dac dbd) fitsEq cFitsEq =
+      (eqSubDerivTyEqComp d composedFitsEq)
+  eqSubDerivTyEqComp (fEqEq dAC dac dbd) fitsEq =
     let
-      compAC = eqSubDerivTyEqComp dAC fitsEq cFitsEq
-      compac = eqSubDerivTmEqComp dac fitsEq cFitsEq
-      compbd = eqSubDerivTmEqComp dbd fitsEq cFitsEq
+      compAC = eqSubDerivTyEqComp dAC fitsEq
+      compac = eqSubDerivTmEqComp dac fitsEq
+      compbd = eqSubDerivTmEqComp dbd fitsEq
       compA = compTyEqLeft compAC
-      compC = compTyEqRight compAC
+      compC = compTyEqRightClosed compAC
       compa = compTmEqLeft compac
       compb = compTmEqLeft compbd
       compcA = compTmEqRightClosed compac
@@ -5256,14 +4413,14 @@ mutual
       compAC
       compac
       compbd
-  eqSubDerivTyEqComp (fQtrEq dAB) fitsEq cFitsEq =
+  eqSubDerivTyEqComp (fQtrEq dAB) fitsEq =
     let
-      compAB = eqSubDerivTyEqComp dAB fitsEq cFitsEq
+      compAB = eqSubDerivTyEqComp dAB fitsEq
     in
     compTyEqClosedQtr
       (fQtrEq (compToDerivable compAB))
       (compFQtrClosed (compTyEqLeft compAB))
-      (compFQtrClosed (compTyEqRight compAB))
+      (compFQtrClosed (compTyEqRightClosed compAB))
       evalQtr
       evalQtr
       compAB
@@ -5279,7 +4436,6 @@ mutual
            (renTm qtrSecondBranchRen l)
            (qtrCohTy L))
     -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Computable
          (termEq []
            (subTm sigma (tmElQtr l p))
@@ -5287,11 +4443,10 @@ mutual
            (subTy sigma (subTy (singleSubst p) L)))
   eqSubDerivTmCompEQtr
     {gamma = gamma} {A = A} {L = L} {l = l} {p = p} {sigma = sigma} {tau = tau}
-    dL dp dl dcoh fitsEq cFitsEq =
+    dL dp dl dcoh fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      compp = eqSubDerivTmComp dp fitsEq cFitsEq
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compp = eqSubDerivTmComp dp fitsEq
       compQtrσ = compTmToCompTy (compTmEqLeft compp)
       dQtrσ = compToDerivable compQtrσ
       tyInv = invertQtrTy compQtrσ evalQtr
@@ -5305,22 +4460,73 @@ mutual
           dWkBaseσ
       wkCtxWF : CtxWF (wkTyBy 1 (subTy sigma A) ∷ subTy sigma A ∷ [])
       wkCtxWF = wfCons (wfCons wfNil dAσ) dWkBaseσ
-      compL = substSccTy1 sigmaFits sigmaCFits dQtrσ dL
+      compL = openHypTy1 sigmaFits dQtrσ dL
 
       branchEq =
         subst
           (λ T ->
-            Computable
+            HypComputable
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 (subTm (liftSubst tau) l)
                 T))
           (qtrBranchTyLiftComp sigma L)
-          (eqSubSccTm1 fitsEq cFitsEq dAσ dl)
+          (let
+             liftedEq :
+               FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                 (liftSubst sigma)
+                 (liftSubst tau)
+             liftedEq =
+               subst
+                 (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+                 (liftSubstCompKeep sigma)
+                 (subst
+                   (λ rho ->
+                     FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                       rho)
+                   (liftSubstCompKeep tau)
+                   (liftFitsEqOne fitsEq dAσ))
+           in
+           hypTmEqOpen
+             nonemptyNeNil
+             (eqSubTmRule dl liftedEq)
+             (openHypTm1
+               sigmaFits
+               dAσ
+               dl)
+             (λ rho fits2 _ ->
+               let
+                 composedFitsEq = composeFitsEq fits2 liftedEq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst sigma) l)
+                     (subTmComp rho (liftSubst tau) l)
+                     (subTyComp rho (liftSubst sigma) (qtrBranchTy L))))
+                 (eqSubDerivTmComp
+                   dl
+                   composedFitsEq))
+             (λ rho eta fitsEq2 _ ->
+               let
+                 composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst sigma) l)
+                     (subTmComp eta (liftSubst tau) l)
+                     (subTyComp rho (liftSubst sigma) (qtrBranchTy L))))
+                 (eqSubDerivTmComp
+                   dl
+                   composedFitsEq)))
 
       branchEqWk =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (wkTyBy 1 (subTy sigma A) ∷ subTy sigma A ∷ [])
@@ -5332,7 +4538,7 @@ mutual
 
       cohσ =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5361,11 +4567,15 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (substSccTmEq2 sigmaFits sigmaCFits dAσ dWkAσ dcoh)
+          (openHypTmEq2
+            sigmaFits
+            dAσ
+            dWkAσ
+            dcoh)
 
       cohστ =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5394,7 +4604,80 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst tau) l))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (eqSubSccTmEq2 fitsEq cFitsEq dAσ dWkAσ dcoh)
+          (let
+             lifted1Eq :
+               FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                 (liftSubst sigma)
+                 (liftSubst tau)
+             lifted1Eq =
+               subst
+                 (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+                 (liftSubstCompKeep sigma)
+                 (subst
+                   (λ rho ->
+                     FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                       rho)
+                   (liftSubstCompKeep tau)
+                   (liftFitsEqOne fitsEq dAσ))
+             lifted2Eq :
+               FitsEqSubst (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ [])
+                 (wkTyBy 1 A ∷ A ∷ gamma)
+                 (liftSubst (liftSubst sigma))
+                 (liftSubst (liftSubst tau))
+             lifted2Eq =
+               subst
+                 (λ rho ->
+                   FitsEqSubst (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ [])
+                     (wkTyBy 1 A ∷ A ∷ gamma)
+                     rho
+                     (liftSubst (liftSubst tau)))
+                 (liftSubstCompKeep (liftSubst sigma))
+                 (subst
+                   (λ rho ->
+                     FitsEqSubst (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ [])
+                       (wkTyBy 1 A ∷ A ∷ gamma)
+                       (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                       rho)
+                   (liftSubstCompKeep (liftSubst tau))
+                   (liftFitsEq lifted1Eq dWkAσ))
+           in
+           hypTmEqOpen
+             nonemptyNeNil
+             (eqSubTmEqRule dcoh lifted2Eq)
+             (openHypTm2
+               sigmaFits
+               dAσ
+               dWkAσ
+               (assocTmLeft dcoh))
+             (λ rho fits2 _ ->
+               let
+                 composedFitsEq = composeFitsEq fits2 lifted2Eq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst (liftSubst sigma)) (wkTmBy 1 l))
+                     (subTmComp rho (liftSubst (liftSubst tau)) (renTm qtrSecondBranchRen l))
+                     (subTyComp rho (liftSubst (liftSubst sigma)) (qtrCohTy L))))
+                 (eqSubDerivTmEqComp
+                   dcoh
+                   composedFitsEq))
+             (λ rho eta fitsEq2 _ ->
+               let
+                 composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst (liftSubst sigma)) (wkTmBy 1 l))
+                     (subTmComp eta (liftSubst (liftSubst tau)) (renTm qtrSecondBranchRen l))
+                     (subTyComp rho (liftSubst (liftSubst sigma)) (qtrCohTy L))))
+                 (eqSubDerivTmEqComp
+                   dcoh
+                   composedFitsEq)))
 
       cohτ = compTransTm (compSymTm branchEqWk) cohστ
 
@@ -5420,7 +4703,8 @@ mutual
     subst
       (λ J -> Computable J)
       (sym resultPath)
-      (compEQtrClosed compL compp branchEq cohσ cohτ)
+      (compEQtrClosed compTransTmClosed compSymTmClosed compConvTmEqClosed
+        compL compp branchEq cohσ cohτ)
 
   eqSubDerivTmEqCompEQtrEq
     : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm} {sigma tau : Subst}
@@ -5438,7 +4722,6 @@ mutual
            (renTm qtrSecondBranchRen l')
            (qtrCohTy L))
     -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Computable
          (termEq []
            (subTm sigma (tmElQtr l p))
@@ -5446,11 +4729,10 @@ mutual
            (subTy sigma (subTy (singleSubst p) L)))
   eqSubDerivTmEqCompEQtrEq
     {gamma = gamma} {A = A} {L = L} {l = l} {l' = l'} {p = p} {p' = p'} {sigma = sigma} {tau = tau}
-    dL dp dl dcoh dcoh' fitsEq cFitsEq =
+    dL dp dl dcoh dcoh' fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      compp = eqSubDerivTmEqComp dp fitsEq cFitsEq
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compp = eqSubDerivTmEqComp dp fitsEq
       compQtrσ = compTmToCompTy (compTmEqLeft compp)
       dQtrσ = compToDerivable compQtrσ
       tyInv = invertQtrTy compQtrσ evalQtr
@@ -5464,33 +4746,135 @@ mutual
           dWkBaseσ
       wkCtxWF : CtxWF (wkTyBy 1 (subTy sigma A) ∷ subTy sigma A ∷ [])
       wkCtxWF = wfCons (wfCons wfNil dAσ) dWkBaseσ
-      compL = substSccTy1 sigmaFits sigmaCFits dQtrσ dL
+      compL = openHypTy1 sigmaFits dQtrσ dL
 
       branchEq =
         subst
           (λ T ->
-            Computable
+            HypComputable
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 (subTm (liftSubst tau) l')
                 T))
           (qtrBranchTyLiftComp sigma L)
-          (eqSubSccTmEq1 fitsEq cFitsEq dAσ dl)
+          (let
+             liftedEq :
+               FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                 (liftSubst sigma)
+                 (liftSubst tau)
+             liftedEq =
+               subst
+                 (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+                 (liftSubstCompKeep sigma)
+                 (subst
+                   (λ rho ->
+                     FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                       rho)
+                   (liftSubstCompKeep tau)
+                   (liftFitsEqOne fitsEq dAσ))
+           in
+           hypTmEqOpen
+             nonemptyNeNil
+             (eqSubTmEqRule dl liftedEq)
+             (openHypTm1
+               sigmaFits
+               dAσ
+               (assocTmLeft dl))
+             (λ rho fits2 _ ->
+               let
+                 composedFitsEq = composeFitsEq fits2 liftedEq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst sigma) l)
+                     (subTmComp rho (liftSubst tau) l')
+                     (subTyComp rho (liftSubst sigma) (qtrBranchTy L))))
+                 (eqSubDerivTmEqComp
+                   dl
+                   composedFitsEq))
+             (λ rho eta fitsEq2 _ ->
+               let
+                 composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst sigma) l)
+                     (subTmComp eta (liftSubst tau) l')
+                     (subTyComp rho (liftSubst sigma) (qtrBranchTy L))))
+                 (eqSubDerivTmEqComp
+                   dl
+                   composedFitsEq)))
 
       branchEqRight =
         subst
           (λ T ->
-            Computable
+            HypComputable
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l')
                 (subTm (liftSubst tau) l')
                 T))
           (qtrBranchTyLiftComp sigma L)
-          (eqSubSccTm1 fitsEq cFitsEq dAσ (assocTmRight dl))
+          (let
+             liftedEq :
+               FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                 (liftSubst sigma)
+                 (liftSubst tau)
+             liftedEq =
+               subst
+                 (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+                 (liftSubstCompKeep sigma)
+                 (subst
+                   (λ rho ->
+                     FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                       rho)
+                   (liftSubstCompKeep tau)
+                   (liftFitsEqOne fitsEq dAσ))
+           in
+           hypTmEqOpen
+             nonemptyNeNil
+             (eqSubTmRule (assocTmRight dl) liftedEq)
+             (openHypTm1
+               sigmaFits
+               dAσ
+               (assocTmRight dl))
+             (λ rho fits2 _ ->
+               let
+                 composedFitsEq = composeFitsEq fits2 liftedEq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst sigma) l')
+                     (subTmComp rho (liftSubst tau) l')
+                     (subTyComp rho (liftSubst sigma) (qtrBranchTy L))))
+                 (eqSubDerivTmComp
+                   (assocTmRight dl)
+                   composedFitsEq))
+             (λ rho eta fitsEq2 _ ->
+               let
+                 composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst sigma) l')
+                     (subTmComp eta (liftSubst tau) l')
+                     (subTyComp rho (liftSubst sigma) (qtrBranchTy L))))
+                 (eqSubDerivTmComp
+                   (assocTmRight dl)
+                   composedFitsEq)))
 
       branchEqRightWk =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (wkTyBy 1 (subTy sigma A) ∷ subTy sigma A ∷ [])
@@ -5502,7 +4886,7 @@ mutual
 
       cohσ =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5531,11 +4915,15 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (substSccTmEq2 sigmaFits sigmaCFits dAσ dWkAσ dcoh)
+          (openHypTmEq2
+            sigmaFits
+            dAσ
+            dWkAσ
+            dcoh)
 
       coh'στ =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5564,7 +4952,80 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst tau) l'))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (eqSubSccTmEq2 fitsEq cFitsEq dAσ dWkAσ dcoh')
+          (let
+             lifted1Eq :
+               FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                 (liftSubst sigma)
+                 (liftSubst tau)
+             lifted1Eq =
+               subst
+                 (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+                 (liftSubstCompKeep sigma)
+                 (subst
+                   (λ rho ->
+                     FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                       rho)
+                   (liftSubstCompKeep tau)
+                   (liftFitsEqOne fitsEq dAσ))
+             lifted2Eq :
+               FitsEqSubst (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ [])
+                 (wkTyBy 1 A ∷ A ∷ gamma)
+                 (liftSubst (liftSubst sigma))
+                 (liftSubst (liftSubst tau))
+             lifted2Eq =
+               subst
+                 (λ rho ->
+                   FitsEqSubst (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ [])
+                     (wkTyBy 1 A ∷ A ∷ gamma)
+                     rho
+                     (liftSubst (liftSubst tau)))
+                 (liftSubstCompKeep (liftSubst sigma))
+                 (subst
+                   (λ rho ->
+                     FitsEqSubst (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ [])
+                       (wkTyBy 1 A ∷ A ∷ gamma)
+                       (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                       rho)
+                   (liftSubstCompKeep (liftSubst tau))
+                   (liftFitsEq lifted1Eq dWkAσ))
+           in
+           hypTmEqOpen
+             nonemptyNeNil
+             (eqSubTmEqRule dcoh' lifted2Eq)
+             (openHypTm2
+               sigmaFits
+               dAσ
+               dWkAσ
+               (assocTmLeft dcoh'))
+             (λ rho fits2 _ ->
+               let
+                 composedFitsEq = composeFitsEq fits2 lifted2Eq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst (liftSubst sigma)) (wkTmBy 1 l'))
+                     (subTmComp rho (liftSubst (liftSubst tau)) (renTm qtrSecondBranchRen l'))
+                     (subTyComp rho (liftSubst (liftSubst sigma)) (qtrCohTy L))))
+                 (eqSubDerivTmEqComp
+                   dcoh'
+                   composedFitsEq))
+             (λ rho eta fitsEq2 _ ->
+               let
+                 composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst (liftSubst sigma)) (wkTmBy 1 l'))
+                     (subTmComp eta (liftSubst (liftSubst tau)) (renTm qtrSecondBranchRen l'))
+                     (subTyComp rho (liftSubst (liftSubst sigma)) (qtrCohTy L))))
+                 (eqSubDerivTmEqComp
+                   dcoh'
+                   composedFitsEq)))
 
       cohτ = compTransTm (compSymTm branchEqRightWk) coh'στ
 
@@ -5590,7 +5051,8 @@ mutual
     subst
       (λ J -> Computable J)
       (sym resultPath)
-      (compEQtrClosed compL compp branchEq cohσ cohτ)
+      (compEQtrClosed compTransTmClosed compSymTmClosed compConvTmEqClosed
+        compL compp branchEq cohσ cohτ)
 
   eqSubDerivTmEqCompCQtr
     : {gamma : Ctx} {A L : RawType} {a l : RawTerm} {sigma tau : Subst}
@@ -5603,7 +5065,6 @@ mutual
            (renTm qtrSecondBranchRen l)
            (qtrCohTy L))
     -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
     -> Computable
          (termEq []
            (subTm sigma (tmElQtr l (tmClass a)))
@@ -5611,11 +5072,10 @@ mutual
            (subTy sigma (subTy (singleSubst (tmClass a)) L)))
   eqSubDerivTmEqCompCQtr
     {gamma = gamma} {A = A} {L = L} {a = a} {l = l} {sigma = sigma} {tau = tau}
-    dL da dl dcoh fitsEq cFitsEq =
+    dL da dl dcoh fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      compa = eqSubDerivTmComp da fitsEq cFitsEq
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compa = eqSubDerivTmComp da fitsEq
       compaσ = compTmEqLeft compa
       compAσ = compTmToCompTy compaσ
       dAσ = compToDerivable compAσ
@@ -5626,21 +5086,24 @@ mutual
           (λ T -> Derivable (isType (subTy sigma A ∷ []) T))
           (sym (wkTyLiftSubst sigma A))
           dWkBaseσ
-      compL = substSccTy1 sigmaFits sigmaCFits dQtrσ dL
+      compL = openHypTy1 sigmaFits dQtrσ dL
 
       complσ =
         subst
           (λ T ->
-            Computable
+            HypComputable
               (hasTy (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 T))
           (qtrBranchTyLiftComp sigma L)
-          (substSccTm1 sigmaFits sigmaCFits dAσ dl)
+          (openHypTm1
+            sigmaFits
+            dAσ
+            dl)
 
       compcohσ =
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5669,29 +5132,90 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l))
                     T)
                 (qtrCohTyLiftComp sigma L))
-          (substSccTmEq2 sigmaFits sigmaCFits dAσ dWkAσ dcoh)
+          (openHypTmEq2
+            sigmaFits
+            dAσ
+            dWkAσ
+            dcoh)
 
       leftCan = compCQtrClosed compL compaσ complσ compcohσ
 
       complEq =
         subst
           (λ T ->
-            Computable
+            HypComputable
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 (subTm (liftSubst tau) l)
                 T))
           (qtrBranchTyLiftComp sigma L)
-          (eqSubSccTm1 fitsEq cFitsEq dAσ dl)
+          (let
+             liftedEq :
+               FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                 (liftSubst sigma)
+                 (liftSubst tau)
+             liftedEq =
+               subst
+                 (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+                 (liftSubstCompKeep sigma)
+                 (subst
+                   (λ rho ->
+                     FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                       rho)
+                   (liftSubstCompKeep tau)
+                   (liftFitsEqOne fitsEq dAσ))
+           in
+           hypTmEqOpen
+             nonemptyNeNil
+             (eqSubTmRule dl liftedEq)
+          (openHypTm1
+               sigmaFits
+               dAσ
+               dl)
+             (λ rho fits2 _ ->
+               let
+                 composedFitsEq = composeFitsEq fits2 liftedEq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst sigma) l)
+                     (subTmComp rho (liftSubst tau) l)
+                     (subTyComp rho (liftSubst sigma) (qtrBranchTy L))))
+                 (eqSubDerivTmComp
+                   dl
+                   composedFitsEq))
+             (λ rho eta fitsEq2 _ ->
+               let
+                 composedFitsEq = composeEqFitsEq fitsEq2 liftedEq
+               in
+               subst
+                 (λ J -> Computable J)
+                 (sym
+                   (cong₃ (termEq [])
+                     (subTmComp rho (liftSubst sigma) l)
+                     (subTmComp eta (liftSubst tau) l)
+                     (subTyComp rho (liftSubst sigma) (qtrBranchTy L))))
+                 (eqSubDerivTmComp
+                   dl
+                   composedFitsEq)))
+
+      branchFitsEqData =
+        qtrCompComputableFitsEqHelper compa
 
       branchFitsEq :
         FitsEqSubst [] (subTy sigma A ∷ [])
           (qtrCompSub (subTm sigma a))
           (qtrCompSub (subTm tau a))
-      branchFitsEq =
-        compFitsEqToFitsEq (qtrCompCompFitsEqHelper compa)
+      branchFitsEq = fst branchFitsEqData
 
-      compBodyEq = branchSubEq branchFitsEq complEq
+      branchCompFitsEq :
+        ComputableFitsEq branchFitsEq
+      branchCompFitsEq = snd branchFitsEqData
+
+      compBodyEq = branchSubEq branchFitsEq branchCompFitsEq complEq
 
       resultPath :
         termEq []
@@ -5720,22 +5244,22 @@ mutual
       (compTransTmClosed leftCan compBodyEq)
     where
     branchSubEq :
-      FitsEqSubst [] (subTy sigma A ∷ [])
-        (qtrCompSub (subTm sigma a))
-        (qtrCompSub (subTm tau a))
-      ->
-      Computable
-        (termEq (subTy sigma A ∷ [])
-          (subTm (liftSubst sigma) l)
-          (subTm (liftSubst tau) l)
-          (qtrBranchTy (subTy (liftSubst sigma) L)))
-      ->
-      Computable
-        (termEq []
-          (subTm (qtrCompSub (subTm sigma a)) (subTm (liftSubst sigma) l))
-          (subTm (qtrCompSub (subTm tau a)) (subTm (liftSubst tau) l))
-          (subTy (singleSubst (tmClass (subTm sigma a))) (subTy (liftSubst sigma) L)))
-    branchSubEq branchFitsEq (compTmEqOpen _ _ _ _ subEqdl) =
+      (branchFitsEq :
+        FitsEqSubst [] (subTy sigma A ∷ [])
+          (qtrCompSub (subTm sigma a))
+          (qtrCompSub (subTm tau a)))
+      -> ComputableFitsEq branchFitsEq
+      -> HypComputable
+           (termEq (subTy sigma A ∷ [])
+             (subTm (liftSubst sigma) l)
+             (subTm (liftSubst tau) l)
+             (qtrBranchTy (subTy (liftSubst sigma) L)))
+      -> Computable
+           (termEq []
+             (subTm (qtrCompSub (subTm sigma a)) (subTm (liftSubst sigma) l))
+             (subTm (qtrCompSub (subTm tau a)) (subTm (liftSubst tau) l))
+             (subTy (singleSubst (tmClass (subTm sigma a))) (subTy (liftSubst sigma) L)))
+    branchSubEq branchFitsEq branchCompFitsEq (hypTmEqOpen _ _ _ _ subEqdl) =
       subst
         (λ J -> Computable J)
         (cong
@@ -5743,32 +5267,26 @@ mutual
             (subTm (qtrCompSub (subTm sigma a)) (subTm (liftSubst sigma) l))
             (subTm (qtrCompSub (subTm tau a)) (subTm (liftSubst tau) l)))
           (qtrBranchTyComp (subTm sigma a) (subTy (liftSubst sigma) L)))
-        (ClosedEqSubstComp.closedEqComp
-          (subEqdl
-            (qtrCompSub (subTm sigma a))
-            (qtrCompSub (subTm tau a))
-            branchFitsEq))
+        (subEqdl
+          (qtrCompSub (subTm sigma a))
+          (qtrCompSub (subTm tau a))
+          branchFitsEq
+          branchCompFitsEq)
 
-  eqSubDerivTmComp : {gamma : Ctx} {t : RawTerm} {A : RawType} {sigma tau : Subst}
-    -> Derivable (hasTy gamma t A)
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Computable (termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A))
-  eqSubDerivTmComp (varStar {delta = delta} {A = A} wf dA) fitsEq cFitsEq =
-    lookupCompFitsEq {delta = delta} {A = A} cFitsEq
-  eqSubDerivTmComp (iTop wf) fitsEq cFitsEq =
+  eqSubDerivTmComp (varStar {delta = delta} {A = A} wf dA) fitsEq =
+    computableTmEqClosed (lookupVarFitsEq {delta = delta} {A = A} fitsEq)
+  eqSubDerivTmComp (iTop wf) fitsEq =
     compReflTm compITopClosed
   eqSubDerivTmComp {sigma = sigma} {tau = tau}
-    (iSigma {a = a} {b = b} {A = A} {B = B} da db dSigma) fitsEq cFitsEq =
+    (iSigma {a = a} {b = b} {A = A} {B = B} da db dSigma) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      compac = eqSubDerivTmComp da fitsEq cFitsEq
-      compSigma = substDerivTyComp dSigma sigmaFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compac = eqSubDerivTmComp da fitsEq
+      compSigma = substDerivTyComp dSigma sigmaFits
       tyInv = invertSigmaTy compSigma evalSigma
       compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      compBσ = ClosedSigmaTyInv.sigmaTyCompFam tyInv
-      compbdRaw = eqSubDerivTmComp db fitsEq cFitsEq
+      compBσ = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
+      compbdRaw = eqSubDerivTmComp db fitsEq
       compbd =
         subst
           (λ T -> Computable (termEq [] (subTm sigma b) (subTm tau b) T))
@@ -5787,7 +5305,7 @@ mutual
     in
     compTmEqClosedSigma
       (iSigmaEq (compToDerivable compac) (compToDerivable compbd)
-        (compToDerivable compAσ) (compToDerivable compBσ))
+        (compToDerivable compAσ) (hypCompToDerivable compBσ))
       compPairLeft
       compPairRight
       evalSigma
@@ -5795,38 +5313,109 @@ mutual
       evalPair
       compac
       compbd
-  eqSubDerivTmComp (iEq da) fitsEq cFitsEq =
-    compReflTm (compIEqClosed (compTmEqLeft (eqSubDerivTmComp da fitsEq cFitsEq)))
-  eqSubDerivTmComp (iQtr da) fitsEq cFitsEq =
+  eqSubDerivTmComp (iEq da) fitsEq =
+    compReflTm (compIEqClosed (compTmEqLeft (eqSubDerivTmComp da fitsEq)))
+  eqSubDerivTmComp (iQtr da) fitsEq =
     let
-      compab = eqSubDerivTmComp da fitsEq cFitsEq
+      compab = eqSubDerivTmComp da fitsEq
     in
     compIQtrEqClosed (compTmEqLeft compab) (compTmEqRightClosed compab)
   eqSubDerivTmComp {gamma = gamma} {sigma = sigma} {tau = tau}
-    (eSigma {A = A} {B = B} {M = M} {d = d} {m = m} dM dd dm) fitsEq cFitsEq =
+    (eSigma {A = A} {B = B} {M = M} {d = d} {m = m} dM dd dm) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      compdd = eqSubDerivTmComp dd fitsEq cFitsEq
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compdd = eqSubDerivTmComp dd fitsEq
       compSigma = compTmToCompTy (compTmEqLeft compdd)
       dSigmaσ = compToDerivable compSigma
-      compM = substSccTy1 sigmaFits sigmaCFits dSigmaσ dM
+      compM = openHypTy1 sigmaFits dSigmaσ dM
 
       tyInv = invertSigmaTy compSigma evalSigma
       compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      compBσ = ClosedSigmaTyInv.sigmaTyCompFam tyInv
       dAσ = compToDerivable compAσ
-      dBσ = compToDerivable compBσ
+      compBσ = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
+      dBσ = hypCompToDerivable compBσ
 
       compdm =
+        let
+          lifted1Eq :
+            FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+              (liftSubst sigma)
+              (liftSubst tau)
+          lifted1Eq =
+            subst
+              (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+              (liftSubstCompKeep sigma)
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                    rho)
+                (liftSubstCompKeep tau)
+                (liftFitsEqOne fitsEq dAσ))
+          lifted2Eq :
+            FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+              (liftSubst (liftSubst sigma))
+              (liftSubst (liftSubst tau))
+          lifted2Eq =
+            subst
+              (λ rho ->
+                FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                  rho
+                  (liftSubst (liftSubst tau)))
+              (liftSubstCompKeep (liftSubst sigma))
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                    rho)
+                (liftSubstCompKeep (liftSubst tau))
+                (liftFitsEq lifted1Eq dBσ))
+        in
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m)
               (subTm (liftSubst (liftSubst tau)) m))
             (sigmaBranchTyLiftComp sigma M))
-          (eqSubSccTm2 fitsEq cFitsEq dAσ dBσ dm)
+          (hypTmEqOpen
+            nonemptyNeNil
+            (eqSubTmRule dm lifted2Eq)
+            (openHypTm2
+              sigmaFits
+              dAσ
+              dBσ
+              dm)
+            (λ rho fits2 _ ->
+              let
+                composedFitsEq = composeFitsEq fits2 lifted2Eq
+              in
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₃ (termEq [])
+                    (subTmComp rho (liftSubst (liftSubst sigma)) m)
+                    (subTmComp rho (liftSubst (liftSubst tau)) m)
+                    (subTyComp rho (liftSubst (liftSubst sigma))
+                      (sigmaBranchTy M))))
+                (eqSubDerivTmComp
+                  dm
+                  composedFitsEq))
+            (λ rho eta fitsEq2 _ ->
+              let
+                composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
+              in
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₃ (termEq [])
+                    (subTmComp rho (liftSubst (liftSubst sigma)) m)
+                    (subTmComp eta (liftSubst (liftSubst tau)) m)
+                    (subTyComp rho (liftSubst (liftSubst sigma))
+                      (sigmaBranchTy M))))
+                (eqSubDerivTmComp
+                  dm
+                  composedFitsEq)))
 
       resultPath :
         termEq []
@@ -5850,29 +5439,27 @@ mutual
     subst
       (λ J -> Computable J)
       (sym resultPath)
-      (compESigmaClosed compM compdd compdm)
-  eqSubDerivTmComp (eQtr dL dp dl dcoh) fitsEq cFitsEq =
-    eqSubDerivTmCompEQtr dL dp dl dcoh fitsEq cFitsEq
-  eqSubDerivTmComp (conv d dAB) fitsEq cFitsEq =
+      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd compdm)
+  eqSubDerivTmComp (eQtr dL dp dl dcoh) fitsEq =
+    eqSubDerivTmCompEQtr dL dp dl dcoh fitsEq
+  eqSubDerivTmComp (conv d dAB) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
     in
-    compConvTmEqClosed (eqSubDerivTmComp d fitsEq cFitsEq) (substDerivTyEqComp dAB sigmaFits sigmaCFits)
+    compConvTmEqClosed (eqSubDerivTmComp d fitsEq) (substDerivTyEqComp dAB sigmaFits)
   eqSubDerivTmComp {sigma = sigma} {tau = tau}
-    (weakenTm {delta = delta} {t = t} {A = A} d wf) fitsEq cFitsEq =
+    (weakenTm {delta = delta} {t = t} {A = A} d wf) fitsEq =
     subst
       (λ J -> Computable J)
       (cong₃ (termEq [])
         (sym (subTmWkBy sigma (length delta) t))
         (sym (subTmWkBy tau (length delta) t))
         (sym (subTyWkBy sigma (length delta) A)))
-      (eqSubDerivTmComp d (dropFitsEq delta fitsEq) (dropCompFitsEq delta cFitsEq))
+      (eqSubDerivTmComp d (dropFitsEq delta fitsEq))
   eqSubDerivTmComp {sigma = sigma} {tau = tau}
-    (substTmRule {sigma = sigma'} {t = t} {A = A} d fits') fitsEq cFitsEq =
+    (substTmRule {sigma = sigma'} {t = t} {A = A} d fits') fitsEq =
     let
       composedFitsEq = composeEqFits fitsEq fits'
-      composedCFitsEq = composeCompEqFits fitsEq cFitsEq fits'
     in
     subst
       (λ J -> Computable J)
@@ -5880,48 +5467,39 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTmComp tau sigma' t))
         (sym (subTyComp sigma sigma' A)))
-      (eqSubDerivTmComp d composedFitsEq composedCFitsEq)
-  eqSubDerivTmEqComp : {gamma : Ctx} {t u : RawTerm} {A : RawType} {sigma tau : Subst}
-    -> Derivable (termEq gamma t u A)
-    -> FitsEqSubst [] gamma sigma tau
-    -> CompFitsEqSubst gamma sigma tau
-    -> Computable (termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A))
-  eqSubDerivTmEqComp (reflTm d) fitsEq cFitsEq =
-    eqSubDerivTmComp d fitsEq cFitsEq
-  eqSubDerivTmEqComp (symTm d) fitsEq cFitsEq =
+      (eqSubDerivTmComp d composedFitsEq)
+  eqSubDerivTmEqComp (reflTm d) fitsEq =
+    eqSubDerivTmComp d fitsEq
+  eqSubDerivTmEqComp (symTm d) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
     in
     compTransTmClosed
-      (compSymTmClosed (substDerivTmEqComp d sigmaFits sigmaCFits))
-      (eqSubDerivTmComp (assocTmLeft d) fitsEq cFitsEq)
-  eqSubDerivTmEqComp (transTm d₁ d₂) fitsEq cFitsEq =
+      (compSymTmClosed (substDerivTmEqComp d sigmaFits))
+      (eqSubDerivTmComp (assocTmLeft d) fitsEq)
+  eqSubDerivTmEqComp (transTm d₁ d₂) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
     in
     compTransTmClosed
-      (substDerivTmEqComp d₁ sigmaFits sigmaCFits)
-      (eqSubDerivTmEqComp d₂ fitsEq cFitsEq)
-  eqSubDerivTmEqComp (convEq d dAB) fitsEq cFitsEq =
+      (substDerivTmEqComp d₁ sigmaFits)
+      (eqSubDerivTmEqComp d₂ fitsEq)
+  eqSubDerivTmEqComp (convEq d dAB) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
     in
-    compConvTmEqClosed (eqSubDerivTmEqComp d fitsEq cFitsEq) (substDerivTyEqComp dAB sigmaFits sigmaCFits)
-  eqSubDerivTmEqComp (cTop d) fitsEq cFitsEq =
-    compCTopClosed (compTmEqLeft (eqSubDerivTmComp d fitsEq cFitsEq))
+    compConvTmEqClosed (eqSubDerivTmEqComp d fitsEq) (substDerivTyEqComp dAB sigmaFits)
+  eqSubDerivTmEqComp (cTop d) fitsEq =
+    compCTopClosed (compTmEqLeft (eqSubDerivTmComp d fitsEq))
   eqSubDerivTmEqComp {sigma = sigma} {tau = tau}
-    (iSigmaEq {a = a} {b = b} {d = d} {A = A} {B = B} dac dbd dA dB) fitsEq cFitsEq =
+    (iSigmaEq {a = a} {b = b} {d = d} {A = A} {B = B} dac dbd dA dB) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      compac = eqSubDerivTmEqComp dac fitsEq cFitsEq
-      compA = substDerivTyComp dA sigmaFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compac = eqSubDerivTmEqComp dac fitsEq
+      compA = substDerivTyComp dA sigmaFits
       dAσ = compToDerivable compA
-      compB = substSccTy1 sigmaFits sigmaCFits dAσ dB
-      compbdRaw = eqSubDerivTmEqComp dbd fitsEq cFitsEq
+      compB = openHypTy1 sigmaFits dAσ dB
+      compbdRaw = eqSubDerivTmEqComp dbd fitsEq
       compbd =
         subst
           (λ T -> Computable (termEq [] (subTm sigma b) (subTm tau d) T))
@@ -5939,7 +5517,7 @@ mutual
       compPairRight = compISigmaClosed compcA compd (compFSigmaClosed compA compB)
     in
     compTmEqClosedSigma
-      (iSigmaEq (compToDerivable compac) (compToDerivable compbd) dAσ (compToDerivable compB))
+      (iSigmaEq (compToDerivable compac) (compToDerivable compbd) dAσ (hypCompToDerivable compB))
       compPairLeft
       compPairRight
       evalSigma
@@ -5948,30 +5526,101 @@ mutual
       compac
       compbd
   eqSubDerivTmEqComp {gamma = gamma} {sigma = sigma} {tau = tau}
-    (eSigmaEq {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'} dM dd dm) fitsEq cFitsEq =
+    (eSigmaEq {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'} dM dd dm) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      compdd = eqSubDerivTmEqComp dd fitsEq cFitsEq
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compdd = eqSubDerivTmEqComp dd fitsEq
       compSigma = compTmToCompTy (compTmEqLeft compdd)
       dSigmaσ = compToDerivable compSigma
-      compM = substSccTy1 sigmaFits sigmaCFits dSigmaσ dM
+      compM = openHypTy1 sigmaFits dSigmaσ dM
 
       tyInv = invertSigmaTy compSigma evalSigma
       compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      compBσ = ClosedSigmaTyInv.sigmaTyCompFam tyInv
       dAσ = compToDerivable compAσ
-      dBσ = compToDerivable compBσ
+      compBσ = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
+      dBσ = hypCompToDerivable compBσ
 
       compdm =
+        let
+          lifted1Eq :
+            FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+              (liftSubst sigma)
+              (liftSubst tau)
+          lifted1Eq =
+            subst
+              (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+              (liftSubstCompKeep sigma)
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                    rho)
+                (liftSubstCompKeep tau)
+                (liftFitsEqOne fitsEq dAσ))
+          lifted2Eq :
+            FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+              (liftSubst (liftSubst sigma))
+              (liftSubst (liftSubst tau))
+          lifted2Eq =
+            subst
+              (λ rho ->
+                FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                  rho
+                  (liftSubst (liftSubst tau)))
+              (liftSubstCompKeep (liftSubst sigma))
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                    rho)
+                (liftSubstCompKeep (liftSubst tau))
+                (liftFitsEq lifted1Eq dBσ))
+        in
         subst
-          (λ J -> Computable J)
+          (λ J -> HypComputable J)
           (cong
             (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m)
               (subTm (liftSubst (liftSubst tau)) m'))
             (sigmaBranchTyLiftComp sigma M))
-          (eqSubSccTmEq2 fitsEq cFitsEq dAσ dBσ dm)
+          (hypTmEqOpen
+            nonemptyNeNil
+            (eqSubTmEqRule dm lifted2Eq)
+            (openHypTm2
+              sigmaFits
+              dAσ
+              dBσ
+              (assocTmLeft dm))
+            (λ rho fits2 _ ->
+              let
+                composedFitsEq = composeFitsEq fits2 lifted2Eq
+              in
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₃ (termEq [])
+                    (subTmComp rho (liftSubst (liftSubst sigma)) m)
+                    (subTmComp rho (liftSubst (liftSubst tau)) m')
+                    (subTyComp rho (liftSubst (liftSubst sigma))
+                      (sigmaBranchTy M))))
+                (eqSubDerivTmEqComp
+                  dm
+                  composedFitsEq))
+            (λ rho eta fitsEq2 _ ->
+              let
+                composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
+              in
+              subst
+                (λ J -> Computable J)
+                (sym
+                  (cong₃ (termEq [])
+                    (subTmComp rho (liftSubst (liftSubst sigma)) m)
+                    (subTmComp eta (liftSubst (liftSubst tau)) m')
+                    (subTyComp rho (liftSubst (liftSubst sigma))
+                      (sigmaBranchTy M))))
+                (eqSubDerivTmEqComp
+                  dm
+                  composedFitsEq)))
 
       resultPath :
         termEq []
@@ -5995,23 +5644,22 @@ mutual
     subst
       (λ J -> Computable J)
       (sym resultPath)
-      (compESigmaClosed compM compdd compdm)
+      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd compdm)
   eqSubDerivTmEqComp {gamma = gamma} {sigma = sigma} {tau = tau}
-    (cSigma {A = A} {B = B} {M = M} {b = b} {c = c} {m = m} dM db dc dm) fitsEq cFitsEq =
+    (cSigma {A = A} {B = B} {M = M} {b = b} {c = c} {m = m} dM db dc dm) fitsEq =
     let
-      sigmaCFits = compFitsEqLeft cFitsEq
-      sigmaFits = compFitsToFits sigmaCFits
-      compb = eqSubDerivTmComp db fitsEq cFitsEq
-      compSigma = substDerivTyComp (ctxSuffixTy {delta = []} {gamma = gamma} {A = tySigma A B} (derivToCtxWF dM)) sigmaFits sigmaCFits
+      sigmaFits = fitsEqSubstLeft fitsEq
+      compb = eqSubDerivTmComp db fitsEq
+      compSigma = substDerivTyComp (ctxSuffixTy {delta = []} {gamma = gamma} {A = tySigma A B} (derivToCtxWF dM)) sigmaFits
       dSigmaσ = compToDerivable compSigma
       tyInv = invertSigmaTy compSigma evalSigma
       compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      compBσ = ClosedSigmaTyInv.sigmaTyCompFam tyInv
       dAσ = compToDerivable compAσ
-      dBσ = compToDerivable compBσ
-      compM = substSccTy1 sigmaFits sigmaCFits dSigmaσ dM
+      compBσ = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
+      dBσ = hypCompToDerivable compBσ
+      compM = openHypTy1 sigmaFits dSigmaσ dM
 
-      compcRaw = eqSubDerivTmComp dc fitsEq cFitsEq
+      compcRaw = eqSubDerivTmComp dc fitsEq
       compc =
         subst
           (λ T -> Computable (termEq [] (subTm sigma c) (subTm tau c) T))
@@ -6020,18 +5668,95 @@ mutual
             ∙ sym (subTyComp (singleSubst (subTm sigma b)) (liftSubst sigma) B))
           compcRaw
 
+      branchFitsEqData =
+        sigmaCompComputableFitsEqHelper compb compc
+
       branchFitsEq : FitsEqSubst [] (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
         (sigmaCompSub (subTm sigma b) (subTm sigma c))
         (sigmaCompSub (subTm tau b) (subTm tau c))
-      branchFitsEq =
-        compFitsEqToFitsEq
-          (sigmaCompCompFitsEqHelper compb compc)
+      branchFitsEq = fst branchFitsEqData
+
+      branchCompFitsEq :
+        ComputableFitsEq branchFitsEq
+      branchCompFitsEq = snd branchFitsEqData
 
       compdmOpen =
-        eqSubSccTm2 fitsEq cFitsEq dAσ dBσ dm
+        let
+          lifted1Eq :
+            FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+              (liftSubst sigma)
+              (liftSubst tau)
+          lifted1Eq =
+            subst
+              (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+              (liftSubstCompKeep sigma)
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                    rho)
+                (liftSubstCompKeep tau)
+                (liftFitsEqOne fitsEq dAσ))
+          lifted2Eq :
+            FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+              (liftSubst (liftSubst sigma))
+              (liftSubst (liftSubst tau))
+          lifted2Eq =
+            subst
+              (λ rho ->
+                FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                  rho
+                  (liftSubst (liftSubst tau)))
+              (liftSubstCompKeep (liftSubst sigma))
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                    rho)
+                (liftSubstCompKeep (liftSubst tau))
+                (liftFitsEq lifted1Eq dBσ))
+        in
+        hypTmEqOpen
+          nonemptyNeNil
+          (eqSubTmRule dm lifted2Eq)
+          (openHypTm2
+            sigmaFits
+            dAσ
+            dBσ
+            dm)
+          (λ rho fits2 _ ->
+            let
+              composedFitsEq = composeFitsEq fits2 lifted2Eq
+            in
+            subst
+              (λ J -> Computable J)
+              (sym
+                (cong₃ (termEq [])
+                  (subTmComp rho (liftSubst (liftSubst sigma)) m)
+                  (subTmComp rho (liftSubst (liftSubst tau)) m)
+                  (subTyComp rho (liftSubst (liftSubst sigma))
+                    (sigmaBranchTy M))))
+              (eqSubDerivTmComp
+                dm
+                composedFitsEq))
+          (λ rho eta fitsEq2 _ ->
+            let
+              composedFitsEq = composeEqFitsEq fitsEq2 lifted2Eq
+            in
+            subst
+              (λ J -> Computable J)
+              (sym
+                (cong₃ (termEq [])
+                  (subTmComp rho (liftSubst (liftSubst sigma)) m)
+                  (subTmComp eta (liftSubst (liftSubst tau)) m)
+                  (subTyComp rho (liftSubst (liftSubst sigma))
+                    (sigmaBranchTy M))))
+              (eqSubDerivTmComp
+                dm
+                composedFitsEq))
 
       compdmEq =
-        branchSubEq branchFitsEq compdmOpen
+        branchSubEq branchFitsEq branchCompFitsEq compdmOpen
 
       leftCanPath :
         termEq []
@@ -6063,7 +5788,7 @@ mutual
         subst
           (λ J -> Computable J)
           leftCanPath
-          (substDerivTmEqComp (cSigma dM db dc dm) sigmaFits sigmaCFits)
+          (substDerivTmEqComp (cSigma dM db dc dm) sigmaFits)
 
       resultPath :
         termEq []
@@ -6097,15 +5822,16 @@ mutual
       (compTransTmClosed leftCan compdmEq)
     where
     branchSubEq :
-      FitsEqSubst [] (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-        (sigmaCompSub (subTm sigma b) (subTm sigma c))
-        (sigmaCompSub (subTm tau b) (subTm tau c))
-      ->
-      Computable
-        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-          (subTm (liftSubst (liftSubst sigma)) m)
-          (subTm (liftSubst (liftSubst tau)) m)
-          (subTy (liftSubst (liftSubst sigma)) (sigmaBranchTy M)))
+      (branchFitsEq :
+        FitsEqSubst [] (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+          (sigmaCompSub (subTm sigma b) (subTm sigma c))
+          (sigmaCompSub (subTm tau b) (subTm tau c)))
+      -> ComputableFitsEq branchFitsEq
+      -> HypComputable
+           (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+             (subTm (liftSubst (liftSubst sigma)) m)
+             (subTm (liftSubst (liftSubst tau)) m)
+             (subTy (liftSubst (liftSubst sigma)) (sigmaBranchTy M)))
       -> Computable
            (termEq []
              (subTm (sigmaCompSub (subTm sigma b) (subTm sigma c))
@@ -6114,7 +5840,7 @@ mutual
                (subTm (liftSubst (liftSubst tau)) m))
              (subTy (singleSubst (tmPair (subTm sigma b) (subTm sigma c)))
                (subTy (liftSubst sigma) M)))
-    branchSubEq branchFitsEq (compTmEqOpen _ _ _ _ subEqdm) =
+    branchSubEq branchFitsEq branchCompFitsEq (hypTmEqOpen _ _ _ _ subEqdm) =
       subst
         (λ J -> Computable J)
         (cong
@@ -6127,46 +5853,45 @@ mutual
             (λ T -> subTy (sigmaCompSub (subTm sigma b) (subTm sigma c)) T)
             (sigmaBranchTyLiftComp sigma M)
             ∙ sigmaBranchTyComp (subTm sigma b) (subTm sigma c) (subTy (liftSubst sigma) M)))
-        (ClosedEqSubstComp.closedEqComp
-          (subEqdm
-            (sigmaCompSub (subTm sigma b) (subTm sigma c))
-            (sigmaCompSub (subTm tau b) (subTm tau c))
-            branchFitsEq))
-  eqSubDerivTmEqComp (iEqEq d) fitsEq cFitsEq =
-    compReflTm (compIEqClosed (compTmEqLeft (eqSubDerivTmEqComp d fitsEq cFitsEq)))
-  eqSubDerivTmEqComp (eEqStar dp dA da db) fitsEq cFitsEq =
+        (subEqdm
+          (sigmaCompSub (subTm sigma b) (subTm sigma c))
+          (sigmaCompSub (subTm tau b) (subTm tau c))
+          branchFitsEq
+          branchCompFitsEq)
+  eqSubDerivTmEqComp (iEqEq d) fitsEq =
+    compReflTm (compIEqClosed (compTmEqLeft (eqSubDerivTmEqComp d fitsEq)))
+  eqSubDerivTmEqComp (eEqStar dp dA da db) fitsEq =
     let
-      compp = eqSubDerivTmComp dp fitsEq cFitsEq
+      compp = eqSubDerivTmComp dp fitsEq
       compab = compEEqClosed (compTmEqLeft compp)
-      compbb' = eqSubDerivTmComp db fitsEq cFitsEq
+      compbb' = eqSubDerivTmComp db fitsEq
     in
     compTransTmClosed compab compbb'
-  eqSubDerivTmEqComp (cEq dp dA da db) fitsEq cFitsEq =
-    compCEqClosed (compTmEqLeft (eqSubDerivTmComp dp fitsEq cFitsEq))
-  eqSubDerivTmEqComp (iQtrEq da db) fitsEq cFitsEq =
+  eqSubDerivTmEqComp (cEq dp dA da db) fitsEq =
+    compCEqClosed (compTmEqLeft (eqSubDerivTmComp dp fitsEq))
+  eqSubDerivTmEqComp (iQtrEq da db) fitsEq =
     let
-      compab = eqSubDerivTmComp da fitsEq cFitsEq
-      compcd = eqSubDerivTmComp db fitsEq cFitsEq
+      compab = eqSubDerivTmComp da fitsEq
+      compcd = eqSubDerivTmComp db fitsEq
     in
     compIQtrEqClosed (compTmEqLeft compab) (compTmEqRightClosed compcd)
-  eqSubDerivTmEqComp (eQtrEq dL dp dl dcoh dcoh') fitsEq cFitsEq =
-    eqSubDerivTmEqCompEQtrEq dL dp dl dcoh dcoh' fitsEq cFitsEq
-  eqSubDerivTmEqComp (cQtr dL da dl dcoh) fitsEq cFitsEq =
-    eqSubDerivTmEqCompCQtr dL da dl dcoh fitsEq cFitsEq
+  eqSubDerivTmEqComp (eQtrEq dL dp dl dcoh dcoh') fitsEq =
+    eqSubDerivTmEqCompEQtrEq dL dp dl dcoh dcoh' fitsEq
+  eqSubDerivTmEqComp (cQtr dL da dl dcoh) fitsEq =
+    eqSubDerivTmEqCompCQtr dL da dl dcoh fitsEq
   eqSubDerivTmEqComp {sigma = sigma} {tau = tau}
-    (weakenTmEq {delta = delta} {t = t} {u = u} {A = A} d wf) fitsEq cFitsEq =
+    (weakenTmEq {delta = delta} {t = t} {u = u} {A = A} d wf) fitsEq =
     subst
       (λ J -> Computable J)
       (cong₃ (termEq [])
         (sym (subTmWkBy sigma (length delta) t))
         (sym (subTmWkBy tau (length delta) u))
         (sym (subTyWkBy sigma (length delta) A)))
-      (eqSubDerivTmEqComp d (dropFitsEq delta fitsEq) (dropCompFitsEq delta cFitsEq))
+      (eqSubDerivTmEqComp d (dropFitsEq delta fitsEq))
   eqSubDerivTmEqComp {sigma = sigma} {tau = tau}
-    (substTmEqRule {sigma = sigma'} {t = t} {u = u} {A = A} d fits') fitsEq cFitsEq =
+    (substTmEqRule {sigma = sigma'} {t = t} {u = u} {A = A} d fits') fitsEq =
     let
       composedFitsEq = composeEqFits fitsEq fits'
-      composedCFitsEq = composeCompEqFits fitsEq cFitsEq fits'
     in
     subst
       (λ J -> Computable J)
@@ -6174,12 +5899,11 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTmComp tau sigma' u))
         (sym (subTyComp sigma sigma' A)))
-      (eqSubDerivTmEqComp d composedFitsEq composedCFitsEq)
+      (eqSubDerivTmEqComp d composedFitsEq)
   eqSubDerivTmEqComp {sigma = sigma} {tau = tau}
-    (eqSubTmRule {sigma = sigma'} {tau = tau'} {t = t} {A = A} d fitsEq') fitsEq cFitsEq =
+    (eqSubTmRule {sigma = sigma'} {tau = tau'} {t = t} {A = A} d fitsEq') fitsEq =
     let
       composedFitsEq = composeEqFitsEq fitsEq fitsEq'
-      composedCFitsEq = composeCompEqFitsEq fitsEq cFitsEq fitsEq'
     in
     subst
       (λ J -> Computable J)
@@ -6187,12 +5911,11 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTmComp tau tau' t))
         (sym (subTyComp sigma sigma' A)))
-      (eqSubDerivTmComp d composedFitsEq composedCFitsEq)
+      (eqSubDerivTmComp d composedFitsEq)
   eqSubDerivTmEqComp {sigma = sigma} {tau = tau}
-    (eqSubTmEqRule {sigma = sigma'} {tau = tau'} {t = t} {u = u} {A = A} d fitsEq') fitsEq cFitsEq =
+    (eqSubTmEqRule {sigma = sigma'} {tau = tau'} {t = t} {u = u} {A = A} d fitsEq') fitsEq =
     let
       composedFitsEq = composeEqFitsEq fitsEq fitsEq'
-      composedCFitsEq = composeCompEqFitsEq fitsEq cFitsEq fitsEq'
     in
     subst
       (λ J -> Computable J)
@@ -6200,208 +5923,155 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTmComp tau tau' u))
         (sym (subTyComp sigma sigma' A)))
-      (eqSubDerivTmEqComp d composedFitsEq composedCFitsEq)
-  openCompTy : {A : RawType} {B : RawType} {gamma : Ctx}
-    -> Derivable (isType (B ∷ gamma) A)
-    -> Computable (isType (B ∷ gamma) A)
-  openCompTy d =
-    compTyOpen
-      nonemptyNeNil
-      d
-      (λ sigma fits -> packClosedSubst fits (substDerivTyComp d fits (fitsToCompFits fits)))
-      (λ sigma tau fitsEq -> packClosedEqSubst fitsEq (eqSubDerivTyComp d fitsEq (fitsEqToCompFitsEq fitsEq)))
-
-  openCompTyEq : {A B C : RawType} {gamma : Ctx}
-    -> Derivable (typeEq (C ∷ gamma) A B)
-    -> Computable (typeEq (C ∷ gamma) A B)
-  openCompTyEq d =
-    compTyEqOpen
-      nonemptyNeNil
-      d
-      (openCompTy (assocTyLeft d))
-      (λ sigma fits -> packClosedSubst fits (substDerivTyEqComp d fits (fitsToCompFits fits)))
-      (λ sigma tau fitsEq -> packClosedEqSubst fitsEq (eqSubDerivTyEqComp d fitsEq (fitsEqToCompFitsEq fitsEq)))
-
-  openCompTm : {t : RawTerm} {A B : RawType} {gamma : Ctx}
-    -> Derivable (hasTy (B ∷ gamma) t A)
-    -> Computable (hasTy (B ∷ gamma) t A)
-  openCompTm d =
-    compTmOpen
-      nonemptyNeNil
-      d
-      (openCompTy (assocTy d))
-      (λ sigma fits -> packClosedSubst fits (substDerivTmComp d fits (fitsToCompFits fits)))
-      (λ sigma tau fitsEq -> packClosedEqSubst fitsEq (eqSubDerivTmComp d fitsEq (fitsEqToCompFitsEq fitsEq)))
-
-  openCompTmEq : {t u : RawTerm} {A B : RawType} {gamma : Ctx}
-    -> Derivable (termEq (B ∷ gamma) t u A)
-    -> Computable (termEq (B ∷ gamma) t u A)
-  openCompTmEq d =
-    compTmEqOpen
-      nonemptyNeNil
-      d
-      (openCompTm (assocTmLeft d))
-      (λ sigma fits -> packClosedSubst fits (substDerivTmEqComp d fits (fitsToCompFits fits)))
-      (λ sigma tau fitsEq -> packClosedEqSubst fitsEq (eqSubDerivTmEqComp d fitsEq (fitsEqToCompFitsEq fitsEq)))
-
-  substTyClosed : {delta : Ctx} {A : RawType} {sigma : Subst}
-    -> Derivable (isType delta A)
-    -> FitsSubst [] delta sigma
-    -> Computable (isType [] (subTy sigma A))
-  substTyClosed d fits = substDerivTyComp d fits (fitsToCompFits fits)
+      (eqSubDerivTmEqComp d composedFitsEq)
+  substTyClosed d fits = substDerivTyComp d fits
 
   substTyEqClosed : {delta : Ctx} {A B : RawType} {sigma : Subst}
     -> Derivable (typeEq delta A B)
     -> FitsSubst [] delta sigma
     -> Computable (typeEq [] (subTy sigma A) (subTy sigma B))
-  substTyEqClosed d fits = substDerivTyEqComp d fits (fitsToCompFits fits)
+  substTyEqClosed d fits = substDerivTyEqComp d fits
 
   substTmClosed : {delta : Ctx} {t : RawTerm} {A : RawType} {sigma : Subst}
     -> Derivable (hasTy delta t A)
     -> FitsSubst [] delta sigma
     -> Computable (hasTy [] (subTm sigma t) (subTy sigma A))
-  substTmClosed d fits = substDerivTmComp d fits (fitsToCompFits fits)
+  substTmClosed d fits = substDerivTmComp d fits
 
   substTmEqClosed : {delta : Ctx} {t u : RawTerm} {A : RawType} {sigma : Subst}
     -> Derivable (termEq delta t u A)
     -> FitsSubst [] delta sigma
     -> Computable (termEq [] (subTm sigma t) (subTm sigma u) (subTy sigma A))
-  substTmEqClosed d fits = substDerivTmEqComp d fits (fitsToCompFits fits)
+  substTmEqClosed d fits = substDerivTmEqComp d fits
 
-  eqSubTyClosed : {delta : Ctx} {A : RawType} {sigma tau : Subst}
-    -> Derivable (isType delta A)
-    -> FitsEqSubst [] delta sigma tau
-    -> Computable (typeEq [] (subTy sigma A) (subTy tau A))
-  eqSubTyClosed d fitsEq = eqSubDerivTyComp d fitsEq (fitsEqToCompFitsEq fitsEq)
+  eqSubTyClosed d fitsEq = eqSubDerivTyComp d fitsEq
 
   eqSubTyEqClosed : {delta : Ctx} {A B : RawType} {sigma tau : Subst}
     -> Derivable (typeEq delta A B)
     -> FitsEqSubst [] delta sigma tau
     -> Computable (typeEq [] (subTy sigma A) (subTy tau B))
-  eqSubTyEqClosed d fitsEq = eqSubDerivTyEqComp d fitsEq (fitsEqToCompFitsEq fitsEq)
+  eqSubTyEqClosed d fitsEq = eqSubDerivTyEqComp d fitsEq
 
   eqSubTmClosed : {delta : Ctx} {t : RawTerm} {A : RawType} {sigma tau : Subst}
     -> Derivable (hasTy delta t A)
     -> FitsEqSubst [] delta sigma tau
     -> Computable (termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A))
-  eqSubTmClosed d fitsEq = eqSubDerivTmComp d fitsEq (fitsEqToCompFitsEq fitsEq)
+  eqSubTmClosed d fitsEq = eqSubDerivTmComp d fitsEq
 
   eqSubTmEqClosed : {delta : Ctx} {t u : RawTerm} {A : RawType} {sigma tau : Subst}
     -> Derivable (termEq delta t u A)
     -> FitsEqSubst [] delta sigma tau
     -> Computable (termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A))
-  eqSubTmEqClosed d fitsEq = eqSubDerivTmEqComp d fitsEq (fitsEqToCompFitsEq fitsEq)
+  eqSubTmEqClosed d fitsEq = eqSubDerivTmEqComp d fitsEq
 
-  hypComputableTy : {A B : RawType} {gamma : Ctx}
-    -> Derivable (isType (B ∷ gamma) A)
-    -> HypComputable (isType (B ∷ gamma) A)
-  hypComputableTy d =
+  mkHypComputableTy : {gamma : Ctx} {A : RawType}
+    -> ((gamma ≡ []) -> ⊥)
+    -> Derivable (isType gamma A)
+    -> HypComputable (isType gamma A)
+  mkHypComputableTy neq d =
     hypTyOpen
-      nonemptyNeNil
+      neq
       d
       (λ sigma fits _ -> substTyClosed d fits)
       (λ sigma tau fitsEq _ -> eqSubTyClosed d fitsEq)
 
+  mkHypComputableTyEq : {gamma : Ctx} {A B : RawType}
+    -> ((gamma ≡ []) -> ⊥)
+    -> Derivable (typeEq gamma A B)
+    -> HypComputable (typeEq gamma A B)
+  mkHypComputableTyEq neq d =
+    hypTyEqOpen
+      neq
+      d
+      (mkHypComputableTy neq (assocTyLeft d))
+      (λ sigma fits _ -> substTyEqClosed d fits)
+      (λ sigma tau fitsEq _ -> eqSubTyEqClosed d fitsEq)
+
+  mkHypComputableTm : {gamma : Ctx} {t : RawTerm} {A : RawType}
+    -> ((gamma ≡ []) -> ⊥)
+    -> Derivable (hasTy gamma t A)
+    -> HypComputable (hasTy gamma t A)
+  mkHypComputableTm neq d =
+    hypTmOpen
+      neq
+      d
+      (mkHypComputableTy neq (assocTy d))
+      (λ sigma fits _ -> substTmClosed d fits)
+      (λ sigma tau fitsEq _ -> eqSubTmClosed d fitsEq)
+
+  mkHypComputableTmEq : {gamma : Ctx} {t u : RawTerm} {A : RawType}
+    -> ((gamma ≡ []) -> ⊥)
+    -> Derivable (termEq gamma t u A)
+    -> HypComputable (termEq gamma t u A)
+  mkHypComputableTmEq neq d =
+    hypTmEqOpen
+      neq
+      d
+      (mkHypComputableTm neq (assocTmLeft d))
+      (λ sigma fits _ -> substTmEqClosed d fits)
+      (λ sigma tau fitsEq _ -> eqSubTmEqClosed d fitsEq)
+
+  hypComputableTy : {A B : RawType} {gamma : Ctx}
+    -> Derivable (isType (B ∷ gamma) A)
+    -> HypComputable (isType (B ∷ gamma) A)
+  hypComputableTy = mkHypComputableTy nonemptyNeNil
+
   hypComputableTyEq : {A B C : RawType} {gamma : Ctx}
     -> Derivable (typeEq (C ∷ gamma) A B)
     -> HypComputable (typeEq (C ∷ gamma) A B)
-  hypComputableTyEq d =
-    hypTyEqOpen
-      nonemptyNeNil
-      d
-      (hypComputableTy (assocTyLeft d))
-      (λ sigma fits _ -> substTyEqClosed d fits)
-      (λ sigma tau fitsEq _ -> eqSubTyEqClosed d fitsEq)
+  hypComputableTyEq = mkHypComputableTyEq nonemptyNeNil
 
   hypComputableTm : {t : RawTerm} {A B : RawType} {gamma : Ctx}
     -> Derivable (hasTy (B ∷ gamma) t A)
     -> HypComputable (hasTy (B ∷ gamma) t A)
-  hypComputableTm d =
-    hypTmOpen
-      nonemptyNeNil
-      d
-      (hypComputableTy (assocTy d))
-      (λ sigma fits _ -> substTmClosed d fits)
-      (λ sigma tau fitsEq _ -> eqSubTmClosed d fitsEq)
+  hypComputableTm = mkHypComputableTm nonemptyNeNil
 
   hypComputableTmEq : {t u : RawTerm} {A B : RawType} {gamma : Ctx}
     -> Derivable (termEq (B ∷ gamma) t u A)
     -> HypComputable (termEq (B ∷ gamma) t u A)
-  hypComputableTmEq d =
+  hypComputableTmEq = mkHypComputableTmEq nonemptyNeNil
+
+  hypTyEqLeft : {gamma : Ctx} {A B : RawType}
+    -> HypComputable (typeEq gamma A B)
+    -> HypComputable (isType gamma A)
+  hypTyEqLeft (hypTyEqOpen _ _ compA _ _) = compA
+
+  hypTyEqRight : {gamma : Ctx} {A B : RawType}
+    -> HypComputable (typeEq gamma A B)
+    -> HypComputable (isType gamma B)
+  hypTyEqRight (hypTyEqOpen neq d _ _ _) =
+    mkHypComputableTy neq (assocTyRight d)
+
+  hypReflTm : {gamma : Ctx} {t : RawTerm} {A : RawType}
+    -> HypComputable (hasTy gamma t A)
+    -> HypComputable (termEq gamma t t A)
+  hypReflTm comp@(hypTmOpen neq d _ sub subEq) =
     hypTmEqOpen
-      nonemptyNeNil
-      d
-      (hypComputableTm (assocTmLeft d))
-      (λ sigma fits _ -> substTmEqClosed d fits)
-      (λ sigma tau fitsEq _ -> eqSubTmEqClosed d fitsEq)
+      neq
+      (reflTm d)
+      comp
+      (λ sigma fits cFits -> compReflTmClosed (sub sigma fits cFits))
+      (λ sigma tau fitsEq cFitsEq -> subEq sigma tau fitsEq cFitsEq)
 
   compTransportFamilyTy : {A C D : RawType}
     -> Computable (typeEq [] A C)
-    -> Computable (isType (A ∷ []) D)
-    -> Computable (isType (C ∷ []) D)
-  compTransportFamilyTy {A = A} {C = C} {D = D} compAC (compTyOpen neq dD sub subEq) =
-    compTyOpen
-      nonemptyNeNil
-      (transportFamilyTy dAC dC dD)
-      (λ sigma fits ->
-        packClosedSubst fits
-          (subst
-            (λ T -> Computable (isType [] T))
-            (sym (subTyComp sigma idSubst D) ∙ cong (subTy sigma) (subTyId D))
-            (ClosedSubstComp.closedComp
-              (sub (compSub sigma idSubst) (composeFits fits transportFits)))))
-      (λ sigma tau fitsEq ->
-        packClosedEqSubst fitsEq
-          (subst
-            (λ J -> Computable J)
-            (cong₂ (typeEq [])
-              (sym (subTyComp sigma idSubst D) ∙ cong (subTy sigma) (subTyId D))
-              (sym (subTyComp tau idSubst D) ∙ cong (subTy tau) (subTyId D)))
-            (ClosedEqSubstComp.closedEqComp
-              (subEq
-                (compSub sigma idSubst)
-                (compSub tau idSubst)
-                (composeEqFits fitsEq transportFits)))))
+    -> HypComputable (isType (A ∷ []) D)
+    -> HypComputable (isType (C ∷ []) D)
+  compTransportFamilyTy {A = A} {C = C} compAC compD =
+    hypComputableTy (transportFamilyTy dAC dC (hypCompToDerivable compD))
     where
     dAC : Derivable (typeEq [] A C)
     dAC = compToDerivable compAC
 
     dC : Derivable (isType [] C)
     dC = compToDerivable (compTyEqRightClosed compAC)
-
-    transportFits : FitsSubst (C ∷ []) (A ∷ []) idSubst
-    transportFits = headTypeTransportFits dAC dC
 
   compTransportFamilyTyEq : {A C D F : RawType}
     -> Computable (typeEq [] A C)
-    -> Computable (typeEq (A ∷ []) D F)
-    -> Computable (typeEq (C ∷ []) D F)
-  compTransportFamilyTyEq {A = A} {C = C} {D = D} {F = F} compAC (compTyEqOpen neq dDF compD sub subEq) =
-    compTyEqOpen
-      nonemptyNeNil
-      (transportFamilyTyEq dAC dC dDF)
-      (compTransportFamilyTy compAC compD)
-      (λ sigma fits ->
-        packClosedSubst fits
-          (subst
-            (λ J -> Computable J)
-            (cong₂ (typeEq [])
-              (sym (subTyComp sigma idSubst D) ∙ cong (subTy sigma) (subTyId D))
-              (sym (subTyComp sigma idSubst F) ∙ cong (subTy sigma) (subTyId F)))
-            (ClosedSubstComp.closedComp
-              (sub (compSub sigma idSubst) (composeFits fits transportFits)))))
-      (λ sigma tau fitsEq ->
-        packClosedEqSubst fitsEq
-          (subst
-            (λ J -> Computable J)
-            (cong₂ (typeEq [])
-              (sym (subTyComp sigma idSubst D) ∙ cong (subTy sigma) (subTyId D))
-              (sym (subTyComp tau idSubst F) ∙ cong (subTy tau) (subTyId F)))
-            (ClosedEqSubstComp.closedEqComp
-              (subEq
-                (compSub sigma idSubst)
-                (compSub tau idSubst)
-                (composeEqFits fitsEq transportFits)))))
+    -> HypComputable (typeEq (A ∷ []) D F)
+    -> HypComputable (typeEq (C ∷ []) D F)
+  compTransportFamilyTyEq {A = A} {C = C} {D = D} {F = F} compAC compDF =
+    hypComputableTyEq (transportFamilyTyEq dAC dC (hypCompToDerivable compDF))
     where
     dAC : Derivable (typeEq [] A C)
     dAC = compToDerivable compAC
@@ -6409,111 +6079,20 @@ mutual
     dC : Derivable (isType [] C)
     dC = compToDerivable (compTyEqRightClosed compAC)
 
-    transportFits : FitsSubst (C ∷ []) (A ∷ []) idSubst
-    transportFits = headTypeTransportFits dAC dC
-
-  compSymTyOpenHelper : {gamma : Ctx} {A B : RawType}
-    -> ({A B : RawType} -> Computable (typeEq [] A B) -> Computable (typeEq [] B A))
-    -> ({A B C : RawType} -> Computable (typeEq [] A B) -> Computable (typeEq [] B C) -> Computable (typeEq [] A C))
-    -> ((gamma ≡ []) -> ⊥)
-    -> Derivable (typeEq gamma A B)
-    -> Computable (isType gamma A)
-    -> ((sigma : Subst) -> FitsSubst [] gamma sigma
-         -> ClosedSubstComp (typeEq gamma A B) sigma)
-    -> ((sigma tau : Subst) -> FitsEqSubst [] gamma sigma tau
-         -> ClosedEqSubstComp (typeEq gamma A B) sigma tau)
-    -> Computable (typeEq gamma B A)
-  compSymTyOpenHelper symCl transCl neq d compA sub subEq =
-    compTyEqOpen
-      neq
-      (symTy d)
-      (compTyOpen
-        neq
-        (assocTyRight d)
-        (λ sigma fits ->
-          packClosedSubst fits
-            (compTyEqRightClosed (ClosedSubstComp.closedComp (sub sigma fits))))
-        (λ sigma tau fitsEq ->
-          let
-            closedσ = ClosedSubstComp.closedComp (sub sigma (fitsEqSubstLeft fitsEq))
-            closedστ = ClosedEqSubstComp.closedEqComp (subEq sigma tau fitsEq)
-          in
-          packClosedEqSubst fitsEq
-            (transCl
-              (symCl closedσ)
-              closedστ)))
-      (λ sigma fits ->
-        packClosedSubst fits
-          (symCl (ClosedSubstComp.closedComp (sub sigma fits))))
-      (λ sigma tau fitsEq ->
-        let
-          closedσ = ClosedSubstComp.closedComp (sub sigma (fitsEqSubstLeft fitsEq))
-          closedστ = ClosedEqSubstComp.closedEqComp (subEq sigma tau fitsEq)
-          closedτ = ClosedSubstComp.closedComp (sub tau (fitsEqSubstRight (derivToCtxWF d) fitsEq))
-        in
-        packClosedEqSubst fitsEq
-          (transCl
-            (transCl (symCl closedσ) closedστ)
-            (symCl closedτ)))
-
   compTransTyOpenHelper : {gamma : Ctx} {A B C : RawType}
-    -> ({A B C : RawType} -> Computable (typeEq [] A B) -> Computable (typeEq [] B C) -> Computable (typeEq [] A C))
-    -> ((gamma ≡ []) -> ⊥)
-    -> Derivable (typeEq gamma A B)
-    -> Computable (isType gamma A)
-    -> ((sigma : Subst) -> FitsSubst [] gamma sigma
-         -> ClosedSubstComp (typeEq gamma A B) sigma)
-    -> ((sigma tau : Subst) -> FitsEqSubst [] gamma sigma tau
-         -> ClosedEqSubstComp (typeEq gamma A B) sigma tau)
-    -> Derivable (typeEq gamma B C)
-    -> ((sigma : Subst) -> FitsSubst [] gamma sigma
-         -> ClosedSubstComp (typeEq gamma B C) sigma)
-    -> ((sigma tau : Subst) -> FitsEqSubst [] gamma sigma tau
-         -> ClosedEqSubstComp (typeEq gamma B C) sigma tau)
-    -> Computable (typeEq gamma A C)
-  compTransTyOpenHelper transCl neq dAB compA subAB subEqAB dBC subBC subEqBC =
-    compTyEqOpen
-      neq
-      (transTy dAB dBC)
-      compA
-      (λ sigma fits ->
-        packClosedSubst fits
-          (transCl
-            (ClosedSubstComp.closedComp (subAB sigma fits))
-            (ClosedSubstComp.closedComp (subBC sigma fits))))
-      (λ sigma tau fitsEq ->
-        let
-          closedστ = ClosedEqSubstComp.closedEqComp (subEqAB sigma tau fitsEq)
-          closedτ = ClosedSubstComp.closedComp (subBC tau (fitsEqSubstRight (derivToCtxWF dBC) fitsEq))
-        in
-        packClosedEqSubst fitsEq
-          (transCl closedστ closedτ))
+    -> HypComputable (typeEq gamma A B)
+    -> HypComputable (typeEq gamma B C)
+    -> HypComputable (typeEq gamma A C)
+  compTransTyOpenHelper compAB@(hypTyEqOpen neq _ _ _ _) compBC =
+    mkHypComputableTyEq neq
+      (transTy (hypCompToDerivable compAB) (hypCompToDerivable compBC))
 
   compSymTransportFamilyTyEq : {A C D F : RawType}
-    -> ((sigma : Subst) -> FitsSubst [] (C ∷ []) sigma
-         -> Computable (isType [] (subTy sigma F)))
-    -> ((sigma tau : Subst) -> FitsEqSubst [] (C ∷ []) sigma tau
-         -> Computable (typeEq [] (subTy sigma F) (subTy tau F)))
-    -> ((sigma : Subst) -> FitsSubst [] (C ∷ []) sigma
-         -> Computable (typeEq [] (subTy sigma F) (subTy sigma D)))
-    -> ((sigma tau : Subst) -> FitsEqSubst [] (C ∷ []) sigma tau
-         -> Computable (typeEq [] (subTy sigma F) (subTy tau D)))
     -> Computable (typeEq [] A C)
-    -> Computable (typeEq (A ∷ []) D F)
-    -> Computable (typeEq (C ∷ []) F D)
-  compSymTransportFamilyTyEq
-    {A = A} {C = C} {D = D} {F = F}
-    tySub tySubEq symSub symSubEq compAC (compTyEqOpen neq dDF compD sub subEq) =
-    compTyEqOpen
-      nonemptyNeNil
-      (symTy transportedEq)
-      (compTyOpen
-        nonemptyNeNil
-        (assocTyRight transportedEq)
-        (λ sigma fits -> packClosedSubst fits (tySub sigma fits))
-        (λ sigma tau fitsEq -> packClosedEqSubst fitsEq (tySubEq sigma tau fitsEq)))
-      (λ sigma fits -> packClosedSubst fits (symSub sigma fits))
-      (λ sigma tau fitsEq -> packClosedEqSubst fitsEq (symSubEq sigma tau fitsEq))
+    -> HypComputable (typeEq (A ∷ []) D F)
+    -> HypComputable (typeEq (C ∷ []) F D)
+  compSymTransportFamilyTyEq {A = A} {C = C} {D = D} {F = F} compAC compDF =
+    hypComputableTyEq (symTy transportedEq)
     where
     dAC : Derivable (typeEq [] A C)
     dAC = compToDerivable compAC
@@ -6522,278 +6101,67 @@ mutual
     dC = compToDerivable (compTyEqRightClosed compAC)
 
     transportedEq : Derivable (typeEq (C ∷ []) D F)
-    transportedEq = transportFamilyTyEq dAC dC dDF
-
-    transportFits : FitsSubst (C ∷ []) (A ∷ []) idSubst
-    transportFits = headTypeTransportFits dAC dC
-
-  compSymTy : {gamma : Ctx} {A B : RawType}
-    -> Computable (typeEq gamma A B)
-    -> Computable (typeEq gamma B A)
-  compSymTy comp@(compTyEqClosedTop _ _ _ _ _) = compSymTyClosed comp
-  compSymTy comp@(compTyEqClosedSigma _ _ _ _ _ _ _) = compSymTyClosed comp
-  compSymTy comp@(compTyEqClosedEq _ _ _ _ _ _ _ _) = compSymTyClosed comp
-  compSymTy comp@(compTyEqClosedQtr _ _ _ _ _ _) = compSymTyClosed comp
-  compSymTy {gamma = []} (compTyEqOpen neq _ _ _ _) = Empty.rec (neq refl)
-  compSymTy {gamma = C ∷ gamma} (compTyEqOpen neq d compA sub subEq) =
-    compSymTyOpenHelper compSymTyClosed compTransTyClosed neq d compA sub subEq
-
-  compTransTy : {gamma : Ctx} {A B C : RawType}
-    -> Computable (typeEq gamma A B)
-    -> Computable (typeEq gamma B C)
-    -> Computable (typeEq gamma A C)
-  compTransTy compAB@(compTyEqClosedTop _ _ _ _ _) compBC = compTransTyClosed compAB compBC
-  compTransTy compAB@(compTyEqClosedSigma _ _ _ _ _ _ _) compBC = compTransTyClosed compAB compBC
-  compTransTy compAB@(compTyEqClosedEq _ _ _ _ _ _ _ _) compBC = compTransTyClosed compAB compBC
-  compTransTy compAB@(compTyEqClosedQtr _ _ _ _ _ _) compBC = compTransTyClosed compAB compBC
-  compTransTy {gamma = []} (compTyEqOpen neq _ _ _ _) _ = Empty.rec (neq refl)
-  compTransTy {gamma = D ∷ gamma}
-    (compTyEqOpen neq dAB compA subAB subEqAB)
-    (compTyEqOpen _ dBC _ subBC subEqBC) =
-    compTransTyOpenHelper compTransTyClosed neq dAB compA subAB subEqAB dBC subBC subEqBC
-
-  compConvTm : {gamma : Ctx} {t : RawTerm} {A B : RawType}
-    -> Computable (hasTy gamma t A)
-    -> Computable (typeEq gamma A B)
-    -> Computable (hasTy gamma t B)
-  compConvTm comp@(compTmClosedTop _ _ _ _ _) compAB = compConvTmClosed comp compAB
-  compConvTm comp@(compTmClosedSigma _ _ _ _ _ _ _) compAB = compConvTmClosed comp compAB
-  compConvTm comp@(compTmClosedEq _ _ _ _ _ _) compAB = compConvTmClosed comp compAB
-  compConvTm comp@(compTmClosedQtr _ _ _ _ _ _) compAB = compConvTmClosed comp compAB
-  compConvTm {gamma = []} (compTmOpen neq _ _ _ _) _ = Empty.rec (neq refl)
-  compConvTm {gamma = C ∷ gamma} (compTmOpen _ d _ _ _) compAB =
-    openCompTm (conv d (compToDerivable compAB))
-
-  compConvTmEq : {gamma : Ctx} {t u : RawTerm} {A B : RawType}
-    -> Computable (termEq gamma t u A)
-    -> Computable (typeEq gamma A B)
-    -> Computable (termEq gamma t u B)
-  compConvTmEq comp@(compTmEqClosedTop _ _ _ _ _ _) compAB = compConvTmEqClosed comp compAB
-  compConvTmEq comp@(compTmEqClosedSigma _ _ _ _ _ _ _ _) compAB = compConvTmEqClosed comp compAB
-  compConvTmEq comp@(compTmEqClosedEq _ _ _ _ _ _ _) compAB = compConvTmEqClosed comp compAB
-  compConvTmEq comp@(compTmEqClosedQtr _ _ _ _ _ _ _ _) compAB = compConvTmEqClosed comp compAB
-  compConvTmEq {gamma = []} (compTmEqOpen neq _ _ _ _) _ = Empty.rec (neq refl)
-  compConvTmEq {gamma = C ∷ gamma} (compTmEqOpen _ d _ _ _) compAB =
-    openCompTmEq (convEq d (compToDerivable compAB))
+    transportedEq = transportFamilyTyEq dAC dC (hypCompToDerivable compDF)
 
   compTransTm : {gamma : Ctx} {t u v : RawTerm} {A : RawType}
-    -> Computable (termEq gamma t u A)
-    -> Computable (termEq gamma u v A)
-    -> Computable (termEq gamma t v A)
-  compTransTm comp₁@(compTmEqClosedTop _ _ _ _ _ _) comp₂ = compTransTmClosed comp₁ comp₂
-  compTransTm comp₁@(compTmEqClosedSigma _ _ _ _ _ _ _ _) comp₂ = compTransTmClosed comp₁ comp₂
-  compTransTm comp₁@(compTmEqClosedEq _ _ _ _ _ _ _) comp₂ = compTransTmClosed comp₁ comp₂
-  compTransTm comp₁@(compTmEqClosedQtr _ _ _ _ _ _ _ _) comp₂ = compTransTmClosed comp₁ comp₂
-  compTransTm {gamma = []} (compTmEqOpen neq _ _ _ _) _ = Empty.rec (neq refl)
-  compTransTm {gamma = C ∷ gamma}
-    (compTmEqOpen neq d₁ compt₁ sub₁ subEq₁)
-    (compTmEqOpen _ d₂ _ sub₂ subEq₂)
-    with compTmToCompTy compt₁
-  ... | compTyOpen _ _ _ subEqA =
-    compTmEqOpen
-      neq
-      (transTm d₁ d₂)
-      compt₁
-      (λ sigma fits ->
-        packClosedSubst fits
-          (compTransTmClosed
-            (ClosedSubstComp.closedComp (sub₁ sigma fits))
-            (ClosedSubstComp.closedComp (sub₂ sigma fits))))
-      (λ sigma tau fitsEq ->
-        let
-          closedστ = ClosedEqSubstComp.closedEqComp (subEq₁ sigma tau fitsEq)
-          closedτ = ClosedSubstComp.closedComp (sub₂ tau (fitsEqSubstRight (derivToCtxWF d₂) fitsEq))
-          closedτσ =
-            compConvTmEqClosed
-              closedτ
-              (compSymTyClosed (ClosedEqSubstComp.closedEqComp (subEqA sigma tau fitsEq)))
-        in
-        packClosedEqSubst fitsEq
-          (compTransTmClosed closedστ closedτσ))
+    -> HypComputable (termEq gamma t u A)
+    -> HypComputable (termEq gamma u v A)
+    -> HypComputable (termEq gamma t v A)
+  compTransTm comp₁@(hypTmEqOpen neq _ _ _ _) comp₂ =
+    mkHypComputableTmEq neq
+      (transTm (hypCompToDerivable comp₁) (hypCompToDerivable comp₂))
 
   compSymTm : {gamma : Ctx} {t u : RawTerm} {A : RawType}
-    -> Computable (termEq gamma t u A)
-    -> Computable (termEq gamma u t A)
-  compSymTm comp@(compTmEqClosedTop _ _ _ _ _ _) = compSymTmClosed comp
-  compSymTm comp@(compTmEqClosedSigma _ _ _ _ _ _ _ _) = compSymTmClosed comp
-  compSymTm comp@(compTmEqClosedEq _ _ _ _ _ _ _) = compSymTmClosed comp
-  compSymTm comp@(compTmEqClosedQtr _ _ _ _ _ _ _ _) = compSymTmClosed comp
-  compSymTm {gamma = []} (compTmEqOpen neq _ _ _ _) = Empty.rec (neq refl)
-  compSymTm {gamma = B ∷ gamma} (compTmEqOpen neq d compt sub subEq) with compTmToCompTy compt
-  ... | compAeq@(compTyOpen _ _ _ subEqA) =
-    compTmEqOpen
-      neq
-      (symTm d)
-      (compTmOpen
-        neq
-        (assocTmRight d)
-        compAeq
-        (λ sigma fits ->
-          packClosedSubst fits
-            (compTmEqRightClosed (ClosedSubstComp.closedComp (sub sigma fits))))
-        (λ sigma tau fitsEq ->
-          let
-            closedσ = ClosedSubstComp.closedComp (sub sigma (fitsEqSubstLeft fitsEq))
-            closedστ = ClosedEqSubstComp.closedEqComp (subEq sigma tau fitsEq)
-          in
-          packClosedEqSubst fitsEq
-            (compTransTmClosed
-              (compSymTmClosed closedσ)
-              closedστ)))
-      (λ sigma fits ->
-        packClosedSubst fits
-          (compSymTmClosed (ClosedSubstComp.closedComp (sub sigma fits))))
-      (λ sigma tau fitsEq ->
-        let
-          closedσ = ClosedSubstComp.closedComp (sub sigma (fitsEqSubstLeft fitsEq))
-          closedστ = ClosedEqSubstComp.closedEqComp (subEq sigma tau fitsEq)
-          closedτ = ClosedSubstComp.closedComp (sub tau (fitsEqSubstRight (derivToCtxWF d) fitsEq))
-          closedτσ =
-            compConvTmEqClosed
-              (compSymTmClosed closedτ)
-              (compSymTyClosed (ClosedEqSubstComp.closedEqComp (subEqA sigma tau fitsEq)))
-        in
-        packClosedEqSubst fitsEq
-          (compTransTmClosed
-            (compTransTmClosed (compSymTmClosed closedσ) closedστ)
-            closedτσ))
-
-  weakenOneOpenTy : {A B C : RawType}
-    -> Computable (isType (A ∷ []) B)
-    -> CtxWF (C ∷ A ∷ [])
-    -> Computable (isType (C ∷ A ∷ []) (wkTyBy 1 B))
-  weakenOneOpenTy {A = A} {B = B} {C = C} (compTyOpen neq d sub subEq) wf =
-    compTyOpen
-      nonemptyNeNil
-      (weakenTy {gamma = A ∷ []} {delta = C ∷ []} d wf)
-      (λ sigma fits ->
-        packClosedSubst fits
-          (subst
-            (λ T -> Computable (isType [] T))
-            (sym (subTyWkBy sigma 1 B))
-            (ClosedSubstComp.closedComp
-              (sub (dropSubstBy 1 sigma) (dropFits (C ∷ []) fits)))))
-      (λ sigma tau fitsEq ->
-        packClosedEqSubst fitsEq
-          (subst
-            (λ J -> Computable J)
-            (cong₂ (typeEq [])
-              (sym (subTyWkBy sigma 1 B))
-              (sym (subTyWkBy tau 1 B)))
-            (ClosedEqSubstComp.closedEqComp
-              (subEq
-                (dropSubstBy 1 sigma)
-                (dropSubstBy 1 tau)
-                (dropFitsEq (C ∷ []) fitsEq)))))
-
-  weakenOneOpenTm : {A B C : RawType} {t : RawTerm}
-    -> Computable (hasTy (A ∷ []) t B)
-    -> CtxWF (C ∷ A ∷ [])
-    -> Computable (hasTy (C ∷ A ∷ []) (wkTmBy 1 t) (wkTyBy 1 B))
-  weakenOneOpenTm {A = A} {B = B} {C = C} {t = t}
-    (compTmOpen neq d compB sub subEq) wf =
-    compTmOpen
-      nonemptyNeNil
-      (weakenTm {gamma = A ∷ []} {delta = C ∷ []} d wf)
-      (weakenOneOpenTy compB wf)
-      (λ sigma fits ->
-        packClosedSubst fits
-          (subst
-            (λ J -> Computable J)
-            (cong₂ (hasTy [])
-              (sym (subTmWkBy sigma 1 t))
-              (sym (subTyWkBy sigma 1 B)))
-            (ClosedSubstComp.closedComp
-              (sub (dropSubstBy 1 sigma) (dropFits (C ∷ []) fits)))))
-      (λ sigma tau fitsEq ->
-        packClosedEqSubst fitsEq
-          (subst
-            (λ J -> Computable J)
-            (cong₃ (termEq [])
-              (sym (subTmWkBy sigma 1 t))
-              (sym (subTmWkBy tau 1 t))
-              (sym (subTyWkBy sigma 1 B)))
-            (ClosedEqSubstComp.closedEqComp
-              (subEq
-                (dropSubstBy 1 sigma)
-                (dropSubstBy 1 tau)
-                (dropFitsEq (C ∷ []) fitsEq)))))
+    -> HypComputable (termEq gamma t u A)
+    -> HypComputable (termEq gamma u t A)
+  compSymTm comp@(hypTmEqOpen neq _ _ _ _) =
+    mkHypComputableTmEq neq (symTm (hypCompToDerivable comp))
 
   weakenOneOpenTmEq : {A B C : RawType} {t u : RawTerm}
-    -> Computable (termEq (A ∷ []) t u B)
+    -> HypComputable (termEq (A ∷ []) t u B)
     -> CtxWF (C ∷ A ∷ [])
-    -> Computable (termEq (C ∷ A ∷ []) (wkTmBy 1 t) (wkTmBy 1 u) (wkTyBy 1 B))
-  weakenOneOpenTmEq {A = A} {B = B} {C = C} {t = t} {u = u}
-    (compTmEqOpen neq d compt sub subEq) wf =
-    compTmEqOpen
-      nonemptyNeNil
-      (weakenTmEq {gamma = A ∷ []} {delta = C ∷ []} d wf)
-      (weakenOneOpenTm compt wf)
-      (λ sigma fits ->
-        packClosedSubst fits
-          (subst
-            (λ J -> Computable J)
-            (cong₃ (termEq [])
-              (sym (subTmWkBy sigma 1 t))
-              (sym (subTmWkBy sigma 1 u))
-              (sym (subTyWkBy sigma 1 B)))
-            (ClosedSubstComp.closedComp
-              (sub (dropSubstBy 1 sigma) (dropFits (C ∷ []) fits)))))
-      (λ sigma tau fitsEq ->
-        packClosedEqSubst fitsEq
-          (subst
-            (λ J -> Computable J)
-            (cong₃ (termEq [])
-              (sym (subTmWkBy sigma 1 t))
-              (sym (subTmWkBy tau 1 u))
-              (sym (subTyWkBy sigma 1 B)))
-            (ClosedEqSubstComp.closedEqComp
-              (subEq
-                (dropSubstBy 1 sigma)
-                (dropSubstBy 1 tau)
-                (dropFitsEq (C ∷ []) fitsEq)))))
+    -> HypComputable (termEq (C ∷ A ∷ []) (wkTmBy 1 t) (wkTmBy 1 u) (wkTyBy 1 B))
+  weakenOneOpenTmEq {A = A} {B = B} {C = C} comp wf =
+    hypComputableTmEq {A = wkTyBy 1 B} {B = C} {gamma = A ∷ []}
+      (weakenTmEq {gamma = A ∷ []} {delta = C ∷ []}
+        (hypCompToDerivable comp) wf)
 
-  compSubst : {gamma : Ctx} {J : JForm} {sigma : Subst}
-    -> Computable J
-    -> FitsSubst gamma (ctxOf J) sigma
-    -> Computable (subJInto gamma sigma J)
-  compSubst {gamma = []} {J = isType delta A} comp fits =
-    substTyClosed (compToDerivable comp) fits
-  compSubst {gamma = []} {J = typeEq delta A B} comp fits =
-    substTyEqClosed (compToDerivable comp) fits
-  compSubst {gamma = []} {J = hasTy delta t A} comp fits =
-    substTmClosed (compToDerivable comp) fits
-  compSubst {gamma = []} {J = termEq delta t u A} comp fits =
-    substTmEqClosed (compToDerivable comp) fits
-  compSubst {gamma = B ∷ gamma} {J = isType delta A} comp fits =
-    openCompTy (substTyRule (compToDerivable comp) fits)
-  compSubst {gamma = B ∷ gamma} {J = typeEq delta A C} comp fits =
-    openCompTyEq (substTyEqRule (compToDerivable comp) fits)
-  compSubst {gamma = B ∷ gamma} {J = hasTy delta t A} comp fits =
-    openCompTm (substTmRule (compToDerivable comp) fits)
-  compSubst {gamma = B ∷ gamma} {J = termEq delta t u A} comp fits =
-    openCompTmEq (substTmEqRule (compToDerivable comp) fits)
+  abstract
+    sigmaTyFamHypClosedBuild : {A B : RawType}
+      -> Derivable (isType [] A)
+      -> Derivable (isType (A ∷ []) B)
+      -> HypComputable (isType (A ∷ []) B)
+    sigmaTyFamHypClosedBuild _ dB =
+      hypTyOpen
+        nonemptyNeNil
+        dB
+        (λ sigma fits _ -> substTyClosed dB fits)
+        (λ sigma tau fitsEq _ -> eqSubTyClosed dB fitsEq)
 
-  compEqSubst : {gamma : Ctx} {J : JForm} {sigma tau : Subst}
-    -> Computable J
-    -> FitsEqSubst gamma (ctxOf J) sigma tau
-    -> Computable (eqSubJInto gamma sigma tau J)
-  compEqSubst {gamma = []} {J = isType delta A} comp fitsEq =
-    eqSubTyClosed (compToDerivable comp) fitsEq
-  compEqSubst {gamma = []} {J = typeEq delta A B} comp fitsEq =
-    eqSubTyEqClosed (compToDerivable comp) fitsEq
-  compEqSubst {gamma = []} {J = hasTy delta t A} comp fitsEq =
-    eqSubTmClosed (compToDerivable comp) fitsEq
-  compEqSubst {gamma = []} {J = termEq delta t u A} comp fitsEq =
-    eqSubTmEqClosed (compToDerivable comp) fitsEq
-  compEqSubst {gamma = B ∷ gamma} {J = isType delta A} comp fitsEq =
-    openCompTyEq (eqSubTyRule (compToDerivable comp) fitsEq)
-  compEqSubst {gamma = B ∷ gamma} {J = typeEq delta A C} comp fitsEq =
-    openCompTyEq (eqSubTyEqRule (compToDerivable comp) fitsEq)
-  compEqSubst {gamma = B ∷ gamma} {J = hasTy delta t A} comp fitsEq =
-    openCompTmEq (eqSubTmRule (compToDerivable comp) fitsEq)
-  compEqSubst {gamma = B ∷ gamma} {J = termEq delta t u A} comp fitsEq =
-    openCompTmEq (eqSubTmEqRule (compToDerivable comp) fitsEq)
+    sigmaTyFamHypClosed : {A B : RawType}
+      -> ({A B : RawType}
+      -> Derivable (isType [] A)
+      -> Derivable (isType (A ∷ []) B)
+      -> HypComputable (isType (A ∷ []) B))
+      -> Computable (isType [] (tySigma A B))
+      -> HypComputable (isType (A ∷ []) B)
+    sigmaTyFamHypClosed build
+      (compTyClosedSigma {B = A} {C = B} _ evalSigma _ compA dB) =
+      build (compToDerivable compA) dB
+    sigmaTyFamHypClosed build (compTyClosedTop _ () _)
+    sigmaTyFamHypClosed build (compTyClosedEq _ () _ _ _ _)
+    sigmaTyFamHypClosed build (compTyClosedQtr _ () _ _)
+
+    sigmaTyFamEqSubClosed : {A B : RawType} {t u : RawTerm}
+      -> ({A B : RawType}
+      -> Derivable (isType [] A)
+      -> Derivable (isType (A ∷ []) B)
+      -> HypComputable (isType (A ∷ []) B))
+      -> Computable (isType [] (tySigma A B))
+      -> Computable (termEq [] t u A)
+      -> Computable (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst u) B))
+    sigmaTyFamEqSubClosed build compSigma comptu =
+      compSingleEqSubstTyClosed (sigmaTyFamHypClosed build compSigma) comptu
 
   compConvTmClosedAcc : {t : RawTerm} {A B : RawType}
     -> Computable (hasTy [] t A)
@@ -7091,8 +6459,6 @@ mutual
     comp@(compTmEqClosedSigma {a = a} {A = B} {B = C} d compt compu evA evt evu compac compbd)
     (acc rs) =
     let
-      tyInv = invertSigmaTy (compTmToCompTy compt) evA
-      compB = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
       acFst =
         rs _ (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
           (smallerClosedTask<ClosedTask {A = B} {B = tySigma B C}
@@ -7107,9 +6473,14 @@ mutual
           (smallerOpenTask<ClosedTask
             {A = subTy (singleSubst a) C} {B = tySigma B C}
             (subTySigmaFamilyDepth< (singleSubst a) B C)))
+      compSigma =
+        subst
+          (λ X -> Computable (isType [] X))
+          (evalSigmaPath evA)
+          (compTmToCompTy compt)
       compca = compSymTmClosedAcc compac acFst
       compdb = compSymTmClosedAcc compbd acSndClosed
-      compBac = compSingleEqSubstTyClosed compB compac
+      compBac = sigmaTyFamEqSubClosed sigmaTyFamHypClosedBuild compSigma compac
       compdb' = compConvTmEqClosedAcc compdb compBac acSndOpen
     in
     compTmEqClosedSigma
@@ -7166,8 +6537,6 @@ mutual
     let
       inv₂ = invertSigmaTmEq comp₂ evA
       open ClosedSigmaTmEqInv inv₂
-      tyInv = invertSigmaTy (compTmToCompTy compt) evA
-      compB = hypComputableTy (ClosedSigmaTyInv.sigmaTyFamDeriv tyInv)
       pairEq = evalDetTm evu sigmaTmEqEvalLeftPair
       c≡left = tmPairInj₁ pairEq
       d≡left = tmPairInj₂ pairEq
@@ -7198,8 +6567,14 @@ mutual
           (smallerClosedTask<ClosedTask
             {A = subTy (singleSubst a) D} {B = tySigma C D}
             (subTySigmaFamilyDepth< (singleSubst a) C D)))
+      compSigma =
+        subst
+          (λ X -> Computable (isType [] X))
+          (evalSigmaPath evA)
+          (compTmToCompTy compt)
+      compca = compSymTmClosedAcc compac acFst
       compae = compTransTmClosedAcc compac compce acFst
-      compDca = compSingleEqSubstTyClosed compB (compSymTmClosedAcc compac acFst)
+      compDca = sigmaTyFamEqSubClosed sigmaTyFamHypClosedBuild compSigma compca
       compdfA = compConvTmEqClosedAcc compdfC compDca acSndCOpen
       compbf = compTransTmClosedAcc compbd compdfA acSndAClosed
     in
@@ -7240,15 +6615,30 @@ mutual
       compa
       qtrTmEqCompRightRepr
 
+  compConvTmClosed : {t : RawTerm} {A B : RawType}
+    -> Computable (hasTy [] t A)
+    -> Computable (typeEq [] A B)
+    -> Computable (hasTy [] t B)
   compConvTmClosed {A = A} comp compAB =
     compConvTmClosedAcc comp compAB (<-wellfounded (closedTaskMeasure A))
 
+  compConvTmEqClosed : {t u : RawTerm} {A B : RawType}
+    -> Computable (termEq [] t u A)
+    -> Computable (typeEq [] A B)
+    -> Computable (termEq [] t u B)
   compConvTmEqClosed {A = A} comp compAB =
     compConvTmEqClosedAcc comp compAB (<-wellfounded (openTaskMeasure A))
 
+  compSymTmClosed : {t u : RawTerm} {A : RawType}
+    -> Computable (termEq [] t u A)
+    -> Computable (termEq [] u t A)
   compSymTmClosed {A = A} comp =
     compSymTmClosedAcc comp (<-wellfounded (closedTaskMeasure A))
 
+  compTransTmClosed : {t u v : RawTerm} {A : RawType}
+    -> Computable (termEq [] t u A)
+    -> Computable (termEq [] u v A)
+    -> Computable (termEq [] t v A)
   compTransTmClosed {A = A} comp₁ comp₂ =
     compTransTmClosedAcc comp₁ comp₂ (<-wellfounded (closedTaskMeasure A))
 
@@ -7261,114 +6651,12 @@ mutual
   compSymTyClosedAcc
     {A = AΣ}
     (compTyEqClosedSigma {C = C} {D = D} {E = E} {F = F} d compA compB evA evB compCE compDF)
-    (acc rs) with compDF
-  ... | compTyEqOpen {B = F} neq dDF compD subDF subEqDF =
+    (acc rs) =
     let
       acHead =
         rs _ (rewriteClosedUpper {H = tySigma C D} (evalSigmaPath evA)
           (smallerClosedTask<ClosedTask {A = C} {B = tySigma C D}
             (tyDepth-fst<Sigma C D)))
-      dCE : Derivable (typeEq [] C E)
-      dCE = compToDerivable compCE
-      dRight : Derivable (isType [] E)
-      dRight = compToDerivable (compTyEqRightClosed compCE)
-      transportedEq : Derivable (typeEq (E ∷ []) D F)
-      transportedEq = transportFamilyTyEq dCE dRight dDF
-      transportFits : FitsSubst (E ∷ []) (C ∷ []) idSubst
-      transportFits = headTypeTransportFits dCE dRight
-      familyAcc : (sigma : Subst) -> Acc _<_ (closedTaskMeasure (subTy sigma D))
-      familyAcc sigma =
-        rs (closedTaskMeasure (subTy sigma D))
-          (rewriteClosedUpper {A = AΣ} {H = tySigma C D} (evalSigmaPath evA)
-            (smallerClosedTask<ClosedTask {A = subTy sigma D} {B = tySigma C D}
-              (subTySigmaFamilyDepth< sigma C D)))
-      familySym :
-        (sigma : Subst) ->
-        FitsSubst [] (E ∷ []) sigma ->
-        Computable (typeEq [] (subTy sigma F) (subTy sigma D))
-      familySym sigma fits =
-        let
-          closedσ =
-            subst
-              (λ J -> Computable J)
-              (cong₂ (typeEq [])
-                (sym (subTyComp sigma idSubst D) ∙ cong (subTy sigma) (subTyId D))
-                (sym (subTyComp sigma idSubst F) ∙ cong (subTy sigma) (subTyId F)))
-              (ClosedSubstComp.closedComp
-                (subDF (compSub sigma idSubst) (composeFits fits transportFits)))
-        in
-        compSymTyClosedAcc closedσ (familyAcc sigma)
-      familySymEq :
-        (sigma tau : Subst) ->
-        FitsEqSubst [] (E ∷ []) sigma tau ->
-        Computable (typeEq [] (subTy sigma F) (subTy tau D))
-      familySymEq sigma tau fitsEq =
-        let
-          closedσ =
-            subst
-              (λ J -> Computable J)
-              (cong₂ (typeEq [])
-                (sym (subTyComp sigma idSubst D) ∙ cong (subTy sigma) (subTyId D))
-                (sym (subTyComp sigma idSubst F) ∙ cong (subTy sigma) (subTyId F)))
-              (ClosedSubstComp.closedComp
-                (subDF (compSub sigma idSubst) (composeFits (fitsEqSubstLeft fitsEq) transportFits)))
-          closedστ =
-            subst
-              (λ J -> Computable J)
-              (cong₂ (typeEq [])
-                (sym (subTyComp sigma idSubst D) ∙ cong (subTy sigma) (subTyId D))
-                (sym (subTyComp tau idSubst F) ∙ cong (subTy tau) (subTyId F)))
-              (ClosedEqSubstComp.closedEqComp
-                (subEqDF
-                  (compSub sigma idSubst)
-                  (compSub tau idSubst)
-                  (composeEqFits fitsEq transportFits)))
-          closedτ =
-            subst
-              (λ J -> Computable J)
-              (cong₂ (typeEq [])
-                (sym (subTyComp tau idSubst D) ∙ cong (subTy tau) (subTyId D))
-                (sym (subTyComp tau idSubst F) ∙ cong (subTy tau) (subTyId F)))
-              (ClosedSubstComp.closedComp
-                (subDF
-                  (compSub tau idSubst)
-                  (composeFits
-                    (fitsEqSubstRight (derivToCtxWF transportedEq) fitsEq)
-                    transportFits)))
-        in
-        compTransTyClosed
-          (compTransTyClosed
-            (compSymTyClosedAcc closedσ (familyAcc sigma))
-            closedστ)
-          (compSymTyClosedAcc closedτ (familyAcc tau))
-      familyTy :
-        (sigma : Subst) ->
-        FitsSubst [] (E ∷ []) sigma ->
-        Computable (isType [] (subTy sigma F))
-      familyTy sigma fits =
-        compTyEqLeft (familySym sigma fits)
-      familyTyEq :
-        (sigma tau : Subst) ->
-        FitsEqSubst [] (E ∷ []) sigma tau ->
-        Computable (typeEq [] (subTy sigma F) (subTy tau F))
-      familyTyEq sigma tau fitsEq =
-        let
-          closedτ =
-            subst
-              (λ J -> Computable J)
-              (cong₂ (typeEq [])
-                (sym (subTyComp tau idSubst D) ∙ cong (subTy tau) (subTyId D))
-                (sym (subTyComp tau idSubst F) ∙ cong (subTy tau) (subTyId F)))
-              (ClosedSubstComp.closedComp
-                (subDF
-                  (compSub tau idSubst)
-                  (composeFits
-                    (fitsEqSubstRight (derivToCtxWF transportedEq) fitsEq)
-                    transportFits)))
-        in
-        compTransTyClosed
-          (familySymEq sigma tau fitsEq)
-          closedτ
     in
       compTyEqClosedSigma
         (symTy d)
@@ -7377,13 +6665,10 @@ mutual
         evB
         evA
         (compSymTyClosedAcc compCE acHead)
-        (compSymTransportFamilyTyEq
-          familyTy
-          familyTyEq
-          familySym
-          familySymEq
-          compCE
-          compDF)
+        (hypCompToDerivable
+          (compSymTransportFamilyTyEq
+            compCE
+            (hypComputableTyEq compDF)))
   compSymTyClosedAcc
     (compTyEqClosedEq {C = C} {a = a} {b = b} d compA compB evA evB compCD compac compbd)
     (acc rs) =
@@ -7418,7 +6703,6 @@ mutual
       evB
       evA
       (compSymTyClosedAcc compCD acBase)
-  compSymTyClosedAcc (compTyEqOpen neq _ _ _ _) _ = Empty.rec (neq refl)
 
   compTransTyClosedAcc : {A B C : RawType}
     -> Computable (typeEq [] A B)
@@ -7451,16 +6735,9 @@ mutual
     _ =
     Empty.rec (topNeQtr (sym (evalTopPath evB) ∙ evalQtrPath evB'))
   compTransTyClosedAcc
-    (compTyEqClosedTop _ _ _ _ _)
-    (compTyEqOpen neq _ _ _ _)
-    _ =
-    Empty.rec (neq refl)
-  compTransTyClosedAcc
     comp₁@(compTyEqClosedSigma {C = C} {D = D} dAB compA compB evA evB compCE compDF)
     comp₂
-    (acc rs)
-    with compDF
-  ... | compTyEqOpen neq dDF compD subDF subEqDF =
+    (acc rs) =
     let
       inv₂ = invertSigmaTyEq comp₂ evB
       open ClosedSigmaTyEqInv inv₂
@@ -7470,31 +6747,17 @@ mutual
             (tyDepth-fst<Sigma C D)))
       compCG = compTransTyClosedAcc compCE sigmaTyEqCompHead acHead
       compGC = compSymTyClosedAcc compCE acHead
-      compFH = compTransportFamilyTyEq compGC sigmaTyEqCompFam
+      compFH = compTransportFamilyTyEq compGC (hypComputableTyEq sigmaTyEqFamDeriv)
+      compDH = compTransTyOpenHelper (hypComputableTyEq compDF) compFH
     in
-    case compFH of λ where
-      (compTyEqOpen _ dFH _ subFH subEqFH) ->
-        let
-          compDH =
-            compTransTyOpenHelper
-              compTransTyClosed
-              neq
-              dDF
-              compD
-              subDF
-              subEqDF
-              dFH
-              subFH
-              subEqFH
-        in
-        compTyEqClosedSigma
-          (transTy dAB (compToDerivable comp₂))
-          compA
-          sigmaTyEqCompRight
-          evA
-          sigmaTyEqEvalRight
-          compCG
-          compDH
+    compTyEqClosedSigma
+      (transTy dAB (compToDerivable comp₂))
+      compA
+      sigmaTyEqCompRight
+      evA
+      sigmaTyEqEvalRight
+      compCG
+      (hypCompToDerivable compDH)
   compTransTyClosedAcc
     (compTyEqClosedEq {C = C} {a = a} {b = b} dAB compA compB evA evB compCD compac compbd)
     comp₂
@@ -7540,7 +6803,6 @@ mutual
       evA
       qtrTyEqEvalRight
       (compTransTyClosedAcc compCD qtrTyEqCompBase acBase)
-  compTransTyClosedAcc (compTyEqOpen neq _ _ _ _) _ _ = Empty.rec (neq refl)
 
   compSymTyClosed : {A B : RawType}
     -> Computable (typeEq [] A B)
@@ -7554,30 +6816,6 @@ mutual
     -> Computable (typeEq [] A C)
   compTransTyClosed {A = A} comp₁ comp₂ =
     compTransTyClosedAcc comp₁ comp₂ (<-wellfounded (closedTaskMeasure A))
-
-  compTyEqRight : {gamma : Ctx} {A B : RawType}
-    -> Computable (typeEq gamma A B)
-    -> Computable (isType gamma B)
-  compTyEqRight comp@(compTyEqClosedTop _ _ _ _ _) = compTyEqRightClosed comp
-  compTyEqRight comp@(compTyEqClosedSigma _ _ _ _ _ _ _) = compTyEqRightClosed comp
-  compTyEqRight comp@(compTyEqClosedEq _ _ _ _ _ _ _ _) = compTyEqRightClosed comp
-  compTyEqRight comp@(compTyEqClosedQtr _ _ _ _ _ _) = compTyEqRightClosed comp
-  compTyEqRight (compTyEqOpen neq d compA sub subEq) =
-    compTyOpen
-      neq
-      (assocTyRight d)
-      (λ sigma fits ->
-        packClosedSubst fits
-          (compTyEqRightClosed (ClosedSubstComp.closedComp (sub sigma fits))))
-      (λ sigma tau fitsEq ->
-        let
-          closedσ = ClosedSubstComp.closedComp (sub sigma (fitsEqSubstLeft fitsEq))
-          closedστ = ClosedEqSubstComp.closedEqComp (subEq sigma tau fitsEq)
-        in
-        packClosedEqSubst fitsEq
-          (compTransTyClosed
-            (compSymTyClosed closedσ)
-            closedστ))
 
   computableTyClosed : {A : RawType}
     -> Derivable (isType [] A)
