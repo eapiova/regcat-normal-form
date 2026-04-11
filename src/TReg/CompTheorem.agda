@@ -6516,8 +6516,8 @@ mutual
     hypTyOpen
       neq
       d
-      (λ sigma fits _ -> substDerivTyCompCF d fits (fitsToCompFits fits) (<-wellfounded _))
-      (λ sigma tau fitsEq _ -> eqSubDerivTyCompCF d fitsEq (fitsEqToCompFitsEq fitsEq) (<-wellfounded _))
+      (λ sigma fits cFits -> liftComputable (substDerivTyCompCF d fits cFits (<-wellfounded _)))
+      (λ sigma tau fitsEq cFitsEq -> liftComputable (eqSubDerivTyCompCF d fitsEq cFitsEq (<-wellfounded _)))
 
   leftTyWitnessEq : {gamma : Ctx} {A B : RawType}
     -> Derivable (typeEq gamma A B)
@@ -6572,8 +6572,8 @@ mutual
       neq
       d
       (mkHypComputableTy neq (leftTyWitnessEq d))
-      (λ sigma fits _ -> substDerivTyEqCompCF d fits (fitsToCompFits fits) (<-wellfounded _))
-      (λ sigma tau fitsEq _ -> eqSubDerivTyEqCompCF d fitsEq (fitsEqToCompFitsEq fitsEq) (<-wellfounded _))
+      (λ sigma fits cFits -> liftComputable (substDerivTyEqCompCF d fits cFits (<-wellfounded _)))
+      (λ sigma tau fitsEq cFitsEq -> liftComputable (eqSubDerivTyEqCompCF d fitsEq cFitsEq (<-wellfounded _)))
   
   mkHypComputableTm : {n : ℕ} -> {gamma : Ctx} {t : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
@@ -6585,8 +6585,8 @@ mutual
       neq
       d
       compA
-      (λ sigma fits _ -> substDerivTmCompCF d fits (fitsToCompFits fits) (<-wellfounded _))
-      (λ sigma tau fitsEq _ -> eqSubDerivTmCompCF d fitsEq (fitsEqToCompFitsEq fitsEq) (<-wellfounded _))
+      (λ sigma fits cFits -> liftComputable (substDerivTmCompCF d fits cFits (<-wellfounded _)))
+      (λ sigma tau fitsEq cFitsEq -> liftComputable (eqSubDerivTmCompCF d fitsEq cFitsEq (<-wellfounded _)))
   
   mkHypComputableTmEq : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
@@ -6598,8 +6598,8 @@ mutual
       neq
       d
       compt
-      (λ sigma fits _ -> substDerivTmEqCompCF d fits (fitsToCompFits fits) (<-wellfounded _))
-      (λ sigma tau fitsEq _ -> eqSubDerivTmEqCompCF d fitsEq (fitsEqToCompFitsEq fitsEq) (<-wellfounded _))
+      (λ sigma fits cFits -> liftComputable (substDerivTmEqCompCF d fits cFits (<-wellfounded _)))
+      (λ sigma tau fitsEq cFitsEq -> liftComputable (eqSubDerivTmEqCompCF d fitsEq cFitsEq (<-wellfounded _)))
   
   hypComputableTy : {n : ℕ} -> {A B : RawType} {gamma : Ctx}
     -> Derivable (isType (B ∷ gamma) A)
