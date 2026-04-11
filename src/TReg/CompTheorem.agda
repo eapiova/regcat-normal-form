@@ -242,16 +242,16 @@ mutual
     -> (fits : FitsSubst [] gamma sigma)
     -> ComputableFits n fits
     -> Derivable (isType [] (subTy sigma A))
-    -> HypComputable n (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) T))
+    -> HypComputable (suc n) (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) T))
     -> Derivable (hasTy (A ∷ gamma) t T)
-    -> HypComputable n
+    -> HypComputable (suc n)
          (hasTy (subTy sigma A ∷ [])
            (subTm (liftSubst sigma) t)
            (subTy (liftSubst sigma) T))
   openHypTm1 {n} {gamma = gamma} {A = A} {T = T} {t = t} {sigma = sigma}
     fits cFits dAσ compT dt =
     subst
-      (λ J -> HypComputable n J)
+      (λ J -> HypComputable (suc n) J)
       (cong₂
         (hasTy (subTy sigma A ∷ []))
         (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
@@ -260,7 +260,7 @@ mutual
         nonemptyNeNil
         (substTmRule dt (liftFitsOne fits dAσ))
         (subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (sym
             (cong
               (λ rho -> isType (subTy sigma A ∷ []) (subTy rho T))
@@ -305,12 +305,12 @@ mutual
   openHypTmEq1 : {n : ℕ} -> {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma : Subst}
     -> FitsSubst [] gamma sigma
     -> Derivable (isType [] (subTy sigma A))
-    -> HypComputable n
+    -> HypComputable (suc n)
          (hasTy (subTy sigma A ∷ [])
            (subTm (liftSubst sigma) t)
            (subTy (liftSubst sigma) T))
     -> Derivable (termEq (A ∷ gamma) t u T)
-    -> HypComputable n
+    -> HypComputable (suc n)
          (termEq (subTy sigma A ∷ [])
            (subTm (liftSubst sigma) t)
            (subTm (liftSubst sigma) u)
@@ -318,7 +318,7 @@ mutual
   openHypTmEq1 {n} {A = A} {T = T} {t = t} {u = u} {sigma = sigma}
     fits dAσ compt dtu =
     subst
-      (λ J -> HypComputable n J)
+      (λ J -> HypComputable (suc n) J)
       (cong₃
         (termEq (subTy sigma A ∷ []))
         (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
@@ -328,7 +328,7 @@ mutual
         nonemptyNeNil
         (substTmEqRule dtu (liftFitsOne fits dAσ))
         (subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (sym
             (cong₂
               (hasTy (subTy sigma A ∷ []))
@@ -369,11 +369,11 @@ mutual
     -> ComputableFits n fits
     -> Derivable (isType [] (subTy sigma A))
     -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> HypComputable n
+    -> HypComputable (suc n)
          (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
            (subTy (liftSubst (liftSubst sigma)) T))
     -> Derivable (hasTy (B ∷ A ∷ gamma) t T)
-    -> HypComputable n
+    -> HypComputable (suc n)
          (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
            (subTm (liftSubst (liftSubst sigma)) t)
            (subTy (liftSubst (liftSubst sigma)) T))
@@ -388,7 +388,7 @@ mutual
           (liftFitsOne fits dAσ)
     in
     subst
-      (λ J -> HypComputable n J)
+      (λ J -> HypComputable (suc n) J)
       (cong₂
         (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
         (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
@@ -397,7 +397,7 @@ mutual
         nonemptyNeNil
         (substTmRule dt (liftFits lifted1 dBσ))
         (subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (sym
             (cong
               (λ rho ->
@@ -445,12 +445,12 @@ mutual
     -> FitsSubst [] gamma sigma
     -> Derivable (isType [] (subTy sigma A))
     -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
-    -> HypComputable n
+    -> HypComputable (suc n)
          (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
            (subTm (liftSubst (liftSubst sigma)) t)
            (subTy (liftSubst (liftSubst sigma)) T))
     -> Derivable (termEq (B ∷ A ∷ gamma) t u T)
-    -> HypComputable n
+    -> HypComputable (suc n)
          (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
            (subTm (liftSubst (liftSubst sigma)) t)
            (subTm (liftSubst (liftSubst sigma)) u)
@@ -466,7 +466,7 @@ mutual
           (liftFitsOne fits dAσ)
     in
     subst
-      (λ J -> HypComputable n J)
+      (λ J -> HypComputable (suc n) J)
       (cong₃
         (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
         (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
@@ -476,7 +476,7 @@ mutual
         nonemptyNeNil
         (substTmEqRule dtu (liftFits lifted1 dBσ))
         (subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (sym
             (cong₂
               (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
@@ -560,7 +560,7 @@ mutual
 
   compFSigmaClosed : {n : ℕ} -> {A B : RawType}
     -> Computable n (isType [] A)
-    -> HypComputable n (isType (A ∷ []) B)
+    -> HypComputable (suc n) (isType (A ∷ []) B)
     -> Computable n (isType [] (tySigma A B))
   compFSigmaClosed {n} compA (hypTyOpen _ dB subB subEqB) =
     compTyClosedSigma
@@ -588,10 +588,10 @@ mutual
       compb
   
   compCSigmaClosed : {n : ℕ} -> {b c m : RawTerm} {A B M : RawType}
-    -> HypComputable n (isType ((tySigma A B) ∷ []) M)
+    -> HypComputable (suc n) (isType ((tySigma A B) ∷ []) M)
     -> Computable n (hasTy [] b A)
     -> Computable n (hasTy [] c (subTy (singleSubst b) B))
-    -> HypComputable n (hasTy (B ∷ A ∷ []) m (sigmaBranchTy M))
+    -> HypComputable (suc n) (hasTy (B ∷ A ∷ []) m (sigmaBranchTy M))
     -> Computable n
          (termEq [] (tmElSigma (tmPair b c) m) (subTm (sigmaCompSub b c) m)
            (subTy (singleSubst (tmPair b c)) M))
@@ -726,9 +726,9 @@ mutual
          -> Computable n (termEq [] t u T)
          -> Computable n (typeEq [] T U)
          -> Computable n (termEq [] t u U))
-    -> HypComputable n (isType ((tySigma A B) ∷ []) M)
+    -> HypComputable (suc n) (isType ((tySigma A B) ∷ []) M)
     -> Computable n (termEq [] d d' (tySigma A B))
-    -> HypComputable n (termEq (B ∷ A ∷ []) m m' (sigmaBranchTy M))
+    -> HypComputable (suc n) (termEq (B ∷ A ∷ []) m m' (sigmaBranchTy M))
     -> Computable n
          (termEq [] (tmElSigma d m) (tmElSigma d' m') (subTy (singleSubst d) M))
   compESigmaClosed {n} {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'}
@@ -1261,10 +1261,10 @@ mutual
       compb
   
   compCQtrClosed : {n : ℕ} -> {a l : RawTerm} {A L : RawType}
-    -> HypComputable n (isType ((tyQtr A) ∷ []) L)
+    -> HypComputable (suc n) (isType ((tyQtr A) ∷ []) L)
     -> Computable n (hasTy [] a A)
-    -> HypComputable n (hasTy (A ∷ []) l (qtrBranchTy L))
-    -> HypComputable n
+    -> HypComputable (suc n) (hasTy (A ∷ []) l (qtrBranchTy L))
+    -> HypComputable (suc n)
          (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
     -> Computable n
          (termEq [] (tmElQtr l (tmClass a)) (subTm (qtrCompSub a) l)
@@ -1404,12 +1404,12 @@ mutual
          -> Computable n (termEq [] t u T)
          -> Computable n (typeEq [] T U)
          -> Computable n (termEq [] t u U))
-    -> HypComputable n (isType ((tyQtr A) ∷ []) L)
+    -> HypComputable (suc n) (isType ((tyQtr A) ∷ []) L)
     -> Computable n (termEq [] p p' (tyQtr A))
-    -> HypComputable n (termEq (A ∷ []) l l' (qtrBranchTy L))
-    -> HypComputable n
+    -> HypComputable (suc n) (termEq (A ∷ []) l l' (qtrBranchTy L))
+    -> HypComputable (suc n)
          (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
-    -> HypComputable n
+    -> HypComputable (suc n)
          (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L))
     -> Computable n
          (termEq [] (tmElQtr l p) (tmElQtr l' p') (subTy (singleSubst p) L))
@@ -2712,7 +2712,7 @@ mutual
          -> FitsSubst [] gamma sigma
          -> Derivable (isType [] (subTy sigma A))
          -> Derivable (isType (A ∷ gamma) B)
-         -> HypComputable n (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B)))
+         -> HypComputable (suc n) (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B)))
     -> ({gamma : Ctx} {A B : RawType} {sigma : Subst}
          -> Derivable (typeEq gamma A B)
          -> FitsSubst [] gamma sigma
@@ -2724,14 +2724,14 @@ mutual
     -> FitsSubst [] gamma sigma
     -> Derivable (isType [] (subTy sigma A))
     -> Derivable (typeEq (A ∷ gamma) B C)
-    -> HypComputable n
+    -> HypComputable (suc n)
          (typeEq (subTy sigma A ∷ [])
            (subTy (liftSubst sigma) B)
            (subTy (liftSubst sigma) C))
   substSccTyEq1 {n} {A = A} {B = B} {C = C} {sigma = sigma}
     sccTy1Cl subTyEqCl eqSubTyEqCl fits dAσ dBC =
     subst
-      (λ J -> HypComputable n J)
+      (λ J -> HypComputable (suc n) J)
       (cong₂
         (typeEq (subTy sigma A ∷ []))
         (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
@@ -2740,7 +2740,7 @@ mutual
         nonemptyNeNil
         (substTyEqRule dBC (liftFitsOne fits dAσ))
         (subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (sym (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma)))
           (sccTy1Cl fits dAσ (assocTyLeft dBC)))
         (λ tau fits2 _ ->
@@ -2843,7 +2843,7 @@ mutual
       dAσ = compToDerivable compA
       compB =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -2883,7 +2883,7 @@ mutual
                         (fitsEqSubstRight (wfCons wfNil dAσ) fitsEq2))) (<-wellfounded _))))))
       compBD =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (typeEq (subTy sigma A ∷ []))
             (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
@@ -2892,7 +2892,7 @@ mutual
             nonemptyNeNil
             (substTyEqRule dBD (liftFitsOne fits dAσ))
             (subst
-              (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+              (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
               (sym (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma)))
               compB)
             (λ tau fits2 _ ->
@@ -3037,7 +3037,7 @@ mutual
       dBσ = hypCompToDerivable compBσ
       compM =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tySigma A B) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tySigma A B) ∷ []) T))
           (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -3092,12 +3092,12 @@ mutual
           compBranchTy =
             subst
               (λ T ->
-                HypComputable n (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
+                HypComputable (suc n) (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
               (sym (sigmaBranchTyLiftComp sigma M))
               (sigmaBranchTyHypFromMotive dBranch compAσ compBσ compM)
         in
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m))
@@ -3149,7 +3149,7 @@ mutual
       wkCtxWF = wfCons (wfCons wfNil dAσ) dWkAσ
       compL =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tyQtr A) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tyQtr A) ∷ []) T))
           (cong (λ rho -> subTy rho L) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -3185,7 +3185,7 @@ mutual
                   (fitsEqToCompFitsEq composedFitsEq) (<-wellfounded _))))
       compBranchTy =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -3226,7 +3226,7 @@ mutual
       compl =
         subst
           (λ T ->
-            HypComputable n
+            HypComputable (suc n)
               (hasTy (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 T))
@@ -3240,7 +3240,7 @@ mutual
   
       compcohAssoc =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (hasTy (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ []))
             (sym (wkTmLiftSubst (liftSubst sigma) l))
@@ -3250,7 +3250,7 @@ mutual
   
       compcoh =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -3377,7 +3377,7 @@ mutual
       dBσ = hypCompToDerivable compBσ
       compM =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tySigma A B) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tySigma A B) ∷ []) T))
           (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -3426,14 +3426,14 @@ mutual
           compBranchTy =
             subst
               (λ T ->
-                HypComputable n (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
+                HypComputable (suc n) (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
               (sym (sigmaBranchTyLiftComp sigma M))
               (sigmaBranchTyHypFromMotive dBranch compAσ compBσ compM)
           compAssoc =
             openHypTm2 fits (fitsToCompFits fits) dAσ dBσ compBranchTy dmL
         in
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m)
@@ -3542,7 +3542,7 @@ mutual
       wkCtxWF = wfCons (wfCons wfNil dAσ) dWkAσ
       compL =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tyQtr A) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tyQtr A) ∷ []) T))
           (cong (λ rho -> subTy rho L) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -3578,7 +3578,7 @@ mutual
                   (fitsEqToCompFitsEq composedFitsEq) (<-wellfounded _))))
       compBranchTy =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -3620,7 +3620,7 @@ mutual
       compl =
         subst
           (λ T ->
-            HypComputable n
+            HypComputable (suc n)
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 (subTm (liftSubst sigma) l')
@@ -3634,7 +3634,7 @@ mutual
   
       compcohAssoc =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (hasTy (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ []))
             (sym (wkTmLiftSubst (liftSubst sigma) l))
@@ -3644,7 +3644,7 @@ mutual
   
       compcoh =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -3682,7 +3682,7 @@ mutual
   
       compcohAssoc' =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (hasTy (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ []))
             (sym (wkTmLiftSubst (liftSubst sigma) l'))
@@ -3692,7 +3692,7 @@ mutual
   
       compcoh' =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -3788,7 +3788,7 @@ mutual
       wkCtxWF = wfCons (wfCons wfNil dAσ) dWkAσ
       compL =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tyQtr A) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tyQtr A) ∷ []) T))
           (cong (λ rho -> subTy rho L) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -3816,7 +3816,7 @@ mutual
                   (composeOneBinderEq fits dQtrσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq fits dQtrσ fitsEq2)) (<-wellfounded _))))
       compBranchTy =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -3849,7 +3849,7 @@ mutual
       compl =
         subst
           (λ T ->
-            HypComputable n
+            HypComputable (suc n)
               (hasTy (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 T))
@@ -3863,7 +3863,7 @@ mutual
   
       compcohAssoc =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (hasTy (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ []))
             (sym (wkTmLiftSubst (liftSubst sigma) l))
@@ -3873,7 +3873,7 @@ mutual
   
       compcoh =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -3954,7 +3954,7 @@ mutual
       dAσ = compToDerivable compA
       compB =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -4022,7 +4022,7 @@ mutual
       dBσ = hypCompToDerivable compBσ
       compM =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tySigma A B) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tySigma A B) ∷ []) T))
           (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -4071,12 +4071,12 @@ mutual
           compBranchTy =
             subst
               (λ T ->
-                HypComputable n (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
+                HypComputable (suc n) (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
               (sym (sigmaBranchTyLiftComp sigma M))
               (sigmaBranchTyHypFromMotive dBranch compAσ compBσ compM)
         in
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m))
@@ -4204,7 +4204,7 @@ mutual
       dAσ = substTyRule dA sigmaFits
       compB =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho B) (liftSubstCompKeepNR sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -4405,7 +4405,7 @@ mutual
           nonemptyNeNil
           (eqSubTyEqRule dBD liftedEq)
           (subst
-            (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+            (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
             (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
             (hypTyOpen
               nonemptyNeNil
@@ -4622,7 +4622,7 @@ mutual
       wkCtxWF = wfCons (wfCons wfNil dAσ) dWkBaseσ
       compL =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tyQtr A) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tyQtr A) ∷ []) T))
           (cong (λ rho -> subTy rho L) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -4650,7 +4650,7 @@ mutual
                   (composeOneBinderEq sigmaFits dQtrσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq sigmaFits dQtrσ fitsEq2)) (<-wellfounded _))))
       compBranchTy =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -4685,7 +4685,7 @@ mutual
       branchEq =
         subst
           (λ T ->
-            HypComputable n
+            HypComputable (suc n)
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 (subTm (liftSubst tau) l')
@@ -4746,7 +4746,7 @@ mutual
       branchEqRight =
         subst
           (λ T ->
-            HypComputable n
+            HypComputable (suc n)
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l')
                 (subTm (liftSubst tau) l')
@@ -4806,7 +4806,7 @@ mutual
   
       branchEqRightWk =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (wkTyBy 1 (subTy sigma A) ∷ subTy sigma A ∷ [])
@@ -4817,7 +4817,7 @@ mutual
           (weakenOneOpenTmEq branchEqRight wkCtxWF)
       compcohAssoc =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (hasTy (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ []))
             (sym (wkTmLiftSubst (liftSubst sigma) l))
@@ -4827,7 +4827,7 @@ mutual
   
       cohσ =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -4864,7 +4864,7 @@ mutual
             dcoh)
       compcohAssoc' =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (hasTy (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ []))
             (sym (wkTmLiftSubst (liftSubst sigma) l'))
@@ -4874,7 +4874,7 @@ mutual
   
       coh'στ =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5040,7 +5040,7 @@ mutual
       wkCtxWF = wfCons (wfCons wfNil dAσ) dWkAσ
       compL =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tyQtr A) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tyQtr A) ∷ []) T))
           (cong (λ rho -> subTy rho L) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -5068,7 +5068,7 @@ mutual
                   (composeOneBinderEq sigmaFits dQtrσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq sigmaFits dQtrσ fitsEq2)) (<-wellfounded _))))
       compBranchTy =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -5101,7 +5101,7 @@ mutual
       complσ =
         subst
           (λ T ->
-            HypComputable n
+            HypComputable (suc n)
               (hasTy (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 T))
@@ -5114,7 +5114,7 @@ mutual
             dl)
       compcohAssoc =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (hasTy (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ []))
             (sym (wkTmLiftSubst (liftSubst sigma) l))
@@ -5124,7 +5124,7 @@ mutual
   
       compcohσ =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5165,7 +5165,7 @@ mutual
       complEq =
         subst
           (λ T ->
-            HypComputable n
+            HypComputable (suc n)
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 (subTm (liftSubst tau) l)
@@ -5272,7 +5272,7 @@ mutual
           (qtrCompSub (subTm sigma a))
           (qtrCompSub (subTm tau a)))
       -> ComputableFitsEq n branchFitsEq
-      -> HypComputable n
+      -> HypComputable (suc n)
            (termEq (subTy sigma A ∷ [])
              (subTm (liftSubst sigma) l)
              (subTm (liftSubst tau) l)
@@ -5352,7 +5352,7 @@ mutual
       dSigmaσ = compToDerivable compSigma
       compM =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tySigma A B) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tySigma A B) ∷ []) T))
           (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -5440,12 +5440,12 @@ mutual
           compBranchTy =
             subst
               (λ T ->
-                HypComputable n (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
+                HypComputable (suc n) (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
               (sym (sigmaBranchTyLiftComp sigma M))
               (sigmaBranchTyHypFromMotive dBranch compAσ compBσ compM)
         in
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m)
@@ -5540,7 +5540,7 @@ mutual
       wkCtxWF = wfCons (wfCons wfNil dAσ) dWkBaseσ
       compL =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tyQtr A) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tyQtr A) ∷ []) T))
           (cong (λ rho -> subTy rho L) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -5568,7 +5568,7 @@ mutual
                   (composeOneBinderEq sigmaFits dQtrσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq sigmaFits dQtrσ fitsEq2)) (<-wellfounded _))))
       compBranchTy =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -5602,7 +5602,7 @@ mutual
       branchEq =
         subst
           (λ T ->
-            HypComputable n
+            HypComputable (suc n)
               (termEq (subTy sigma A ∷ [])
                 (subTm (liftSubst sigma) l)
                 (subTm (liftSubst tau) l)
@@ -5662,7 +5662,7 @@ mutual
   
       branchEqWk =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (wkTyBy 1 (subTy sigma A) ∷ subTy sigma A ∷ [])
@@ -5673,7 +5673,7 @@ mutual
           (weakenOneOpenTmEq branchEq wkCtxWF)
       compcohAssoc =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong₂
             (hasTy (subTy (liftSubst sigma) (wkTyBy 1 A) ∷ subTy sigma A ∷ []))
             (sym (wkTmLiftSubst (liftSubst sigma) l))
@@ -5683,7 +5683,7 @@ mutual
   
       cohσ =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5721,7 +5721,7 @@ mutual
   
       cohστ =
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (λ T ->
               termEq (T ∷ subTy sigma A ∷ [])
@@ -5910,7 +5910,7 @@ mutual
       dAσ = compToDerivable compA
       compB =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
           (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -5971,7 +5971,7 @@ mutual
       dSigmaσ = compToDerivable compSigma
       compM =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tySigma A B) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tySigma A B) ∷ []) T))
           (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -6059,14 +6059,14 @@ mutual
           compBranchTy =
             subst
               (λ T ->
-                HypComputable n (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
+                HypComputable (suc n) (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
               (sym (sigmaBranchTyLiftComp sigma M))
               (sigmaBranchTyHypFromMotive dBranch compAσ compBσ compM)
           compAssoc =
             openHypTm2 sigmaFits (fitsToCompFits sigmaFits) dAσ dBσ compBranchTy dmL
         in
         subst
-          (λ J -> HypComputable n J)
+          (λ J -> HypComputable (suc n) J)
           (cong
             (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
               (subTm (liftSubst (liftSubst sigma)) m)
@@ -6146,7 +6146,7 @@ mutual
       dBσ = hypCompToDerivable compBσ
       compM =
         subst
-          (λ T -> HypComputable n (isType (subTy sigma (tySigma A B) ∷ []) T))
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tySigma A B) ∷ []) T))
           (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
           (hypTyOpen
             nonemptyNeNil
@@ -6213,7 +6213,7 @@ mutual
       compBranchTy =
         subst
           (λ T ->
-            HypComputable n (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
+            HypComputable (suc n) (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
           (sym (sigmaBranchTyLiftComp sigma M))
           (sigmaBranchTyHypFromMotive dBranch compAσ compBσ compM)
   
@@ -6368,7 +6368,7 @@ mutual
           (sigmaCompSub (subTm sigma b) (subTm sigma c))
           (sigmaCompSub (subTm tau b) (subTm tau c)))
       -> ComputableFitsEq n branchFitsEq
-      -> HypComputable n
+      -> HypComputable (suc n)
            (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
              (subTm (liftSubst (liftSubst sigma)) m)
              (subTm (liftSubst (liftSubst tau)) m)
@@ -6511,7 +6511,7 @@ mutual
   mkHypComputableTy : {n : ℕ} -> {gamma : Ctx} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (isType gamma A)
-    -> HypComputable n (isType gamma A)
+    -> HypComputable (suc n) (isType gamma A)
   mkHypComputableTy {n} neq d =
     hypTyOpen
       neq
@@ -6566,7 +6566,7 @@ mutual
   mkHypComputableTyEq : {n : ℕ} -> {gamma : Ctx} {A B : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (typeEq gamma A B)
-    -> HypComputable n (typeEq gamma A B)
+    -> HypComputable (suc n) (typeEq gamma A B)
   mkHypComputableTyEq {n} neq d =
     hypTyEqOpen
       neq
@@ -6577,9 +6577,9 @@ mutual
   
   mkHypComputableTm : {n : ℕ} -> {gamma : Ctx} {t : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
-    -> HypComputable n (isType gamma A)
+    -> HypComputable (suc n) (isType gamma A)
     -> Derivable (hasTy gamma t A)
-    -> HypComputable n (hasTy gamma t A)
+    -> HypComputable (suc n) (hasTy gamma t A)
   mkHypComputableTm {n} neq compA d =
     hypTmOpen
       neq
@@ -6590,9 +6590,9 @@ mutual
   
   mkHypComputableTmEq : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
-    -> HypComputable n (hasTy gamma t A)
+    -> HypComputable (suc n) (hasTy gamma t A)
     -> Derivable (termEq gamma t u A)
-    -> HypComputable n (termEq gamma t u A)
+    -> HypComputable (suc n) (termEq gamma t u A)
   mkHypComputableTmEq {n} neq compt d =
     hypTmEqOpen
       neq
@@ -6603,34 +6603,34 @@ mutual
   
   hypComputableTy : {n : ℕ} -> {A B : RawType} {gamma : Ctx}
     -> Derivable (isType (B ∷ gamma) A)
-    -> HypComputable n (isType (B ∷ gamma) A)
+    -> HypComputable (suc n) (isType (B ∷ gamma) A)
   hypComputableTy {n} = mkHypComputableTy nonemptyNeNil
   
   hypComputableTyEq : {n : ℕ} -> {A B C : RawType} {gamma : Ctx}
     -> Derivable (typeEq (C ∷ gamma) A B)
-    -> HypComputable n (typeEq (C ∷ gamma) A B)
+    -> HypComputable (suc n) (typeEq (C ∷ gamma) A B)
   hypComputableTyEq {n} = mkHypComputableTyEq nonemptyNeNil
   
   hypComputableTm : {n : ℕ} -> {t : RawTerm} {A B : RawType} {gamma : Ctx}
     -> Derivable (hasTy (B ∷ gamma) t A)
-    -> HypComputable n (hasTy (B ∷ gamma) t A)
+    -> HypComputable (suc n) (hasTy (B ∷ gamma) t A)
   hypComputableTm {n} d =
     mkHypComputableTm nonemptyNeNil (hypComputableTy (assocTy d)) d
   
   hypComputableTmEq : {n : ℕ} -> {t u : RawTerm} {A B : RawType} {gamma : Ctx}
     -> Derivable (termEq (B ∷ gamma) t u A)
-    -> HypComputable n (termEq (B ∷ gamma) t u A)
+    -> HypComputable (suc n) (termEq (B ∷ gamma) t u A)
   hypComputableTmEq {n} d =
     mkHypComputableTmEq nonemptyNeNil (hypComputableTm (leftTmWitnessEq d)) d
   
   hypTyEqLeft : {n : ℕ} -> {gamma : Ctx} {A B : RawType}
-    -> HypComputable n (typeEq gamma A B)
-    -> HypComputable n (isType gamma A)
+    -> HypComputable (suc n) (typeEq gamma A B)
+    -> HypComputable (suc n) (isType gamma A)
   hypTyEqLeft {n} (hypTyEqOpen _ _ compA _ _) = compA
   
   hypTyEqRight : {n : ℕ} -> {gamma : Ctx} {A B : RawType}
-    -> HypComputable n (typeEq gamma A B)
-    -> HypComputable n (isType gamma B)
+    -> HypComputable (suc n) (typeEq gamma A B)
+    -> HypComputable (suc n) (isType gamma B)
   hypTyEqRight {n} (hypTyEqOpen neq d _ sub subEq) =
     hypTyOpen
       neq
@@ -6644,13 +6644,13 @@ mutual
           (subEq sigma tau fitsEq cFitsEq))
 
   hypTmEqLeft : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType}
-    -> HypComputable n (termEq gamma t u A)
-    -> HypComputable n (hasTy gamma t A)
+    -> HypComputable (suc n) (termEq gamma t u A)
+    -> HypComputable (suc n) (hasTy gamma t A)
   hypTmEqLeft {n} (hypTmEqOpen _ _ compt _ _) = compt
 
   hypTmEqRight : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType}
-    -> HypComputable n (termEq gamma t u A)
-    -> HypComputable n (hasTy gamma u A)
+    -> HypComputable (suc n) (termEq gamma t u A)
+    -> HypComputable (suc n) (hasTy gamma u A)
   hypTmEqRight {n} (hypTmEqOpen neq d (hypTmOpen _ _ compA _ _) sub subEq) =
     hypTmOpen
       neq
@@ -6665,8 +6665,8 @@ mutual
           (subEq sigma tau fitsEq cFitsEq))
   
   hypReflTm : {n : ℕ} -> {gamma : Ctx} {t : RawTerm} {A : RawType}
-    -> HypComputable n (hasTy gamma t A)
-    -> HypComputable n (termEq gamma t t A)
+    -> HypComputable (suc n) (hasTy gamma t A)
+    -> HypComputable (suc n) (termEq gamma t t A)
   hypReflTm {n} comp@(hypTmOpen neq d _ sub subEq) =
     hypTmEqOpen
       neq
@@ -6677,8 +6677,8 @@ mutual
   
   compTransportFamilyTy : {n : ℕ} -> {A C D : RawType}
     -> Computable n (typeEq [] A C)
-    -> HypComputable n (isType (A ∷ []) D)
-    -> HypComputable n (isType (C ∷ []) D)
+    -> HypComputable (suc n) (isType (A ∷ []) D)
+    -> HypComputable (suc n) (isType (C ∷ []) D)
   compTransportFamilyTy {n} {A = A} {C = C} {D = D} compAC (hypTyOpen _ dD subD subEqD) =
     hypTyOpen
       nonemptyNeNil
@@ -6720,8 +6720,8 @@ mutual
   
   compTransportFamilyTyEq : {n : ℕ} -> {A C D F : RawType}
     -> Computable n (typeEq [] A C)
-    -> HypComputable n (typeEq (A ∷ []) D F)
-    -> HypComputable n (typeEq (C ∷ []) D F)
+    -> HypComputable (suc n) (typeEq (A ∷ []) D F)
+    -> HypComputable (suc n) (typeEq (C ∷ []) D F)
   compTransportFamilyTyEq {n} {A = A} {C = C} {D = D} {F = F}
     compAC (hypTyEqOpen _ dDF compD subDF subEqDF) =
     hypTyEqOpen
@@ -6767,17 +6767,17 @@ mutual
     dC = compToDerivable (compTyEqRightClosed compAC)
   
   compTransTyOpenHelper : {n : ℕ} -> {gamma : Ctx} {A B C : RawType}
-    -> HypComputable n (typeEq gamma A B)
-    -> HypComputable n (typeEq gamma B C)
-    -> HypComputable n (typeEq gamma A C)
+    -> HypComputable (suc n) (typeEq gamma A B)
+    -> HypComputable (suc n) (typeEq gamma B C)
+    -> HypComputable (suc n) (typeEq gamma A C)
   compTransTyOpenHelper {n} compAB@(hypTyEqOpen neq _ _ _ _) compBC =
     mkHypComputableTyEq neq
       (transTy (hypCompToDerivable compAB) (hypCompToDerivable compBC))
   
   compSymTransportFamilyTyEq : {n : ℕ} -> {A C D F : RawType}
     -> Computable n (typeEq [] A C)
-    -> HypComputable n (typeEq (A ∷ []) D F)
-    -> HypComputable n (typeEq (C ∷ []) F D)
+    -> HypComputable (suc n) (typeEq (A ∷ []) D F)
+    -> HypComputable (suc n) (typeEq (C ∷ []) F D)
   compSymTransportFamilyTyEq {n} {A = A} {C = C} {D = D} {F = F} compAC compDF =
     hypComputableTyEq
       (symTy
@@ -6790,13 +6790,13 @@ mutual
     dC : Derivable (isType [] C)
     dC = compToDerivable (compTyEqRightClosed compAC)
   
-    transportedComp : HypComputable n (typeEq (C ∷ []) D F)
+    transportedComp : HypComputable (suc n) (typeEq (C ∷ []) D F)
     transportedComp = compTransportFamilyTyEq compAC compDF
   
   compTransTm : {n : ℕ} -> {gamma : Ctx} {t u v : RawTerm} {A : RawType}
-    -> HypComputable n (termEq gamma t u A)
-    -> HypComputable n (termEq gamma u v A)
-    -> HypComputable n (termEq gamma t v A)
+    -> HypComputable (suc n) (termEq gamma t u A)
+    -> HypComputable (suc n) (termEq gamma u v A)
+    -> HypComputable (suc n) (termEq gamma t v A)
   compTransTm {n} (hypTmEqOpen neq d₁ compTy₁ sub₁ subEq₁) (hypTmEqOpen _ d₂ _ sub₂ subEq₂) =
     hypTmEqOpen neq
       (transTm d₁ d₂)
@@ -6812,8 +6812,8 @@ mutual
           (subEq₂ sigma tau fitsEq cFitsEq))
 
   compSymTm : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType}
-    -> HypComputable n (termEq gamma t u A)
-    -> HypComputable n (termEq gamma u t A)
+    -> HypComputable (suc n) (termEq gamma t u A)
+    -> HypComputable (suc n) (termEq gamma u t A)
   compSymTm {n} (hypTmEqOpen neq d compTy@(hypTmOpen _ _ _ subT subEqT) sub subEq) =
     hypTmEqOpen neq
       (symTm d (assocTmRight d) (assocTmTy d))
@@ -6835,9 +6835,9 @@ mutual
         in compTransTmClosed utSigma tSigmaTau)
 
   weakenOneOpenTy : {n : ℕ} -> {A B C : RawType}
-    -> HypComputable n (isType (A ∷ []) B)
+    -> HypComputable (suc n) (isType (A ∷ []) B)
     -> CtxWF (C ∷ A ∷ [])
-    -> HypComputable n (isType (C ∷ A ∷ []) (wkTyBy 1 B))
+    -> HypComputable (suc n) (isType (C ∷ A ∷ []) (wkTyBy 1 B))
   weakenOneOpenTy {n} {A = A} {B = B} {C = C} (hypTyOpen _ d sub subEq) wf =
     hypTyOpen
       nonemptyNeNil
@@ -6864,9 +6864,9 @@ mutual
             (singleBinderComputableFitsEq (dropFitsEq (C ∷ []) fitsEq))))
 
   weakenOneOpenTm : {n : ℕ} -> {A B C : RawType} {t : RawTerm}
-    -> HypComputable n (hasTy (A ∷ []) t B)
+    -> HypComputable (suc n) (hasTy (A ∷ []) t B)
     -> CtxWF (C ∷ A ∷ [])
-    -> HypComputable n (hasTy (C ∷ A ∷ []) (wkTmBy 1 t) (wkTyBy 1 B))
+    -> HypComputable (suc n) (hasTy (C ∷ A ∷ []) (wkTmBy 1 t) (wkTyBy 1 B))
   weakenOneOpenTm {n} {A = A} {B = B} {C = C} {t = t} (hypTmOpen _ d compB sub subEq) wf =
     hypTmOpen
       nonemptyNeNil
@@ -6898,9 +6898,9 @@ mutual
             (singleBinderComputableFitsEq (dropFitsEq (C ∷ []) fitsEq))))
   
   weakenOneOpenTmEq : {n : ℕ} -> {A B C : RawType} {t u : RawTerm}
-    -> HypComputable n (termEq (A ∷ []) t u B)
+    -> HypComputable (suc n) (termEq (A ∷ []) t u B)
     -> CtxWF (C ∷ A ∷ [])
-    -> HypComputable n (termEq (C ∷ A ∷ []) (wkTmBy 1 t) (wkTmBy 1 u) (wkTyBy 1 B))
+    -> HypComputable (suc n) (termEq (C ∷ A ∷ []) (wkTmBy 1 t) (wkTmBy 1 u) (wkTyBy 1 B))
   weakenOneOpenTmEq {n} {A = A} {B = B} {C = C} {t = t} {u = u}
     (hypTmEqOpen _ d compt sub subEq) wf =
     hypTmEqOpen
@@ -6950,9 +6950,9 @@ mutual
   sigmaBranchTyHypFromMotive : {n : ℕ} -> {A B M : RawType}
     -> Derivable (isType (B ∷ A ∷ []) (sigmaBranchTy M))
     -> Computable n (isType [] A)
-    -> HypComputable n (isType (A ∷ []) B)
-    -> HypComputable n (isType ((tySigma A B) ∷ []) M)
-    -> HypComputable n (isType (B ∷ A ∷ []) (sigmaBranchTy M))
+    -> HypComputable (suc n) (isType (A ∷ []) B)
+    -> HypComputable (suc n) (isType ((tySigma A B) ∷ []) M)
+    -> HypComputable (suc n) (isType (B ∷ A ∷ []) (sigmaBranchTy M))
   sigmaBranchTyHypFromMotive {n} {A = A} {B = B} {M = M}
     dBranch compA (hypTyOpen _ dB subB subEqB) (hypTyOpen _ dM subM subEqM) =
     hypTyOpen
@@ -7066,7 +7066,7 @@ mutual
         dAσ = compToDerivable compAσ
         compBσ =
           subst
-            (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+            (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
             (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
             (hypTyOpen
               nonemptyNeNil
@@ -7156,7 +7156,7 @@ mutual
         dAσ = compToDerivable compAσ
         compBσ =
           subst
-            (λ T -> HypComputable n (isType (subTy sigma A ∷ []) T))
+            (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
             (cong (λ rho -> subTy rho B) (liftSubstCompKeep sigma))
             (hypTyOpen
               nonemptyNeNil
@@ -7250,7 +7250,7 @@ mutual
   abstract
     sigmaTyFamHypClosed : {n : ℕ} -> {A B : RawType}
       -> Computable n (isType [] (tySigma A B))
-      -> HypComputable n (isType (A ∷ []) B)
+      -> HypComputable (suc n) (isType (A ∷ []) B)
     sigmaTyFamHypClosed
       {n} (compTyClosedSigma {B = A} {C = B} _ evalSigma _ _ dB subB subEqB) =
       hypTyOpen

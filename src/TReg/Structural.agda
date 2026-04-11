@@ -15,7 +15,7 @@ open import TReg.Substitution
 open import TReg.Measure
 open import TReg.Evaluation
 open import TReg.Derivability
-open import Cubical.Data.Nat using (ℕ)
+open import Cubical.Data.Nat using (ℕ ; suc)
 open import TReg.Computability
 open import TReg.Inversion
 open import TReg.Presupposition
@@ -293,18 +293,18 @@ sigmaCompComputableFitsEqHelper {n} {A = A} {B = B} {b = b} {c = c} {e = e} {f =
       compcf
 
 compSingleSubstTyEqClosed : {n : ℕ} -> {A B C : RawType} {t : RawTerm}
-  -> HypComputable n (typeEq (A ∷ []) B C)
+  -> HypComputable (suc n) (typeEq (A ∷ []) B C)
   -> Computable n (hasTy [] t A)
-  -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst t) C))
+  -> Computable (suc n) (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst t) C))
 compSingleSubstTyEqClosed {t = t} (hypTyEqOpen _ _ _ sub _) compt =
   sub (singleSubst t)
     (fst (singleComputableFitsSubstHelper compt))
     (snd (singleComputableFitsSubstHelper compt))
 
 compSingleEqSubstTyClosed : {n : ℕ} -> {A B : RawType} {t u : RawTerm}
-  -> HypComputable n (isType (A ∷ []) B)
+  -> HypComputable (suc n) (isType (A ∷ []) B)
   -> Computable n (termEq [] t u A)
-  -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst u) B))
+  -> Computable (suc n) (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst u) B))
 compSingleEqSubstTyClosed {t = t} {u = u} (hypTyOpen _ _ _ subEq) comptu =
   subEq
     (singleSubst t)

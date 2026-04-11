@@ -208,55 +208,115 @@ data ComputableFitsEq (n : ℕ) : {gamma : Ctx} {sigma tau : Subst}
     -> Computable n (termEq [] t u (subTy sigma A))
     -> ComputableFitsEq n (fitsEqCons fitsEq dtu)
 
--- HypComputable: closures take ComputableFits n.
+-- HypComputable: level-split design.
+-- Closures take ComputableFits n (level n), produce Computable (suc n).
+-- HypComputable only exists at level (suc n).
+-- This breaks the termination cycle: composeCompFits at level n
+-- cannot cycle back through closures that produce level (suc n).
 -- Defined OUTSIDE the Computable data, so no positivity issue.
-data HypComputable (n : ℕ) : JForm -> Type where
-  hypTyOpen : {gamma : Ctx} {A : RawType}
+data HypComputable : ℕ -> JForm -> Type where
+  hypTyOpen : {n : ℕ} {gamma : Ctx} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Computable n (closedSubJ sigma (isType gamma A)))
+         -> Computable (suc n) (closedSubJ sigma (isType gamma A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Computable n (closedEqSubJ sigma tau (isType gamma A)))
-    -> HypComputable n (isType gamma A)
+         -> Computable (suc n) (closedEqSubJ sigma tau (isType gamma A)))
+    -> HypComputable (suc n) (isType gamma A)
 
-  hypTyEqOpen : {gamma : Ctx} {A B : RawType}
+  hypTyEqOpen : {n : ℕ} {gamma : Ctx} {A B : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (typeEq gamma A B)
-    -> HypComputable n (isType gamma A)
+    -> HypComputable (suc n) (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Computable n (closedSubJ sigma (typeEq gamma A B)))
+         -> Computable (suc n) (closedSubJ sigma (typeEq gamma A B)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Computable n (closedEqSubJ sigma tau (typeEq gamma A B)))
-    -> HypComputable n (typeEq gamma A B)
+         -> Computable (suc n) (closedEqSubJ sigma tau (typeEq gamma A B)))
+    -> HypComputable (suc n) (typeEq gamma A B)
 
-  hypTmOpen : {gamma : Ctx} {t : RawTerm} {A : RawType}
+  hypTmOpen : {n : ℕ} {gamma : Ctx} {t : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (hasTy gamma t A)
-    -> HypComputable n (isType gamma A)
+    -> HypComputable (suc n) (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Computable n (closedSubJ sigma (hasTy gamma t A)))
+         -> Computable (suc n) (closedSubJ sigma (hasTy gamma t A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Computable n (closedEqSubJ sigma tau (hasTy gamma t A)))
-    -> HypComputable n (hasTy gamma t A)
+         -> Computable (suc n) (closedEqSubJ sigma tau (hasTy gamma t A)))
+    -> HypComputable (suc n) (hasTy gamma t A)
 
-  hypTmEqOpen : {gamma : Ctx} {t u : RawTerm} {A : RawType}
+  hypTmEqOpen : {n : ℕ} {gamma : Ctx} {t u : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (termEq gamma t u A)
-    -> HypComputable n (hasTy gamma t A)
+    -> HypComputable (suc n) (hasTy gamma t A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Computable n (closedSubJ sigma (termEq gamma t u A)))
+         -> Computable (suc n) (closedSubJ sigma (termEq gamma t u A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Computable n (closedEqSubJ sigma tau (termEq gamma t u A)))
-    -> HypComputable n (termEq gamma t u A)
+         -> Computable (suc n) (closedEqSubJ sigma tau (termEq gamma t u A)))
+    -> HypComputable (suc n) (termEq gamma t u A)
+
+-- Level lifting: Computable n → Computable (suc n).
+-- n is a phantom parameter (never pattern-matched), so this is structural
+-- on the Computable argument. Used at HypComputable closure boundaries
+-- where SCC 2 returns Computable n but the closure needs Computable (suc n).
+liftComputable : {n : ℕ} {J : JForm} → Computable n J → Computable (suc n) J
+liftComputable (compTyClosedTop d ev eq) = compTyClosedTop d ev eq
+liftComputable (compTyClosedSigma d ev eq compB dC subC subEqC) =
+  compTyClosedSigma d ev eq (liftComputable compB) dC
+    (λ sigma fits → liftComputable (subC sigma fits))
+    (λ sigma tau fitsEq → liftComputable (subEqC sigma tau fitsEq))
+liftComputable (compTyClosedEq d ev eq compB compa compb) =
+  compTyClosedEq d ev eq (liftComputable compB) (liftComputable compa) (liftComputable compb)
+liftComputable (compTyClosedQtr d ev eq compB) =
+  compTyClosedQtr d ev eq (liftComputable compB)
+liftComputable (compTyEqClosedTop d compA compB evA evB) =
+  compTyEqClosedTop d (liftComputable compA) (liftComputable compB) evA evB
+liftComputable (compTyEqClosedSigma d compA compB evA evB compCE dDF) =
+  compTyEqClosedSigma d (liftComputable compA) (liftComputable compB) evA evB (liftComputable compCE) dDF
+liftComputable (compTyEqClosedEq d compA compB evA evB compCD compac compbd) =
+  compTyEqClosedEq d (liftComputable compA) (liftComputable compB) evA evB
+    (liftComputable compCD) (liftComputable compac) (liftComputable compbd)
+liftComputable (compTyEqClosedQtr d compA compB evA evB compCD) =
+  compTyEqClosedQtr d (liftComputable compA) (liftComputable compB) evA evB (liftComputable compCD)
+liftComputable (compTmClosedTop d compA ev evT eq) =
+  compTmClosedTop d (liftComputable compA) ev evT eq
+liftComputable (compTmClosedSigma d compG ev evP eq compa compb) =
+  compTmClosedSigma d (liftComputable compG) ev evP eq (liftComputable compa) (liftComputable compb)
+liftComputable (compTmClosedEq d compG ev evR eq compab) =
+  compTmClosedEq d (liftComputable compG) ev evR eq (liftComputable compab)
+liftComputable (compTmClosedQtr d compG ev evC eq compa) =
+  compTmClosedQtr d (liftComputable compG) ev evC eq (liftComputable compa)
+liftComputable (compTmEqClosedTop d compa compb evA eva evb) =
+  compTmEqClosedTop d (liftComputable compa) (liftComputable compb) evA eva evb
+liftComputable (compTmEqClosedSigma d compt compu ev evt evu compac compbd) =
+  compTmEqClosedSigma d (liftComputable compt) (liftComputable compu) ev evt evu
+    (liftComputable compac) (liftComputable compbd)
+liftComputable (compTmEqClosedEq d compt compu ev evt evu compab) =
+  compTmEqClosedEq d (liftComputable compt) (liftComputable compu) ev evt evu (liftComputable compab)
+liftComputable (compTmEqClosedQtr d compt compu ev evt evu compa compb) =
+  compTmEqClosedQtr d (liftComputable compt) (liftComputable compu) ev evt evu
+    (liftComputable compa) (liftComputable compb)
+
+liftComputableFits : {n : ℕ} {gamma : Ctx} {sigma : Subst}
+  {fits : FitsSubst [] gamma sigma}
+  → ComputableFits n fits → ComputableFits (suc n) fits
+liftComputableFits compFitsNil = compFitsNil
+liftComputableFits (compFitsCons cf comp) =
+  compFitsCons (liftComputableFits cf) (liftComputable comp)
+
+liftComputableFitsEq : {n : ℕ} {gamma : Ctx} {sigma tau : Subst}
+  {fitsEq : FitsEqSubst [] gamma sigma tau}
+  → ComputableFitsEq n fitsEq → ComputableFitsEq (suc n) fitsEq
+liftComputableFitsEq compFitsEqNil = compFitsEqNil
+liftComputableFitsEq (compFitsEqCons cf comp) =
+  compFitsEqCons (liftComputableFitsEq cf) (liftComputable comp)
 
 -- Bundle types
 CompFitsBundle : ℕ -> Ctx -> Subst -> Type
