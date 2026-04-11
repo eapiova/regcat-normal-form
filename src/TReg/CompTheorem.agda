@@ -222,11 +222,11 @@ mutual
   
   substDerivTmCompClosed : {n : ℕ} -> {t : RawTerm} {A : RawType}
     -> Derivable (hasTy [] t A)
-    -> Computable n (hasTy [] t A)
+    -> Computable (suc n) (hasTy [] t A)
 
   substDerivTmEqCompClosed : {n : ℕ} -> {t u : RawTerm} {A : RawType}
     -> Derivable (termEq [] t u A)
-    -> Computable n (termEq [] t u A)
+    -> Computable (suc n) (termEq [] t u A)
 
   substTyClosed : {n : ℕ} -> {delta : Ctx} {A : RawType} {sigma : Subst}
     -> Derivable (isType delta A)
