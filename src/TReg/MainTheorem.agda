@@ -11,24 +11,25 @@ open import TReg.Syntax
 open import TReg.Context
 open import TReg.Evaluation
 open import TReg.Derivability
+open import Cubical.Data.Nat using (ℕ)
 open import TReg.Computability
 open import TReg.Inversion
 
-canonicalType :
+canonicalType : {n : ℕ} ->
   {A : RawType} ->
-  Computable (isType [] A) ->
+  Computable n (isType [] A) ->
   Σ[ G ∈ RawType ] (A =>t G) × Derivable (typeEq [] A G)
 canonicalType (compTyClosedTop _ ev corr) = tyTop , (ev , corr)
-canonicalType (compTyClosedSigma {B = B} {C = C} _ ev corr _ _) =
+canonicalType (compTyClosedSigma {B = B} {C = C} _ ev corr _ _ _ _) =
   tySigma B C , (ev , corr)
 canonicalType (compTyClosedEq {B = B} {a = a} {b = b} _ ev corr _ _ _) =
   tyEq B a b , (ev , corr)
 canonicalType (compTyClosedQtr {B = B} _ ev corr _) =
   tyQtr B , (ev , corr)
 
-canonicalTypeEq :
+canonicalTypeEq : {n : ℕ} ->
   {A B : RawType} ->
-  Computable (typeEq [] A B) ->
+  Computable n (typeEq [] A B) ->
   Σ[ G ∈ RawType ] Σ[ H ∈ RawType ] (A =>t G) × (B =>t H)
 canonicalTypeEq (compTyEqClosedTop _ _ _ evA evB) =
   tyTop , tyTop , (evA , evB)
@@ -40,9 +41,9 @@ canonicalTypeEq (compTyEqClosedEq _ _ _ evA evB _ _ _) with evA | evB
 canonicalTypeEq (compTyEqClosedQtr {C = C} {D = D} _ _ _ evA evB _) =
   tyQtr C , tyQtr D , (evA , evB)
 
-canonicalTerm :
+canonicalTerm : {n : ℕ} ->
   {t : RawTerm} {A : RawType} ->
-  Computable (hasTy [] t A) ->
+  Computable n (hasTy [] t A) ->
   Σ[ g ∈ RawTerm ] Σ[ G ∈ RawType ] (t =>e g) × (A =>t G)
 canonicalTerm (compTmClosedTop _ _ evA evt _) =
   tmStar , tyTop , (evt , evA)
@@ -54,9 +55,9 @@ canonicalTerm (compTmClosedEq {t = t₀} {a = a₀} {b = b₀} {A = A₀} {G = G
 canonicalTerm (compTmClosedQtr {a = a} {A = A} _ _ evG evt _ _) =
   tmClass a , tyQtr A , (evt , evG)
 
-canonicalTermEq :
+canonicalTermEq : {n : ℕ} ->
   {t u : RawTerm} {A : RawType} ->
-  Computable (termEq [] t u A) ->
+  Computable n (termEq [] t u A) ->
   Σ[ g ∈ RawTerm ] Σ[ h ∈ RawTerm ] Σ[ G ∈ RawType ] (t =>e g) × (u =>e h) × (A =>t G)
 canonicalTermEq (compTmEqClosedTop _ _ _ evA evt evu) =
   tmStar , tmStar , tyTop , (evt , evu , evA)

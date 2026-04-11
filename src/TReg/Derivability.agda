@@ -73,10 +73,13 @@ mutual
 
     symTy : {gamma : Ctx} {A B : RawType}
       -> Derivable (typeEq gamma A B)
+      -> Derivable (isType gamma B)
       -> Derivable (typeEq gamma B A)
 
     symTm : {gamma : Ctx} {t u : RawTerm} {A : RawType}
       -> Derivable (termEq gamma t u A)
+      -> Derivable (hasTy gamma u A)
+      -> Derivable (isType gamma A)
       -> Derivable (termEq gamma u t A)
 
     transTy : {gamma : Ctx} {A B C : RawType}
@@ -158,6 +161,7 @@ mutual
 
     fSigmaEq : {gamma : Ctx} {A B C D : RawType}
       -> Derivable (typeEq gamma A C)
+      -> Derivable (isType (A ∷ gamma) B)
       -> Derivable (typeEq (A ∷ gamma) B D)
       -> Derivable (typeEq gamma (tySigma A B) (tySigma C D))
 
@@ -183,12 +187,14 @@ mutual
     eSigmaEq : {gamma : Ctx} {A B M : RawType} {d d' m m' : RawTerm}
       -> Derivable (isType ((tySigma A B) ∷ gamma) M)
       -> Derivable (termEq gamma d d' (tySigma A B))
+      -> Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M))
       -> Derivable (termEq (B ∷ A ∷ gamma) m m' (sigmaBranchTy M))
       -> Derivable
            (termEq gamma (tmElSigma d m) (tmElSigma d' m') (subTy (singleSubst d) M))
 
     cSigma : {gamma : Ctx} {A B M : RawType} {b c m : RawTerm}
       -> Derivable (isType ((tySigma A B) ∷ gamma) M)
+      -> Derivable (isType gamma (tySigma A B))
       -> Derivable (hasTy gamma b A)
       -> Derivable (hasTy gamma c (subTy (singleSubst b) B))
       -> Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M))
@@ -250,6 +256,7 @@ mutual
     eQtr : {gamma : Ctx} {A L : RawType} {l p : RawTerm}
       -> Derivable (isType ((tyQtr A) ∷ gamma) L)
       -> Derivable (hasTy gamma p (tyQtr A))
+      -> Derivable (isType (A ∷ gamma) (qtrBranchTy L))
       -> Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L))
       -> Derivable
            (termEq (wkTyBy 1 A ∷ A ∷ gamma)
@@ -261,6 +268,9 @@ mutual
     eQtrEq : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
       -> Derivable (isType ((tyQtr A) ∷ gamma) L)
       -> Derivable (termEq gamma p p' (tyQtr A))
+      -> Derivable (isType (A ∷ gamma) (qtrBranchTy L))
+      -> Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L))
+      -> Derivable (hasTy (A ∷ gamma) l' (qtrBranchTy L))
       -> Derivable (termEq (A ∷ gamma) l l' (qtrBranchTy L))
       -> Derivable
            (termEq (wkTyBy 1 A ∷ A ∷ gamma)
@@ -277,6 +287,7 @@ mutual
     cQtr : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
       -> Derivable (isType ((tyQtr A) ∷ gamma) L)
       -> Derivable (hasTy gamma a A)
+      -> Derivable (isType (A ∷ gamma) (qtrBranchTy L))
       -> Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L))
       -> Derivable
            (termEq (wkTyBy 1 A ∷ A ∷ gamma)

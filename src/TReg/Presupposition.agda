@@ -151,8 +151,8 @@ derivToCtxWF (weakenTm _ wf) = wf
 derivToCtxWF (weakenTmEq _ wf) = wf
 derivToCtxWF (reflTy d) = derivToCtxWF d
 derivToCtxWF (reflTm d) = derivToCtxWF d
-derivToCtxWF (symTy d) = derivToCtxWF d
-derivToCtxWF (symTm d) = derivToCtxWF d
+derivToCtxWF (symTy d _) = derivToCtxWF d
+derivToCtxWF (symTm d _ _) = derivToCtxWF d
 derivToCtxWF (transTy d _) = derivToCtxWF d
 derivToCtxWF (transTm d _) = derivToCtxWF d
 derivToCtxWF (conv d _) = derivToCtxWF d
@@ -169,12 +169,12 @@ derivToCtxWF (fTop wf) = wf
 derivToCtxWF (iTop wf) = wf
 derivToCtxWF (cTop d) = derivToCtxWF d
 derivToCtxWF (fSigma d _) = derivToCtxWF d
-derivToCtxWF (fSigmaEq d _) = derivToCtxWF d
+derivToCtxWF (fSigmaEq d _ _) = derivToCtxWF d
 derivToCtxWF (iSigma d _ _) = derivToCtxWF d
 derivToCtxWF (iSigmaEq d _ _ _) = derivToCtxWF d
 derivToCtxWF (eSigma _ d _) = derivToCtxWF d
-derivToCtxWF (eSigmaEq _ d _) = derivToCtxWF d
-derivToCtxWF (cSigma _ d _ _) = derivToCtxWF d
+derivToCtxWF (eSigmaEq _ d _ _) = derivToCtxWF d
+derivToCtxWF (cSigma _ _ d _ _) = derivToCtxWF d
 derivToCtxWF (fEq d _ _) = derivToCtxWF d
 derivToCtxWF (fEqEq d _ _) = derivToCtxWF d
 derivToCtxWF (iEq d) = derivToCtxWF d
@@ -185,9 +185,9 @@ derivToCtxWF (fQtr d) = derivToCtxWF d
 derivToCtxWF (fQtrEq d) = derivToCtxWF d
 derivToCtxWF (iQtr d) = derivToCtxWF d
 derivToCtxWF (iQtrEq d _) = derivToCtxWF d
-derivToCtxWF (eQtr _ d _ _) = derivToCtxWF d
-derivToCtxWF (eQtrEq _ d _ _ _) = derivToCtxWF d
-derivToCtxWF (cQtr _ d _ _) = derivToCtxWF d
+derivToCtxWF (eQtr _ d _ _ _) = derivToCtxWF d
+derivToCtxWF (eQtrEq _ d _ _ _ _ _ _) = derivToCtxWF d
+derivToCtxWF (cQtr _ d _ _ _) = derivToCtxWF d
 
 singleFitsSubstHelper : {gamma : Ctx} {A : RawType} {t : RawTerm}
   -> Derivable (hasTy gamma t A)
@@ -330,7 +330,11 @@ headTypeTransportFits {gamma = gamma} {A = A} {C = C} dAC dC =
   headVarC = varStar {delta = []} {A = C} wfC dC
 
   headVarA0 : Derivable (hasTy (C ∷ gamma) (var zero) (wkTyBy 1 A))
-  headVarA0 = conv headVarC (symTy (weakenTyEq {delta = C ∷ []} dAC wfC))
+  headVarA0 =
+    conv headVarC
+      (symTy
+        (weakenTyEq {delta = C ∷ []} dAC wfC)
+        (weakenTy dC wfC))
 
   headVarA : Derivable (hasTy (C ∷ gamma) (var zero) (subTy (keepSubstBy 1) A))
   headVarA =
@@ -526,19 +530,19 @@ mutual
   assocTy (eSigma dM dd _) = singleSubstTyHelper dM dd
   assocTy (iEq d) = fEq (assocTy d) d d
   assocTy (iQtr d) = fQtr (assocTy d)
-  assocTy (eQtr dL dp _ _) = singleSubstTyHelper dL dp
+  assocTy (eQtr dL dp _ _ _) = singleSubstTyHelper dL dp
 
   assocTyLeft : {gamma : Ctx} {A B : RawType}
     -> Derivable (typeEq gamma A B)
     -> Derivable (isType gamma A)
   assocTyLeft (weakenTyEq d wf) = weakenTy (assocTyLeft d) wf
   assocTyLeft (reflTy d) = d
-  assocTyLeft (symTy d) = assocTyRight d
+  assocTyLeft (symTy _ dB) = dB
   assocTyLeft (transTy d _) = assocTyLeft d
   assocTyLeft (substTyEqRule d fits) = substTyRule (assocTyLeft d) fits
   assocTyLeft (eqSubTyRule d fits) = substTyRule d (fitsEqSubstLeft fits)
   assocTyLeft (eqSubTyEqRule d fits) = substTyRule (assocTyLeft d) (fitsEqSubstLeft fits)
-  assocTyLeft (fSigmaEq dAC dBD) = fSigma (assocTyLeft dAC) (assocTyLeft dBD)
+  assocTyLeft (fSigmaEq dAC dB _) = fSigma (assocTyLeft dAC) dB
   assocTyLeft (fEqEq dAC dac dbd) =
     fEq (assocTyLeft dAC) (assocTmLeft dac) (assocTmLeft dbd)
   assocTyLeft (fQtrEq d) = fQtr (assocTyLeft d)
@@ -548,14 +552,14 @@ mutual
     -> Derivable (isType gamma B)
   assocTyRight (weakenTyEq d wf) = weakenTy (assocTyRight d) wf
   assocTyRight (reflTy d) = d
-  assocTyRight (symTy d) = assocTyLeft d
+  assocTyRight (symTy d _) = assocTyLeft d
   assocTyRight (transTy _ d) = assocTyRight d
   assocTyRight (substTyEqRule d fits) = substTyRule (assocTyRight d) fits
   assocTyRight (eqSubTyRule d fits) =
     substTyRule d (fitsEqSubstRight (derivToCtxWF d) fits)
   assocTyRight (eqSubTyEqRule d fits) =
     substTyRule (assocTyRight d) (fitsEqSubstRight (derivToCtxWF d) fits)
-  assocTyRight (fSigmaEq dAC dBD) =
+  assocTyRight (fSigmaEq dAC _ dBD) =
     fSigma (assocTyRight dAC)
       (transportFamilyTy dAC (assocTyRight dAC) (assocTyRight dBD))
   assocTyRight (fEqEq dAC dac dbd) =
@@ -569,7 +573,7 @@ mutual
     -> Derivable (hasTy gamma t A)
   assocTmLeft (weakenTmEq d wf) = weakenTm (assocTmLeft d) wf
   assocTmLeft (reflTm d) = d
-  assocTmLeft (symTm d) = assocTmRight d
+  assocTmLeft (symTm _ du _) = du
   assocTmLeft (transTm d _) = assocTmLeft d
   assocTmLeft (convEq d dAB) = conv (assocTmLeft d) dAB
   assocTmLeft (substTmEqRule d fits) = substTmRule (assocTmLeft d) fits
@@ -578,50 +582,53 @@ mutual
   assocTmLeft (cTop d) = d
   assocTmLeft (iSigmaEq d1 d2 dA dB) =
     iSigma (assocTmLeft d1) (assocTmLeft d2) (fSigma dA dB)
-  assocTmLeft (eSigmaEq dM dd dm) =
-    eSigma dM (assocTmLeft dd) (assocTmLeft dm)
-  assocTmLeft (cSigma {gamma = gamma} {A = A} {B = B} dM db dc dm) =
-    eSigma dM (iSigma db dc sigmaTy) dm
-    where
-    sigmaTy : Derivable (isType gamma (tySigma A B))
-    sigmaTy = ctxSuffixTy {delta = []} {gamma = gamma} {A = tySigma A B} (derivToCtxWF dM)
+  assocTmLeft (eSigmaEq dM dd dmL _) =
+    eSigma dM (assocTmLeft dd) dmL
+  assocTmLeft (cSigma dM dSigma db dc dm) =
+    eSigma dM (iSigma db dc dSigma) dm
   assocTmLeft (iEqEq d) = iEq (assocTmLeft d)
   assocTmLeft (eEqStar _ _ da _) = da
   assocTmLeft (cEq p _ _ _) = p
   assocTmLeft (iQtrEq da _) = iQtr da
-  assocTmLeft (eQtrEq dL dp dl coh _) =
-    eQtr dL (assocTmLeft dp) (assocTmLeft dl) coh
-  assocTmLeft (cQtr dL da dl coh) =
-    eQtr dL (iQtr da) dl coh
+  assocTmLeft (eQtrEq dL dp dBranch dlL _ _ coh _) =
+    eQtr dL (assocTmLeft dp) dBranch dlL coh
+  assocTmLeft (cQtr dL da dBranch dl coh) =
+    eQtr dL (iQtr da) dBranch dl coh
 
   assocTmRight : {gamma : Ctx} {t u : RawTerm} {A : RawType}
     -> Derivable (termEq gamma t u A)
     -> Derivable (hasTy gamma u A)
   assocTmRight (weakenTmEq d wf) = weakenTm (assocTmRight d) wf
   assocTmRight (reflTm d) = d
-  assocTmRight (symTm d) = assocTmLeft d
+  assocTmRight (symTm d _ _) = assocTmLeft d
   assocTmRight (transTm _ d) = assocTmRight d
   assocTmRight (convEq d dAB) = conv (assocTmRight d) dAB
   assocTmRight (substTmEqRule d fits) = substTmRule (assocTmRight d) fits
   assocTmRight (eqSubTmRule d fits) =
     conv
       (substTmRule d (fitsEqSubstRight (derivToCtxWF d) fits))
-      (symTy (eqSubTyRule (assocTy d) fits))
+      (symTy
+        (eqSubTyRule (assocTy d) fits)
+        (substTyRule (assocTy d) (fitsEqSubstRight (derivToCtxWF d) fits)))
   assocTmRight (eqSubTmEqRule d fits) =
     conv
       (substTmRule (assocTmRight d) (fitsEqSubstRight (derivToCtxWF d) fits))
-      (symTy (eqSubTyRule (assocTmTy d) fits))
+      (symTy
+        (eqSubTyRule (assocTmTy d) fits)
+        (substTyRule (assocTmTy d) (fitsEqSubstRight (derivToCtxWF d) fits)))
   assocTmRight (cTop d) = iTop (derivToCtxWF d)
   assocTmRight (iSigmaEq d1 d2 dA dB) =
     iSigma
       (assocTmRight d1)
       (conv (assocTmRight d2) (singleEqSubstTyHelper dB d1))
       (fSigma dA dB)
-  assocTmRight (eSigmaEq dM dd dm) =
+  assocTmRight (eSigmaEq dM dd _ dm) =
     conv
       (eSigma dM (assocTmRight dd) (assocTmRight dm))
-      (symTy (singleEqSubstTyHelper dM dd))
-  assocTmRight (cSigma {gamma = gamma} {A = A} {B = B} {M = M} {b = b} {c = c} {m = m} dM db dc dm) =
+      (symTy
+        (singleEqSubstTyHelper dM dd)
+        (singleSubstTyHelper dM (assocTmRight dd)))
+  assocTmRight (cSigma {gamma = gamma} {A = A} {B = B} {M = M} {b = b} {c = c} {m = m} dM _ db dc dm) =
     subst
       (λ T -> Derivable (hasTy gamma (subTm (sigmaCompSub b c) m) T))
       (sigmaBranchTyComp b c M)
@@ -629,16 +636,21 @@ mutual
   assocTmRight (iEqEq d) =
     conv
       (iEq (assocTmRight d))
-      (fEqEq (reflTy (assocTmTy d)) (symTm d) (symTm d))
+      (fEqEq
+        (reflTy (assocTmTy d))
+        (symTm d (assocTmRight d) (assocTmTy d))
+        (symTm d (assocTmRight d) (assocTmTy d)))
   assocTmRight (eEqStar _ _ _ db) = db
   assocTmRight (cEq p dA da db) =
     conv (iEq da) (fEqEq (reflTy dA) (reflTm da) (eEqStar p dA da db))
   assocTmRight (iQtrEq _ db) = iQtr db
-  assocTmRight (eQtrEq dL dp dl _ coh') =
+  assocTmRight (eQtrEq dL dp dBranch _ dlR _ _ coh') =
     conv
-      (eQtr dL (assocTmRight dp) (assocTmRight dl) coh')
-      (symTy (singleEqSubstTyHelper dL dp))
-  assocTmRight (cQtr {gamma = gamma} {L = L} {a = a} {l = l} dL da dl _) =
+      (eQtr dL (assocTmRight dp) dBranch dlR coh')
+      (symTy
+        (singleEqSubstTyHelper dL dp)
+        (singleSubstTyHelper dL (assocTmRight dp)))
+  assocTmRight (cQtr {gamma = gamma} {L = L} {a = a} {l = l} dL da _ dl _) =
     subst
       (λ T -> Derivable (hasTy gamma (subTm (qtrCompSub a) l) T))
       (qtrBranchTyComp a L)
@@ -649,7 +661,7 @@ mutual
     -> Derivable (isType gamma A)
   assocTmTy (weakenTmEq d wf) = weakenTy (assocTmTy d) wf
   assocTmTy (reflTm d) = assocTy d
-  assocTmTy (symTm d) = assocTmTy d
+  assocTmTy (symTm d _ _) = assocTmTy d
   assocTmTy (transTm d _) = assocTmTy d
   assocTmTy (convEq _ dAB) = assocTyRight dAB
   assocTmTy (substTmEqRule d fits) = substTyRule (assocTmTy d) fits
@@ -657,14 +669,14 @@ mutual
   assocTmTy (eqSubTmEqRule d fits) = substTyRule (assocTmTy d) (fitsEqSubstLeft fits)
   assocTmTy (cTop d) = fTop (derivToCtxWF d)
   assocTmTy (iSigmaEq _ _ dA dB) = fSigma dA dB
-  assocTmTy (eSigmaEq dM dd _) = singleSubstTyHelper dM (assocTmLeft dd)
-  assocTmTy (cSigma dM db dc _) = sigmaCompTyHelper dM db dc
+  assocTmTy (eSigmaEq dM dd _ _) = singleSubstTyHelper dM (assocTmLeft dd)
+  assocTmTy (cSigma dM _ db dc _) = sigmaCompTyHelper dM db dc
   assocTmTy (iEqEq d) = fEq (assocTmTy d) (assocTmLeft d) (assocTmLeft d)
   assocTmTy (eEqStar _ dA _ _) = dA
   assocTmTy (cEq _ dA da db) = fEq dA da db
   assocTmTy (iQtrEq da _) = fQtr (assocTy da)
-  assocTmTy (eQtrEq dL dp _ _ _) = singleSubstTyHelper dL (assocTmLeft dp)
-  assocTmTy (cQtr dL da _ _) = qtrCompTyHelper dL da
+  assocTmTy (eQtrEq dL dp _ _ _ _ _ _) = singleSubstTyHelper dL (assocTmLeft dp)
+  assocTmTy (cQtr dL da _ _ _) = qtrCompTyHelper dL da
 
   fitsEqSubstLeft : {gamma delta : Ctx} {sigma tau : Subst}
     -> FitsEqSubst gamma delta sigma tau

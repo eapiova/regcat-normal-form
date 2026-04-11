@@ -18,9 +18,9 @@ open import TReg.Derivability
 open import TReg.Computability
 open import TReg.Presupposition using (fitsEqSubstLeft)
 
-compToDerivable : {J : JForm} -> Computable J -> Derivable J
+compToDerivable : {n : ℕ} -> {J : JForm} -> Computable n J -> Derivable J
 compToDerivable (compTyClosedTop d _ _) = d
-compToDerivable (compTyClosedSigma d _ _ _ _) = d
+compToDerivable (compTyClosedSigma d _ _ _ _ _ _) = d
 compToDerivable (compTyClosedEq d _ _ _ _ _) = d
 compToDerivable (compTyClosedQtr d _ _ _) = d
 compToDerivable (compTyEqClosedTop d _ _ _ _) = d
@@ -36,64 +36,64 @@ compToDerivable (compTmEqClosedSigma d _ _ _ _ _ _ _) = d
 compToDerivable (compTmEqClosedEq d _ _ _ _ _ _) = d
 compToDerivable (compTmEqClosedQtr d _ _ _ _ _ _ _) = d
 
-hypCompToDerivable : {J : JForm} -> HypComputable J -> Derivable J
+hypCompToDerivable : {n : ℕ} -> {J : JForm} -> HypComputable n J -> Derivable J
 hypCompToDerivable (hypTyOpen _ d _ _) = d
 hypCompToDerivable (hypTyEqOpen _ d _ _ _) = d
 hypCompToDerivable (hypTmOpen _ d _ _ _) = d
 hypCompToDerivable (hypTmEqOpen _ d _ _ _) = d
 
-compTyEval : {A : RawType} -> Computable (isType [] A) -> Σ RawType (λ G -> A =>t G)
+compTyEval : {n : ℕ} -> {A : RawType} -> Computable n (isType [] A) -> Σ RawType (λ G -> A =>t G)
 compTyEval (compTyClosedTop _ ev _) = tyTop , ev
-compTyEval (compTyClosedSigma {B = B} {C = C} _ ev _ _ _) = tySigma B C , ev
+compTyEval (compTyClosedSigma {B = B} {C = C} _ ev _ _ _ _ _) = tySigma B C , ev
 compTyEval (compTyClosedEq {B = B} {a = a} {b = b} _ ev _ _ _ _) = tyEq B a b , ev
 compTyEval (compTyClosedQtr {B = B} _ ev _ _) = tyQtr B , ev
 
-compTmToCompTy : {gamma : Ctx} {t : RawTerm} {A : RawType}
-  -> Computable (hasTy gamma t A)
-  -> Computable (isType gamma A)
+compTmToCompTy : {n : ℕ} -> {gamma : Ctx} {t : RawTerm} {A : RawType}
+  -> Computable n (hasTy gamma t A)
+  -> Computable n (isType gamma A)
 compTmToCompTy (compTmClosedTop _ compA _ _ _) = compA
 compTmToCompTy (compTmClosedSigma _ compA _ _ _ _ _) = compA
 compTmToCompTy (compTmClosedEq _ compA _ _ _ _) = compA
 compTmToCompTy (compTmClosedQtr _ compA _ _ _ _) = compA
 
-compTyEqLeft : {gamma : Ctx} {A B : RawType}
-  -> Computable (typeEq gamma A B)
-  -> Computable (isType gamma A)
+compTyEqLeft : {n : ℕ} -> {gamma : Ctx} {A B : RawType}
+  -> Computable n (typeEq gamma A B)
+  -> Computable n (isType gamma A)
 compTyEqLeft (compTyEqClosedTop _ compA _ _ _) = compA
 compTyEqLeft (compTyEqClosedSigma _ compA _ _ _ _ _) = compA
 compTyEqLeft (compTyEqClosedEq _ compA _ _ _ _ _ _) = compA
 compTyEqLeft (compTyEqClosedQtr _ compA _ _ _ _) = compA
 
-compTmEqLeft : {gamma : Ctx} {t u : RawTerm} {A : RawType}
-  -> Computable (termEq gamma t u A)
-  -> Computable (hasTy gamma t A)
+compTmEqLeft : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType}
+  -> Computable n (termEq gamma t u A)
+  -> Computable n (hasTy gamma t A)
 compTmEqLeft (compTmEqClosedTop _ compt _ _ _ _) = compt
 compTmEqLeft (compTmEqClosedSigma _ compt _ _ _ _ _ _) = compt
 compTmEqLeft (compTmEqClosedEq _ compt _ _ _ _ _) = compt
 compTmEqLeft (compTmEqClosedQtr _ compt _ _ _ _ _ _) = compt
 
-compFitsToFits : {gamma : Ctx} {sigma : Subst}
+compFitsToFits : {n : ℕ} -> {gamma : Ctx} {sigma : Subst}
   {fits : FitsSubst [] gamma sigma}
-  -> ComputableFits fits
+  -> ComputableFits n fits
   -> FitsSubst [] gamma sigma
 compFitsToFits {sigma = sigma} {fits = fitsNil _} compFitsNil =
   fitsNil {gamma = []} {delta = []} {sigma = sigma} wfNil
 compFitsToFits {fits = fitsCons fits dt} (compFitsCons compSigma compt) =
   fitsCons (compFitsToFits compSigma) (compToDerivable compt)
 
-compFitsEqToFitsEq : {gamma : Ctx} {sigma tau : Subst}
+compFitsEqToFitsEq : {n : ℕ} -> {gamma : Ctx} {sigma tau : Subst}
   {fitsEq : FitsEqSubst [] gamma sigma tau}
-  -> ComputableFitsEq fitsEq
+  -> ComputableFitsEq n fitsEq
   -> FitsEqSubst [] gamma sigma tau
 compFitsEqToFitsEq {sigma = sigma} {tau = tau} {fitsEq = fitsEqNil _} compFitsEqNil =
   fitsEqNil {gamma = []} {delta = []} {sigma = sigma} {tau = tau} wfNil
 compFitsEqToFitsEq {fitsEq = fitsEqCons fitsEq dtu} (compFitsEqCons compSigma compt) =
   fitsEqCons (compFitsEqToFitsEq compSigma) (compToDerivable compt)
 
-compFitsEqLeft : {gamma : Ctx} {sigma tau : Subst}
+compFitsEqLeft : {n : ℕ} -> {gamma : Ctx} {sigma tau : Subst}
   {fitsEq : FitsEqSubst [] gamma sigma tau}
-  -> ComputableFitsEq fitsEq
-  -> ComputableFits (fitsEqSubstLeft fitsEq)
+  -> ComputableFitsEq n fitsEq
+  -> ComputableFits n (fitsEqSubstLeft fitsEq)
 compFitsEqLeft {fitsEq = fitsEqNil _} compFitsEqNil = compFitsNil
 compFitsEqLeft {fitsEq = fitsEqCons fitsEq dtu} (compFitsEqCons compSigma compt) =
   compFitsCons (compFitsEqLeft compSigma) (compTmEqLeft compt)
@@ -241,158 +241,166 @@ qtrNeSigma p = threeNeOne (cong tyTag p)
 qtrNeEq : {A B : RawType} {a b : RawTerm} -> tyQtr A ≡ tyEq B a b -> ⊥
 qtrNeEq p = threeNeTwo (cong tyTag p)
 
-record ClosedTopTmInv (t : RawTerm) : Type where
+record ClosedTopTmInv (n : ℕ) (t : RawTerm) : Type where
   field
     topTmDeriv : Derivable (hasTy [] t tyTop)
-    topTmCompTy : Computable (isType [] tyTop)
+    topTmCompTy : Computable n (isType [] tyTop)
     topTmEvalStar : t =>e tmStar
     topTmCorrStar : Derivable (termEq [] t tmStar tyTop)
 
-record ClosedTopTyInv (A : RawType) : Type where
+record ClosedTopTyInv (n : ℕ) (A : RawType) : Type where
   field
     topTyDeriv : Derivable (isType [] A)
     topTyCorr : Derivable (typeEq [] A tyTop)
 
-record ClosedTopTmEqInv (t u : RawTerm) : Type where
+record ClosedTopTmEqInv (n : ℕ) (t u : RawTerm) : Type where
   field
     topTmEqDeriv : Derivable (termEq [] t u tyTop)
-    topTmEqCompLeft : Computable (hasTy [] t tyTop)
-    topTmEqCompRight : Computable (hasTy [] u tyTop)
+    topTmEqCompLeft : Computable n (hasTy [] t tyTop)
+    topTmEqCompRight : Computable n (hasTy [] u tyTop)
     topTmEqEvalLeftStar : t =>e tmStar
     topTmEqEvalRightStar : u =>e tmStar
 
-record ClosedSigmaTmInv (t : RawTerm) (A B : RawType) : Type where
+record ClosedSigmaTmInv (n : ℕ) (t : RawTerm) (A B : RawType) : Type where
   field
     sigmaTmFst : RawTerm
     sigmaTmSnd : RawTerm
     sigmaTmDeriv : Derivable (hasTy [] t (tySigma A B))
-    sigmaTmCompTy : Computable (isType [] (tySigma A B))
+    sigmaTmCompTy : Computable n (isType [] (tySigma A B))
     sigmaTmEvalPair : t =>e tmPair sigmaTmFst sigmaTmSnd
     sigmaTmCorrPair : Derivable (termEq [] t (tmPair sigmaTmFst sigmaTmSnd) (tySigma A B))
-    sigmaTmCompFst : Computable (hasTy [] sigmaTmFst A)
-    sigmaTmCompSnd : Computable (hasTy [] sigmaTmSnd (subTy (singleSubst sigmaTmFst) B))
+    sigmaTmCompFst : Computable n (hasTy [] sigmaTmFst A)
+    sigmaTmCompSnd : Computable n (hasTy [] sigmaTmSnd (subTy (singleSubst sigmaTmFst) B))
 
-record ClosedSigmaTyInv (G A B : RawType) : Type where
+record ClosedSigmaTyInv (n : ℕ) (G A B : RawType) : Type where
   field
     sigmaTyDeriv : Derivable (isType [] G)
     sigmaTyCorr : Derivable (typeEq [] G (tySigma A B))
-    sigmaTyCompHead : Computable (isType [] A)
+    sigmaTyCompHead : Computable n (isType [] A)
     sigmaTyFamDeriv : Derivable (isType (A ∷ []) B)
+    sigmaTyFamSub :
+      (sigma : Subst)
+      -> FitsSubst [] (A ∷ []) sigma
+      -> Computable n (closedSubJ sigma (isType (A ∷ []) B))
+    sigmaTyFamSubEq :
+      (sigma tau : Subst)
+      -> FitsEqSubst [] (A ∷ []) sigma tau
+      -> Computable n (closedEqSubJ sigma tau (isType (A ∷ []) B))
 
-record ClosedSigmaTmEqInv (t u : RawTerm) (A B : RawType) : Type where
+record ClosedSigmaTmEqInv (n : ℕ) (t u : RawTerm) (A B : RawType) : Type where
   field
     sigmaTmEqLeftFst : RawTerm
     sigmaTmEqLeftSnd : RawTerm
     sigmaTmEqRightFst : RawTerm
     sigmaTmEqRightSnd : RawTerm
     sigmaTmEqDeriv : Derivable (termEq [] t u (tySigma A B))
-    sigmaTmEqCompLeft : Computable (hasTy [] t (tySigma A B))
-    sigmaTmEqCompRight : Computable (hasTy [] u (tySigma A B))
+    sigmaTmEqCompLeft : Computable n (hasTy [] t (tySigma A B))
+    sigmaTmEqCompRight : Computable n (hasTy [] u (tySigma A B))
     sigmaTmEqEvalLeftPair : t =>e tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd
     sigmaTmEqEvalRightPair : u =>e tmPair sigmaTmEqRightFst sigmaTmEqRightSnd
     sigmaTmEqLeftCorrPair : Derivable
       (termEq [] t (tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd) (tySigma A B))
     sigmaTmEqRightCorrPair : Derivable
       (termEq [] u (tmPair sigmaTmEqRightFst sigmaTmEqRightSnd) (tySigma A B))
-    sigmaTmEqLeftCompFstTy : Computable (hasTy [] sigmaTmEqLeftFst A)
-    sigmaTmEqLeftCompSndTy : Computable
+    sigmaTmEqLeftCompFstTy : Computable n (hasTy [] sigmaTmEqLeftFst A)
+    sigmaTmEqLeftCompSndTy : Computable n
       (hasTy [] sigmaTmEqLeftSnd (subTy (singleSubst sigmaTmEqLeftFst) B))
-    sigmaTmEqRightCompFstTy : Computable (hasTy [] sigmaTmEqRightFst A)
-    sigmaTmEqRightCompSndTy : Computable
+    sigmaTmEqRightCompFstTy : Computable n (hasTy [] sigmaTmEqRightFst A)
+    sigmaTmEqRightCompSndTy : Computable n
       (hasTy [] sigmaTmEqRightSnd (subTy (singleSubst sigmaTmEqRightFst) B))
-    sigmaTmEqCompFst : Computable (termEq [] sigmaTmEqLeftFst sigmaTmEqRightFst A)
-    sigmaTmEqCompSnd : Computable (termEq [] sigmaTmEqLeftSnd sigmaTmEqRightSnd (subTy (singleSubst sigmaTmEqLeftFst) B))
+    sigmaTmEqCompFst : Computable n (termEq [] sigmaTmEqLeftFst sigmaTmEqRightFst A)
+    sigmaTmEqCompSnd : Computable n (termEq [] sigmaTmEqLeftSnd sigmaTmEqRightSnd (subTy (singleSubst sigmaTmEqLeftFst) B))
 
-record ClosedEqTmInv (t : RawTerm) (A : RawType) (a b : RawTerm) : Type where
+record ClosedEqTmInv (n : ℕ) (t : RawTerm) (A : RawType) (a b : RawTerm) : Type where
   field
     eqTmDeriv : Derivable (hasTy [] t (tyEq A a b))
-    eqTmCompTy : Computable (isType [] (tyEq A a b))
+    eqTmCompTy : Computable n (isType [] (tyEq A a b))
     eqTmEvalRhs : t =>e tmR
     eqTmCorrRhs : Derivable (termEq [] t tmR (tyEq A a b))
-    eqTmCompInner : Computable (termEq [] a b A)
+    eqTmCompInner : Computable n (termEq [] a b A)
 
-record ClosedEqTyInv (G A : RawType) (a b : RawTerm) : Type where
+record ClosedEqTyInv (n : ℕ) (G A : RawType) (a b : RawTerm) : Type where
   field
     eqTyDeriv : Derivable (isType [] G)
     eqTyCorr : Derivable (typeEq [] G (tyEq A a b))
-    eqTyCompBase : Computable (isType [] A)
-    eqTyCompLeft : Computable (hasTy [] a A)
-    eqTyCompRight : Computable (hasTy [] b A)
+    eqTyCompBase : Computable n (isType [] A)
+    eqTyCompLeft : Computable n (hasTy [] a A)
+    eqTyCompRight : Computable n (hasTy [] b A)
 
-record ClosedEqTmEqInv (t u : RawTerm) (A : RawType) (a b : RawTerm) : Type where
+record ClosedEqTmEqInv (n : ℕ) (t u : RawTerm) (A : RawType) (a b : RawTerm) : Type where
   field
     eqTmEqDeriv : Derivable (termEq [] t u (tyEq A a b))
-    eqTmEqCompLeft : Computable (hasTy [] t (tyEq A a b))
-    eqTmEqCompRight : Computable (hasTy [] u (tyEq A a b))
+    eqTmEqCompLeft : Computable n (hasTy [] t (tyEq A a b))
+    eqTmEqCompRight : Computable n (hasTy [] u (tyEq A a b))
     eqTmEqEvalLeftR : t =>e tmR
     eqTmEqEvalRightR : u =>e tmR
-    eqTmEqCompInner : Computable (termEq [] a b A)
+    eqTmEqCompInner : Computable n (termEq [] a b A)
 
-record ClosedQtrTmInv (t : RawTerm) (A : RawType) : Type where
+record ClosedQtrTmInv (n : ℕ) (t : RawTerm) (A : RawType) : Type where
   field
     qtrTmRepr : RawTerm
     qtrTmDeriv : Derivable (hasTy [] t (tyQtr A))
-    qtrTmCompTy : Computable (isType [] (tyQtr A))
+    qtrTmCompTy : Computable n (isType [] (tyQtr A))
     qtrTmEvalClass : t =>e tmClass qtrTmRepr
     qtrTmCorrClass : Derivable (termEq [] t (tmClass qtrTmRepr) (tyQtr A))
-    qtrTmCompRepr : Computable (hasTy [] qtrTmRepr A)
+    qtrTmCompRepr : Computable n (hasTy [] qtrTmRepr A)
 
-record ClosedQtrTyInv (G A : RawType) : Type where
+record ClosedQtrTyInv (n : ℕ) (G A : RawType) : Type where
   field
     qtrTyDeriv : Derivable (isType [] G)
     qtrTyCorr : Derivable (typeEq [] G (tyQtr A))
-    qtrTyCompBase : Computable (isType [] A)
+    qtrTyCompBase : Computable n (isType [] A)
 
-record ClosedQtrTmEqInv (t u : RawTerm) (A : RawType) : Type where
+record ClosedQtrTmEqInv (n : ℕ) (t u : RawTerm) (A : RawType) : Type where
   field
     qtrTmEqLeftRepr : RawTerm
     qtrTmEqRightRepr : RawTerm
     qtrTmEqDeriv : Derivable (termEq [] t u (tyQtr A))
-    qtrTmEqCompLeft : Computable (hasTy [] t (tyQtr A))
-    qtrTmEqCompRight : Computable (hasTy [] u (tyQtr A))
+    qtrTmEqCompLeft : Computable n (hasTy [] t (tyQtr A))
+    qtrTmEqCompRight : Computable n (hasTy [] u (tyQtr A))
     qtrTmEqEvalLeftClass : t =>e tmClass qtrTmEqLeftRepr
     qtrTmEqEvalRightClass : u =>e tmClass qtrTmEqRightRepr
     qtrTmEqLeftCorrClass : Derivable (termEq [] t (tmClass qtrTmEqLeftRepr) (tyQtr A))
     qtrTmEqRightCorrClass : Derivable (termEq [] u (tmClass qtrTmEqRightRepr) (tyQtr A))
-    qtrTmEqCompLeftRepr : Computable (hasTy [] qtrTmEqLeftRepr A)
-    qtrTmEqCompRightRepr : Computable (hasTy [] qtrTmEqRightRepr A)
+    qtrTmEqCompLeftRepr : Computable n (hasTy [] qtrTmEqLeftRepr A)
+    qtrTmEqCompRightRepr : Computable n (hasTy [] qtrTmEqRightRepr A)
 
-record ClosedSigmaTyEqInv (B A₁ A₂ : RawType) : Type where
+record ClosedSigmaTyEqInv (n : ℕ) (B A₁ A₂ : RawType) : Type where
   field
     sigmaTyEqRightHead : RawType
     sigmaTyEqRightFam : RawType
     sigmaTyEqDeriv : Derivable (typeEq [] (tySigma A₁ A₂) B)
-    sigmaTyEqCompLeft : Computable (isType [] (tySigma A₁ A₂))
-    sigmaTyEqCompRight : Computable (isType [] B)
+    sigmaTyEqCompLeft : Computable n (isType [] (tySigma A₁ A₂))
+    sigmaTyEqCompRight : Computable n (isType [] B)
     sigmaTyEqEvalRight : B =>t tySigma sigmaTyEqRightHead sigmaTyEqRightFam
-    sigmaTyEqCompHead : Computable (typeEq [] A₁ sigmaTyEqRightHead)
+    sigmaTyEqCompHead : Computable n (typeEq [] A₁ sigmaTyEqRightHead)
     sigmaTyEqFamDeriv : Derivable (typeEq (A₁ ∷ []) A₂ sigmaTyEqRightFam)
 
-record ClosedEqTyEqInv (B A : RawType) (a b : RawTerm) : Type where
+record ClosedEqTyEqInv (n : ℕ) (B A : RawType) (a b : RawTerm) : Type where
   field
     eqTyEqRightBase : RawType
     eqTyEqRightLeft : RawTerm
     eqTyEqRightRight : RawTerm
     eqTyEqDeriv : Derivable (typeEq [] (tyEq A a b) B)
-    eqTyEqCompLeft : Computable (isType [] (tyEq A a b))
-    eqTyEqCompRight : Computable (isType [] B)
+    eqTyEqCompLeft : Computable n (isType [] (tyEq A a b))
+    eqTyEqCompRight : Computable n (isType [] B)
     eqTyEqEvalRight : B =>t tyEq eqTyEqRightBase eqTyEqRightLeft eqTyEqRightRight
-    eqTyEqCompBase : Computable (typeEq [] A eqTyEqRightBase)
-    eqTyEqCompLeftTerm : Computable (termEq [] a eqTyEqRightLeft A)
-    eqTyEqCompRightTerm : Computable (termEq [] b eqTyEqRightRight A)
+    eqTyEqCompBase : Computable n (typeEq [] A eqTyEqRightBase)
+    eqTyEqCompLeftTerm : Computable n (termEq [] a eqTyEqRightLeft A)
+    eqTyEqCompRightTerm : Computable n (termEq [] b eqTyEqRightRight A)
 
-record ClosedQtrTyEqInv (B A : RawType) : Type where
+record ClosedQtrTyEqInv (n : ℕ) (B A : RawType) : Type where
   field
     qtrTyEqRightBase : RawType
     qtrTyEqDeriv : Derivable (typeEq [] (tyQtr A) B)
-    qtrTyEqCompLeft : Computable (isType [] (tyQtr A))
-    qtrTyEqCompRight : Computable (isType [] B)
+    qtrTyEqCompLeft : Computable n (isType [] (tyQtr A))
+    qtrTyEqCompRight : Computable n (isType [] B)
     qtrTyEqEvalRight : B =>t tyQtr qtrTyEqRightBase
-    qtrTyEqCompBase : Computable (typeEq [] A qtrTyEqRightBase)
+    qtrTyEqCompBase : Computable n (typeEq [] A qtrTyEqRightBase)
 
-invertTopTm0 : {t : RawTerm}
-  -> Computable (hasTy [] t tyTop)
-  -> ClosedTopTmInv t
+invertTopTm0 : {n : ℕ} -> {t : RawTerm}
+  -> Computable n (hasTy [] t tyTop)
+  -> ClosedTopTmInv n t
 invertTopTm0 (compTmClosedTop d compTy evalTop evt corr) =
   record
     { topTmDeriv = d
@@ -404,20 +412,20 @@ invertTopTm0 (compTmClosedSigma _ _ () _ _ _ _)
 invertTopTm0 (compTmClosedEq _ _ () _ _ _)
 invertTopTm0 (compTmClosedQtr _ _ () _ _ _)
 
-invertTopTm : {t : RawTerm} {A : RawType}
-  -> Computable (hasTy [] t A)
+invertTopTm : {n : ℕ} -> {t : RawTerm} {A : RawType}
+  -> Computable n (hasTy [] t A)
   -> A =>t tyTop
-  -> ClosedTopTmInv t
+  -> ClosedTopTmInv n t
 invertTopTm {t = t} comp ev =
   invertTopTm0
     (subst
-      (λ T -> Computable (hasTy [] t T))
+      (λ T -> Computable _ (hasTy [] t T))
       (evalTopPath ev)
       comp)
 
-invertTopTmEq0 : {t u : RawTerm}
-  -> Computable (termEq [] t u tyTop)
-  -> ClosedTopTmEqInv t u
+invertTopTmEq0 : {n : ℕ} -> {t u : RawTerm}
+  -> Computable n (termEq [] t u tyTop)
+  -> ClosedTopTmEqInv n t u
 invertTopTmEq0 (compTmEqClosedTop d compt compu evalTop evt evu) =
   record
     { topTmEqDeriv = d
@@ -430,20 +438,20 @@ invertTopTmEq0 (compTmEqClosedSigma _ _ _ () _ _ _ _)
 invertTopTmEq0 (compTmEqClosedEq _ _ _ () _ _ _)
 invertTopTmEq0 (compTmEqClosedQtr _ _ _ () _ _ _ _)
 
-invertTopTmEq : {t u : RawTerm} {A : RawType}
-  -> Computable (termEq [] t u A)
+invertTopTmEq : {n : ℕ} -> {t u : RawTerm} {A : RawType}
+  -> Computable n (termEq [] t u A)
   -> A =>t tyTop
-  -> ClosedTopTmEqInv t u
+  -> ClosedTopTmEqInv n t u
 invertTopTmEq {t = t} {u = u} comp ev =
   invertTopTmEq0
     (subst
-      (λ T -> Computable (termEq [] t u T))
+      (λ T -> Computable _ (termEq [] t u T))
       (evalTopPath ev)
       comp)
 
-invertSigmaTm0 : {t : RawTerm} {A B : RawType}
-  -> Computable (hasTy [] t (tySigma A B))
-  -> ClosedSigmaTmInv t A B
+invertSigmaTm0 : {n : ℕ} -> {t : RawTerm} {A B : RawType}
+  -> Computable n (hasTy [] t (tySigma A B))
+  -> ClosedSigmaTmInv n t A B
 invertSigmaTm0 (compTmClosedSigma {a = a} {b = b} d compG evalSigma evt corr compa compb) =
   record
     { sigmaTmFst = a
@@ -459,20 +467,20 @@ invertSigmaTm0 (compTmClosedTop _ _ () _ _)
 invertSigmaTm0 (compTmClosedEq _ _ () _ _ _)
 invertSigmaTm0 (compTmClosedQtr _ _ () _ _ _)
 
-invertSigmaTm : {t : RawTerm} {G A B : RawType}
-  -> Computable (hasTy [] t G)
+invertSigmaTm : {n : ℕ} -> {t : RawTerm} {G A B : RawType}
+  -> Computable n (hasTy [] t G)
   -> G =>t tySigma A B
-  -> ClosedSigmaTmInv t A B
+  -> ClosedSigmaTmInv n t A B
 invertSigmaTm {t = t} comp ev =
   invertSigmaTm0
     (subst
-      (λ T -> Computable (hasTy [] t T))
+      (λ T -> Computable _ (hasTy [] t T))
       (evalSigmaPath ev)
       comp)
 
-invertSigmaTmEq0 : {t u : RawTerm} {A B : RawType}
-  -> Computable (termEq [] t u (tySigma A B))
-  -> ClosedSigmaTmEqInv t u A B
+invertSigmaTmEq0 : {n : ℕ} -> {t u : RawTerm} {A B : RawType}
+  -> Computable n (termEq [] t u (tySigma A B))
+  -> ClosedSigmaTmEqInv n t u A B
 invertSigmaTmEq0 (compTmEqClosedSigma {t = t} {u = u} {a = a} {b = b} {c = c} {d = d} {A = A} {B = B}
   dEq compt compu evalSigma evt evu compac compbd) =
   let
@@ -512,28 +520,28 @@ invertSigmaTmEq0 (compTmEqClosedSigma {t = t} {u = u} {a = a} {b = b} {c = c} {d
         rightCorrPair
     leftFstTy =
       subst
-        (λ x -> Computable (hasTy [] x A))
+        (λ x -> Computable _ (hasTy [] x A))
         (sym a≡left)
         leftCompFst
     leftSndTy =
       subst
-        (λ x -> Computable (hasTy [] x (subTy (singleSubst a) B)))
+        (λ x -> Computable _ (hasTy [] x (subTy (singleSubst a) B)))
         (sym b≡left)
         (subst
-          (λ T -> Computable (hasTy [] leftSnd T))
+          (λ T -> Computable _ (hasTy [] leftSnd T))
           (cong (λ x -> subTy (singleSubst x) B) (sym a≡left))
           leftCompSnd)
     rightFstTy =
       subst
-        (λ x -> Computable (hasTy [] x A))
+        (λ x -> Computable _ (hasTy [] x A))
         (sym c≡right)
         rightCompFst
     rightSndTy =
       subst
-        (λ x -> Computable (hasTy [] x (subTy (singleSubst c) B)))
+        (λ x -> Computable _ (hasTy [] x (subTy (singleSubst c) B)))
         (sym d≡right)
         (subst
-          (λ T -> Computable (hasTy [] rightSnd T))
+          (λ T -> Computable _ (hasTy [] rightSnd T))
           (cong (λ x -> subTy (singleSubst x) B) (sym c≡right))
           rightCompSnd)
   in
@@ -560,20 +568,20 @@ invertSigmaTmEq0 (compTmEqClosedTop _ _ _ () _ _)
 invertSigmaTmEq0 (compTmEqClosedEq _ _ _ () _ _ _)
 invertSigmaTmEq0 (compTmEqClosedQtr _ _ _ () _ _ _ _)
 
-invertSigmaTmEq : {t u : RawTerm} {G A B : RawType}
-  -> Computable (termEq [] t u G)
+invertSigmaTmEq : {n : ℕ} -> {t u : RawTerm} {G A B : RawType}
+  -> Computable n (termEq [] t u G)
   -> G =>t tySigma A B
-  -> ClosedSigmaTmEqInv t u A B
+  -> ClosedSigmaTmEqInv n t u A B
 invertSigmaTmEq {t = t} {u = u} comp ev =
   invertSigmaTmEq0
     (subst
-      (λ T -> Computable (termEq [] t u T))
+      (λ T -> Computable _ (termEq [] t u T))
       (evalSigmaPath ev)
       comp)
 
-invertEqTm0 : {t : RawTerm} {A : RawType} {a b : RawTerm}
-  -> Computable (hasTy [] t (tyEq A a b))
-  -> ClosedEqTmInv t A a b
+invertEqTm0 : {n : ℕ} -> {t : RawTerm} {A : RawType} {a b : RawTerm}
+  -> Computable n (hasTy [] t (tyEq A a b))
+  -> ClosedEqTmInv n t A a b
 invertEqTm0 (compTmClosedEq d compG evalEq evt corr compab) =
   record
     { eqTmDeriv = d
@@ -586,20 +594,20 @@ invertEqTm0 (compTmClosedTop _ _ () _ _)
 invertEqTm0 (compTmClosedSigma _ _ () _ _ _ _)
 invertEqTm0 (compTmClosedQtr _ _ () _ _ _)
 
-invertEqTm : {t : RawTerm} {G A : RawType} {a b : RawTerm}
-  -> Computable (hasTy [] t G)
+invertEqTm : {n : ℕ} -> {t : RawTerm} {G A : RawType} {a b : RawTerm}
+  -> Computable n (hasTy [] t G)
   -> G =>t tyEq A a b
-  -> ClosedEqTmInv t A a b
+  -> ClosedEqTmInv n t A a b
 invertEqTm {t = t} comp ev =
   invertEqTm0
     (subst
-      (λ T -> Computable (hasTy [] t T))
+      (λ T -> Computable _ (hasTy [] t T))
       (evalEqPath ev)
       comp)
 
-invertEqTmEq0 : {t u : RawTerm} {A : RawType} {a b : RawTerm}
-  -> Computable (termEq [] t u (tyEq A a b))
-  -> ClosedEqTmEqInv t u A a b
+invertEqTmEq0 : {n : ℕ} -> {t u : RawTerm} {A : RawType} {a b : RawTerm}
+  -> Computable n (termEq [] t u (tyEq A a b))
+  -> ClosedEqTmEqInv n t u A a b
 invertEqTmEq0 (compTmEqClosedEq d compt compu evalEq evt evu compab) =
   record
     { eqTmEqDeriv = d
@@ -613,20 +621,20 @@ invertEqTmEq0 (compTmEqClosedTop _ _ _ () _ _)
 invertEqTmEq0 (compTmEqClosedSigma _ _ _ () _ _ _ _)
 invertEqTmEq0 (compTmEqClosedQtr _ _ _ () _ _ _ _)
 
-invertEqTmEq : {t u : RawTerm} {G A : RawType} {a b : RawTerm}
-  -> Computable (termEq [] t u G)
+invertEqTmEq : {n : ℕ} -> {t u : RawTerm} {G A : RawType} {a b : RawTerm}
+  -> Computable n (termEq [] t u G)
   -> G =>t tyEq A a b
-  -> ClosedEqTmEqInv t u A a b
+  -> ClosedEqTmEqInv n t u A a b
 invertEqTmEq {t = t} {u = u} comp ev =
   invertEqTmEq0
     (subst
-      (λ T -> Computable (termEq [] t u T))
+      (λ T -> Computable _ (termEq [] t u T))
       (evalEqPath ev)
       comp)
 
-invertQtrTm0 : {t : RawTerm} {A : RawType}
-  -> Computable (hasTy [] t (tyQtr A))
-  -> ClosedQtrTmInv t A
+invertQtrTm0 : {n : ℕ} -> {t : RawTerm} {A : RawType}
+  -> Computable n (hasTy [] t (tyQtr A))
+  -> ClosedQtrTmInv n t A
 invertQtrTm0 (compTmClosedQtr {a = a} d compG evalQtr evt corr compa) =
   record
     { qtrTmRepr = a
@@ -640,20 +648,20 @@ invertQtrTm0 (compTmClosedTop _ _ () _ _)
 invertQtrTm0 (compTmClosedSigma _ _ () _ _ _ _)
 invertQtrTm0 (compTmClosedEq _ _ () _ _ _)
 
-invertQtrTm : {t : RawTerm} {G A : RawType}
-  -> Computable (hasTy [] t G)
+invertQtrTm : {n : ℕ} -> {t : RawTerm} {G A : RawType}
+  -> Computable n (hasTy [] t G)
   -> G =>t tyQtr A
-  -> ClosedQtrTmInv t A
+  -> ClosedQtrTmInv n t A
 invertQtrTm {t = t} comp ev =
   invertQtrTm0
     (subst
-      (λ T -> Computable (hasTy [] t T))
+      (λ T -> Computable _ (hasTy [] t T))
       (evalQtrPath ev)
       comp)
 
-invertQtrTmEq0 : {t u : RawTerm} {A : RawType}
-  -> Computable (termEq [] t u (tyQtr A))
-  -> ClosedQtrTmEqInv t u A
+invertQtrTmEq0 : {n : ℕ} -> {t u : RawTerm} {A : RawType}
+  -> Computable n (termEq [] t u (tyQtr A))
+  -> ClosedQtrTmEqInv n t u A
 invertQtrTmEq0 (compTmEqClosedQtr {t = t} {u = u} {a = a} {b = b} {A = A}
   d compt compu evalQtr evt evu compa compb) =
   let
@@ -687,12 +695,12 @@ invertQtrTmEq0 (compTmEqClosedQtr {t = t} {u = u} {a = a} {b = b} {A = A}
         rightCorrClass
     leftReprTy =
       subst
-        (λ x -> Computable (hasTy [] x A))
+        (λ x -> Computable _ (hasTy [] x A))
         (sym a≡left)
         leftCompRepr
     rightReprTy =
       subst
-        (λ x -> Computable (hasTy [] x A))
+        (λ x -> Computable _ (hasTy [] x A))
         (sym b≡right)
         rightCompRepr
   in
@@ -713,20 +721,20 @@ invertQtrTmEq0 (compTmEqClosedTop _ _ _ () _ _)
 invertQtrTmEq0 (compTmEqClosedSigma _ _ _ () _ _ _ _)
 invertQtrTmEq0 (compTmEqClosedEq _ _ _ () _ _ _)
 
-invertQtrTmEq : {t u : RawTerm} {G A : RawType}
-  -> Computable (termEq [] t u G)
+invertQtrTmEq : {n : ℕ} -> {t u : RawTerm} {G A : RawType}
+  -> Computable n (termEq [] t u G)
   -> G =>t tyQtr A
-  -> ClosedQtrTmEqInv t u A
+  -> ClosedQtrTmEqInv n t u A
 invertQtrTmEq {t = t} {u = u} comp ev =
   invertQtrTmEq0
     (subst
-      (λ T -> Computable (termEq [] t u T))
+      (λ T -> Computable _ (termEq [] t u T))
       (evalQtrPath ev)
       comp)
 
-invertSigmaTyEq0 : {B A₁ A₂ : RawType}
-  -> Computable (typeEq [] (tySigma A₁ A₂) B)
-  -> ClosedSigmaTyEqInv B A₁ A₂
+invertSigmaTyEq0 : {n : ℕ} -> {B A₁ A₂ : RawType}
+  -> Computable n (typeEq [] (tySigma A₁ A₂) B)
+  -> ClosedSigmaTyEqInv n B A₁ A₂
 invertSigmaTyEq0
   (compTyEqClosedSigma {E = E} {F = F}
     d compA compB evalSigma evB compCE compDF) =
@@ -744,20 +752,20 @@ invertSigmaTyEq0 (compTyEqClosedTop _ _ _ () _)
 invertSigmaTyEq0 (compTyEqClosedEq _ _ _ () _ _ _ _)
 invertSigmaTyEq0 (compTyEqClosedQtr _ _ _ () _ _)
 
-invertSigmaTyEq : {A B A₁ A₂ : RawType}
-  -> Computable (typeEq [] A B)
+invertSigmaTyEq : {n : ℕ} -> {A B A₁ A₂ : RawType}
+  -> Computable n (typeEq [] A B)
   -> A =>t tySigma A₁ A₂
-  -> ClosedSigmaTyEqInv B A₁ A₂
+  -> ClosedSigmaTyEqInv n B A₁ A₂
 invertSigmaTyEq {B = B} comp ev =
   invertSigmaTyEq0
     (subst
-      (λ T -> Computable (typeEq [] T B))
+      (λ T -> Computable _ (typeEq [] T B))
       (evalSigmaPath ev)
       comp)
 
-invertEqTyEq0 : {B A : RawType} {a b : RawTerm}
-  -> Computable (typeEq [] (tyEq A a b) B)
-  -> ClosedEqTyEqInv B A a b
+invertEqTyEq0 : {n : ℕ} -> {B A : RawType} {a b : RawTerm}
+  -> Computable n (typeEq [] (tyEq A a b) B)
+  -> ClosedEqTyEqInv n B A a b
 invertEqTyEq0
   (compTyEqClosedEq {D = D} {c = c} {d = d}
     dEq compA compB evalEq evB compCD compac compbd) =
@@ -777,20 +785,20 @@ invertEqTyEq0 (compTyEqClosedTop _ _ _ () _)
 invertEqTyEq0 (compTyEqClosedSigma _ _ _ () _ _ _)
 invertEqTyEq0 (compTyEqClosedQtr _ _ _ () _ _)
 
-invertEqTyEq : {A B C : RawType} {a b : RawTerm}
-  -> Computable (typeEq [] A B)
+invertEqTyEq : {n : ℕ} -> {A B C : RawType} {a b : RawTerm}
+  -> Computable n (typeEq [] A B)
   -> A =>t tyEq C a b
-  -> ClosedEqTyEqInv B C a b
+  -> ClosedEqTyEqInv n B C a b
 invertEqTyEq {B = B} comp ev =
   invertEqTyEq0
     (subst
-      (λ T -> Computable (typeEq [] T B))
+      (λ T -> Computable _ (typeEq [] T B))
       (evalEqPath ev)
       comp)
 
-invertQtrTyEq0 : {B A : RawType}
-  -> Computable (typeEq [] (tyQtr A) B)
-  -> ClosedQtrTyEqInv B A
+invertQtrTyEq0 : {n : ℕ} -> {B A : RawType}
+  -> Computable n (typeEq [] (tyQtr A) B)
+  -> ClosedQtrTyEqInv n B A
 invertQtrTyEq0
   (compTyEqClosedQtr {D = D} d compA compB evalQtr evB compCD) =
   record
@@ -805,44 +813,46 @@ invertQtrTyEq0 (compTyEqClosedTop _ _ _ () _)
 invertQtrTyEq0 (compTyEqClosedSigma _ _ _ () _ _ _)
 invertQtrTyEq0 (compTyEqClosedEq _ _ _ () _ _ _ _)
 
-invertQtrTyEq : {A B C : RawType}
-  -> Computable (typeEq [] A B)
+invertQtrTyEq : {n : ℕ} -> {A B C : RawType}
+  -> Computable n (typeEq [] A B)
   -> A =>t tyQtr C
-  -> ClosedQtrTyEqInv B C
+  -> ClosedQtrTyEqInv n B C
 invertQtrTyEq {B = B} comp ev =
   invertQtrTyEq0
     (subst
-      (λ T -> Computable (typeEq [] T B))
+      (λ T -> Computable _ (typeEq [] T B))
       (evalQtrPath ev)
       comp)
 
-invertTopTy : {A : RawType}
-  -> Computable (isType [] A)
+invertTopTy : {n : ℕ} -> {A : RawType}
+  -> Computable n (isType [] A)
   -> A =>t tyTop
-  -> ClosedTopTyInv A
+  -> ClosedTopTyInv n A
 invertTopTy (compTyClosedTop d _ corr) _ =
   record
     { topTyDeriv = d
     ; topTyCorr = corr
     }
-invertTopTy (compTyClosedSigma _ evSigma _ _ _) ev =
+invertTopTy (compTyClosedSigma _ evSigma _ _ _ _ _) ev =
   rec (topNeSigma (sym (evalTopPath ev) ∙ evalSigmaPath evSigma))
 invertTopTy (compTyClosedEq _ evEq _ _ _ _) ev =
   rec (topNeEq (sym (evalTopPath ev) ∙ evalEqPath evEq))
 invertTopTy (compTyClosedQtr _ evQtr _ _) ev =
   rec (topNeQtr (sym (evalTopPath ev) ∙ evalQtrPath evQtr))
 
-invertSigmaTy : {G A B : RawType}
-  -> Computable (isType [] G)
+invertSigmaTy : {n : ℕ} -> {G A B : RawType}
+  -> Computable n (isType [] G)
   -> G =>t tySigma A B
-  -> ClosedSigmaTyInv G A B
+  -> ClosedSigmaTyInv n G A B
 invertSigmaTy {A = A} {B = B}
-  (compTyClosedSigma {B = A} {C = B} d evalSigma corr compA compB) evalSigma =
+  (compTyClosedSigma {B = A} {C = B} d evalSigma corr compA dB subB subEqB) evalSigma =
   record
     { sigmaTyDeriv = d
     ; sigmaTyCorr = corr
     ; sigmaTyCompHead = compA
-    ; sigmaTyFamDeriv = compB
+    ; sigmaTyFamDeriv = dB
+    ; sigmaTyFamSub = subB
+    ; sigmaTyFamSubEq = subEqB
     }
 invertSigmaTy (compTyClosedTop _ evTop _) ev =
   rec (sigmaNeTop (sym (evalSigmaPath ev) ∙ evalTopPath evTop))
@@ -851,10 +861,10 @@ invertSigmaTy (compTyClosedEq _ evEq _ _ _ _) ev =
 invertSigmaTy (compTyClosedQtr _ evQtr _ _) ev =
   rec (sigmaNeQtr (sym (evalSigmaPath ev) ∙ evalQtrPath evQtr))
 
-invertEqTy : {G A : RawType} {a b : RawTerm}
-  -> Computable (isType [] G)
+invertEqTy : {n : ℕ} -> {G A : RawType} {a b : RawTerm}
+  -> Computable n (isType [] G)
   -> G =>t tyEq A a b
-  -> ClosedEqTyInv G A a b
+  -> ClosedEqTyInv n G A a b
 invertEqTy {A = A} {a = a} {b = b}
   (compTyClosedEq {B = A} {a = a} {b = b} d evalEq corr compA compa compb) evalEq =
   record
@@ -866,15 +876,15 @@ invertEqTy {A = A} {a = a} {b = b}
     }
 invertEqTy (compTyClosedTop _ evTop _) ev =
   rec (eqNeTop (sym (evalEqPath ev) ∙ evalTopPath evTop))
-invertEqTy (compTyClosedSigma _ evSigma _ _ _) ev =
+invertEqTy (compTyClosedSigma _ evSigma _ _ _ _ _) ev =
   rec (eqNeSigma (sym (evalEqPath ev) ∙ evalSigmaPath evSigma))
 invertEqTy (compTyClosedQtr _ evQtr _ _) ev =
   rec (eqNeQtr (sym (evalEqPath ev) ∙ evalQtrPath evQtr))
 
-invertQtrTy : {G A : RawType}
-  -> Computable (isType [] G)
+invertQtrTy : {n : ℕ} -> {G A : RawType}
+  -> Computable n (isType [] G)
   -> G =>t tyQtr A
-  -> ClosedQtrTyInv G A
+  -> ClosedQtrTyInv n G A
 invertQtrTy {A = A} (compTyClosedQtr {B = A} d evalQtr corr compA) evalQtr =
   record
     { qtrTyDeriv = d
@@ -883,7 +893,7 @@ invertQtrTy {A = A} (compTyClosedQtr {B = A} d evalQtr corr compA) evalQtr =
     }
 invertQtrTy (compTyClosedTop _ evTop _) ev =
   rec (qtrNeTop (sym (evalQtrPath ev) ∙ evalTopPath evTop))
-invertQtrTy (compTyClosedSigma _ evSigma _ _ _) ev =
+invertQtrTy (compTyClosedSigma _ evSigma _ _ _ _ _) ev =
   rec (qtrNeSigma (sym (evalQtrPath ev) ∙ evalSigmaPath evSigma))
 invertQtrTy (compTyClosedEq _ evEq _ _ _ _) ev =
   rec (qtrNeEq (sym (evalQtrPath ev) ∙ evalEqPath evEq))

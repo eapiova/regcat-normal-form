@@ -4,6 +4,7 @@
 module TReg.EqComp where
 
 open import Cubical.Foundations.Prelude
+open import Cubical.Data.Nat using (ℕ)
 open import Cubical.Data.List.Base using ([])
 
 open import TReg.Syntax
@@ -15,11 +16,11 @@ open import TReg.Inversion
 open import TReg.Presupposition
 open import TReg.Structural
 
-compFEqClosed : {A : RawType} {a b : RawTerm}
-  -> Computable (isType [] A)
-  -> Computable (hasTy [] a A)
-  -> Computable (hasTy [] b A)
-  -> Computable (isType [] (tyEq A a b))
+compFEqClosed : {n : ℕ} {A : RawType} {a b : RawTerm}
+  -> Computable n (isType [] A)
+  -> Computable n (hasTy [] a A)
+  -> Computable n (hasTy [] b A)
+  -> Computable n (isType [] (tyEq A a b))
 compFEqClosed compA compa compb =
   compTyClosedEq
     (fEq (compToDerivable compA) (compToDerivable compa) (compToDerivable compb))
@@ -29,9 +30,9 @@ compFEqClosed compA compa compb =
     compa
     compb
 
-compIEqClosed : {A : RawType} {a : RawTerm}
-  -> Computable (hasTy [] a A)
-  -> Computable (hasTy [] tmR (tyEq A a a))
+compIEqClosed : {n : ℕ} {A : RawType} {a : RawTerm}
+  -> Computable n (hasTy [] a A)
+  -> Computable n (hasTy [] tmR (tyEq A a a))
 compIEqClosed compa =
   compTmClosedEq
     (iEq (compToDerivable compa))
@@ -41,16 +42,16 @@ compIEqClosed compa =
     (reflTm (iEq (compToDerivable compa)))
     (compReflTmClosed compa)
 
-compEEqClosed : {A : RawType} {a b p : RawTerm}
-  -> Computable (hasTy [] p (tyEq A a b))
-  -> Computable (termEq [] a b A)
+compEEqClosed : {n : ℕ} {A : RawType} {a b p : RawTerm}
+  -> Computable n (hasTy [] p (tyEq A a b))
+  -> Computable n (termEq [] a b A)
 compEEqClosed {A = A} {a = a} {b = b}
   (compTmClosedEq _ _ (evalEq {A = A} {a = a} {b = b}) _ _ compab) =
   compab
 
-compCEqClosed : {A : RawType} {a b p : RawTerm}
-  -> Computable (hasTy [] p (tyEq A a b))
-  -> Computable (termEq [] p tmR (tyEq A a b))
+compCEqClosed : {n : ℕ} {A : RawType} {a b p : RawTerm}
+  -> Computable n (hasTy [] p (tyEq A a b))
+  -> Computable n (termEq [] p tmR (tyEq A a b))
 compCEqClosed {A = A} {a = a} {b = b}
   compp@(compTmClosedEq dp compEqTy (evalEq {A = A} {a = a} {b = b}) evp _ compab) =
   compTmEqClosedEq
@@ -62,7 +63,7 @@ compCEqClosed {A = A} {a = a} {b = b}
     evalR
     compab
   where
-  compa : Computable (hasTy [] a A)
+  compa : Computable _ (hasTy [] a A)
   compa = compTmEqLeft compab
 
   dA : Derivable (isType [] A)
@@ -80,7 +81,7 @@ compCEqClosed {A = A} {a = a} {b = b}
   dEqRefl : Derivable (hasTy [] tmR (tyEq A a b))
   dEqRefl = conv (iEq da) dEqTy
 
-  compEqRefl : Computable (hasTy [] tmR (tyEq A a b))
+  compEqRefl : Computable _ (hasTy [] tmR (tyEq A a b))
   compEqRefl =
     compTmClosedEq
       dEqRefl

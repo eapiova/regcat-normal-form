@@ -4,6 +4,8 @@ module TReg.Computability where
 
 open import Cubical.Foundations.Prelude
 open import Cubical.Data.Empty.Base using (⊥)
+open import Cubical.Data.Nat using (ℕ ; zero ; suc)
+open import Cubical.Data.Sigma using (Σ-syntax)
 open import Cubical.Data.List.Base using ([] ; _∷_)
 
 open import TReg.Syntax
@@ -27,218 +29,240 @@ closedEqSubJ sigma tau (hasTy gamma t A) =
 closedEqSubJ sigma tau (termEq gamma t u A) =
   termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A)
 
-data Computable : JForm -> Type where
+-- Computable: closures take raw FitsSubst only (no ComputableFits).
+-- This avoids strict positivity issues. ComputableFits is defined post-mutual
+-- and the conversion fitsToCompFits is also post-mutual.
+
+data Computable (n : ℕ) : JForm -> Type where
   compTyClosedTop : {A : RawType}
     -> Derivable (isType [] A)
     -> A =>t tyTop
     -> Derivable (typeEq [] A tyTop)
-    -> Computable (isType [] A)
+    -> Computable n (isType [] A)
 
   compTyClosedSigma : {A B C : RawType}
     -> Derivable (isType [] A)
     -> A =>t tySigma B C
     -> Derivable (typeEq [] A (tySigma B C))
-    -> Computable (isType [] B)
+    -> Computable n (isType [] B)
     -> Derivable (isType (B ∷ []) C)
-    -> Computable (isType [] A)
+    -> ((sigma : Subst) -> FitsSubst [] (B ∷ []) sigma
+         -> Computable n (closedSubJ sigma (isType (B ∷ []) C)))
+    -> ((sigma tau : Subst) -> FitsEqSubst [] (B ∷ []) sigma tau
+         -> Computable n (closedEqSubJ sigma tau (isType (B ∷ []) C)))
+    -> Computable n (isType [] A)
 
   compTyClosedEq : {A B : RawType} {a b : RawTerm}
     -> Derivable (isType [] A)
     -> A =>t tyEq B a b
     -> Derivable (typeEq [] A (tyEq B a b))
-    -> Computable (isType [] B)
-    -> Computable (hasTy [] a B)
-    -> Computable (hasTy [] b B)
-    -> Computable (isType [] A)
+    -> Computable n (isType [] B)
+    -> Computable n (hasTy [] a B)
+    -> Computable n (hasTy [] b B)
+    -> Computable n (isType [] A)
 
   compTyClosedQtr : {A B : RawType}
     -> Derivable (isType [] A)
     -> A =>t tyQtr B
     -> Derivable (typeEq [] A (tyQtr B))
-    -> Computable (isType [] B)
-    -> Computable (isType [] A)
+    -> Computable n (isType [] B)
+    -> Computable n (isType [] A)
 
   compTyEqClosedTop : {A B : RawType}
     -> Derivable (typeEq [] A B)
-    -> Computable (isType [] A)
-    -> Computable (isType [] B)
+    -> Computable n (isType [] A)
+    -> Computable n (isType [] B)
     -> A =>t tyTop
     -> B =>t tyTop
-    -> Computable (typeEq [] A B)
+    -> Computable n (typeEq [] A B)
 
   compTyEqClosedSigma : {A B C D E F : RawType}
     -> Derivable (typeEq [] A B)
-    -> Computable (isType [] A)
-    -> Computable (isType [] B)
+    -> Computable n (isType [] A)
+    -> Computable n (isType [] B)
     -> A =>t tySigma C D
     -> B =>t tySigma E F
-    -> Computable (typeEq [] C E)
+    -> Computable n (typeEq [] C E)
     -> Derivable (typeEq (C ∷ []) D F)
-    -> Computable (typeEq [] A B)
+    -> Computable n (typeEq [] A B)
 
   compTyEqClosedEq : {A B C D : RawType} {a b c d : RawTerm}
     -> Derivable (typeEq [] A B)
-    -> Computable (isType [] A)
-    -> Computable (isType [] B)
+    -> Computable n (isType [] A)
+    -> Computable n (isType [] B)
     -> A =>t tyEq C a b
     -> B =>t tyEq D c d
-    -> Computable (typeEq [] C D)
-    -> Computable (termEq [] a c C)
-    -> Computable (termEq [] b d C)
-    -> Computable (typeEq [] A B)
+    -> Computable n (typeEq [] C D)
+    -> Computable n (termEq [] a c C)
+    -> Computable n (termEq [] b d C)
+    -> Computable n (typeEq [] A B)
 
   compTyEqClosedQtr : {A B C D : RawType}
     -> Derivable (typeEq [] A B)
-    -> Computable (isType [] A)
-    -> Computable (isType [] B)
+    -> Computable n (isType [] A)
+    -> Computable n (isType [] B)
     -> A =>t tyQtr C
     -> B =>t tyQtr D
-    -> Computable (typeEq [] C D)
-    -> Computable (typeEq [] A B)
+    -> Computable n (typeEq [] C D)
+    -> Computable n (typeEq [] A B)
 
   compTmClosedTop : {a : RawTerm} {A : RawType}
     -> Derivable (hasTy [] a A)
-    -> Computable (isType [] A)
+    -> Computable n (isType [] A)
     -> A =>t tyTop
     -> a =>e tmStar
     -> Derivable (termEq [] a tmStar A)
-    -> Computable (hasTy [] a A)
+    -> Computable n (hasTy [] a A)
 
   compTmClosedSigma : {t a b : RawTerm} {A B G : RawType}
     -> Derivable (hasTy [] t G)
-    -> Computable (isType [] G)
+    -> Computable n (isType [] G)
     -> G =>t tySigma A B
     -> t =>e tmPair a b
     -> Derivable (termEq [] t (tmPair a b) G)
-    -> Computable (hasTy [] a A)
-    -> Computable (hasTy [] b (subTy (singleSubst a) B))
-    -> Computable (hasTy [] t G)
+    -> Computable n (hasTy [] a A)
+    -> Computable n (hasTy [] b (subTy (singleSubst a) B))
+    -> Computable n (hasTy [] t G)
 
   compTmClosedEq : {t a b : RawTerm} {A G : RawType}
     -> Derivable (hasTy [] t G)
-    -> Computable (isType [] G)
+    -> Computable n (isType [] G)
     -> G =>t tyEq A a b
     -> t =>e tmR
     -> Derivable (termEq [] t tmR G)
-    -> Computable (termEq [] a b A)
-    -> Computable (hasTy [] t G)
+    -> Computable n (termEq [] a b A)
+    -> Computable n (hasTy [] t G)
 
   compTmClosedQtr : {t a : RawTerm} {A G : RawType}
     -> Derivable (hasTy [] t G)
-    -> Computable (isType [] G)
+    -> Computable n (isType [] G)
     -> G =>t tyQtr A
     -> t =>e tmClass a
     -> Derivable (termEq [] t (tmClass a) G)
-    -> Computable (hasTy [] a A)
-    -> Computable (hasTy [] t G)
+    -> Computable n (hasTy [] a A)
+    -> Computable n (hasTy [] t G)
 
   compTmEqClosedTop : {a b : RawTerm} {A : RawType}
     -> Derivable (termEq [] a b A)
-    -> Computable (hasTy [] a A)
-    -> Computable (hasTy [] b A)
+    -> Computable n (hasTy [] a A)
+    -> Computable n (hasTy [] b A)
     -> A =>t tyTop
     -> a =>e tmStar
     -> b =>e tmStar
-    -> Computable (termEq [] a b A)
+    -> Computable n (termEq [] a b A)
 
   compTmEqClosedSigma : {t u a b c d : RawTerm} {A B G : RawType}
     -> Derivable (termEq [] t u G)
-    -> Computable (hasTy [] t G)
-    -> Computable (hasTy [] u G)
+    -> Computable n (hasTy [] t G)
+    -> Computable n (hasTy [] u G)
     -> G =>t tySigma A B
     -> t =>e tmPair a b
     -> u =>e tmPair c d
-    -> Computable (termEq [] a c A)
-    -> Computable (termEq [] b d (subTy (singleSubst a) B))
-    -> Computable (termEq [] t u G)
+    -> Computable n (termEq [] a c A)
+    -> Computable n (termEq [] b d (subTy (singleSubst a) B))
+    -> Computable n (termEq [] t u G)
 
   compTmEqClosedEq : {t u a b : RawTerm} {A G : RawType}
     -> Derivable (termEq [] t u G)
-    -> Computable (hasTy [] t G)
-    -> Computable (hasTy [] u G)
+    -> Computable n (hasTy [] t G)
+    -> Computable n (hasTy [] u G)
     -> G =>t tyEq A a b
     -> t =>e tmR
     -> u =>e tmR
-    -> Computable (termEq [] a b A)
-    -> Computable (termEq [] t u G)
+    -> Computable n (termEq [] a b A)
+    -> Computable n (termEq [] t u G)
 
   compTmEqClosedQtr : {t u a b : RawTerm} {A G : RawType}
     -> Derivable (termEq [] t u G)
-    -> Computable (hasTy [] t G)
-    -> Computable (hasTy [] u G)
+    -> Computable n (hasTy [] t G)
+    -> Computable n (hasTy [] u G)
     -> G =>t tyQtr A
     -> t =>e tmClass a
     -> u =>e tmClass b
-    -> Computable (hasTy [] a A)
-    -> Computable (hasTy [] b A)
-    -> Computable (termEq [] t u G)
+    -> Computable n (hasTy [] a A)
+    -> Computable n (hasTy [] b A)
+    -> Computable n (termEq [] t u G)
 
-data ComputableFits : {gamma : Ctx} {sigma : Subst}
+-- ComputableFits / ComputableFitsEq: defined OUTSIDE the data block.
+-- Contains Computable n — strictly positive (no function types).
+
+data ComputableFits (n : ℕ) : {gamma : Ctx} {sigma : Subst}
   -> FitsSubst [] gamma sigma -> Type where
-  compFitsNil : {sigma : Subst} {wf : CtxWF []}
-    -> ComputableFits (fitsNil {gamma = []} {delta = []} {sigma = sigma} wf)
+  compFitsNil : {sigma : Subst} {delta : Ctx} {wf : CtxWF []}
+    -> ComputableFits n (fitsNil {gamma = []} {delta = delta} {sigma = sigma} wf)
   compFitsCons : {gamma : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
       {fits : FitsSubst [] gamma sigma}
       {dt : Derivable (hasTy [] t (subTy sigma A))}
-    -> ComputableFits fits
-    -> Computable (hasTy [] t (subTy sigma A))
-    -> ComputableFits (fitsCons fits dt)
+    -> ComputableFits n fits
+    -> Computable n (hasTy [] t (subTy sigma A))
+    -> ComputableFits n (fitsCons fits dt)
 
-data ComputableFitsEq : {gamma : Ctx} {sigma tau : Subst}
+data ComputableFitsEq (n : ℕ) : {gamma : Ctx} {sigma tau : Subst}
   -> FitsEqSubst [] gamma sigma tau -> Type where
-  compFitsEqNil : {sigma tau : Subst} {wf : CtxWF []}
-    -> ComputableFitsEq (fitsEqNil {gamma = []} {delta = []} {sigma = sigma} {tau = tau} wf)
+  compFitsEqNil : {sigma tau : Subst} {delta : Ctx} {wf : CtxWF []}
+    -> ComputableFitsEq n (fitsEqNil {gamma = []} {delta = delta} {sigma = sigma} {tau = tau} wf)
   compFitsEqCons : {gamma : Ctx} {sigma tau : Subst} {A : RawType} {t u : RawTerm}
       {fitsEq : FitsEqSubst [] gamma sigma tau}
       {dtu : Derivable (termEq [] t u (subTy sigma A))}
-    -> ComputableFitsEq fitsEq
-    -> Computable (termEq [] t u (subTy sigma A))
-    -> ComputableFitsEq (fitsEqCons fitsEq dtu)
+    -> ComputableFitsEq n fitsEq
+    -> Computable n (termEq [] t u (subTy sigma A))
+    -> ComputableFitsEq n (fitsEqCons fitsEq dtu)
 
-data HypComputable : JForm -> Type where
+-- HypComputable: closures take ComputableFits n.
+-- Defined OUTSIDE the Computable data, so no positivity issue.
+data HypComputable (n : ℕ) : JForm -> Type where
   hypTyOpen : {gamma : Ctx} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
-         -> ComputableFits fits
-         -> Computable (closedSubJ sigma (isType gamma A)))
+         -> ComputableFits n fits
+         -> Computable n (closedSubJ sigma (isType gamma A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
-         -> ComputableFitsEq fitsEq
-         -> Computable (closedEqSubJ sigma tau (isType gamma A)))
-    -> HypComputable (isType gamma A)
+         -> ComputableFitsEq n fitsEq
+         -> Computable n (closedEqSubJ sigma tau (isType gamma A)))
+    -> HypComputable n (isType gamma A)
 
   hypTyEqOpen : {gamma : Ctx} {A B : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (typeEq gamma A B)
-    -> HypComputable (isType gamma A)
+    -> HypComputable n (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
-         -> ComputableFits fits
-         -> Computable (closedSubJ sigma (typeEq gamma A B)))
+         -> ComputableFits n fits
+         -> Computable n (closedSubJ sigma (typeEq gamma A B)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
-         -> ComputableFitsEq fitsEq
-         -> Computable (closedEqSubJ sigma tau (typeEq gamma A B)))
-    -> HypComputable (typeEq gamma A B)
+         -> ComputableFitsEq n fitsEq
+         -> Computable n (closedEqSubJ sigma tau (typeEq gamma A B)))
+    -> HypComputable n (typeEq gamma A B)
 
   hypTmOpen : {gamma : Ctx} {t : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (hasTy gamma t A)
-    -> HypComputable (isType gamma A)
+    -> HypComputable n (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
-         -> ComputableFits fits
-         -> Computable (closedSubJ sigma (hasTy gamma t A)))
+         -> ComputableFits n fits
+         -> Computable n (closedSubJ sigma (hasTy gamma t A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
-         -> ComputableFitsEq fitsEq
-         -> Computable (closedEqSubJ sigma tau (hasTy gamma t A)))
-    -> HypComputable (hasTy gamma t A)
+         -> ComputableFitsEq n fitsEq
+         -> Computable n (closedEqSubJ sigma tau (hasTy gamma t A)))
+    -> HypComputable n (hasTy gamma t A)
 
   hypTmEqOpen : {gamma : Ctx} {t u : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
     -> Derivable (termEq gamma t u A)
-    -> HypComputable (hasTy gamma t A)
+    -> HypComputable n (hasTy gamma t A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
-         -> ComputableFits fits
-         -> Computable (closedSubJ sigma (termEq gamma t u A)))
+         -> ComputableFits n fits
+         -> Computable n (closedSubJ sigma (termEq gamma t u A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
-         -> ComputableFitsEq fitsEq
-         -> Computable (closedEqSubJ sigma tau (termEq gamma t u A)))
-    -> HypComputable (termEq gamma t u A)
+         -> ComputableFitsEq n fitsEq
+         -> Computable n (closedEqSubJ sigma tau (termEq gamma t u A)))
+    -> HypComputable n (termEq gamma t u A)
+
+-- Bundle types
+CompFitsBundle : ℕ -> Ctx -> Subst -> Type
+CompFitsBundle n gamma sigma =
+  Σ[ fits ∈ FitsSubst [] gamma sigma ] ComputableFits n fits
+
+CompFitsEqBundle : ℕ -> Ctx -> Subst -> Subst -> Type
+CompFitsEqBundle n gamma sigma tau =
+  Σ[ fitsEq ∈ FitsEqSubst [] gamma sigma tau ] ComputableFitsEq n fitsEq
