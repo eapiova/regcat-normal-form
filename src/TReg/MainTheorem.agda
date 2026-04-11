@@ -20,7 +20,7 @@ canonicalType : {n : ℕ} ->
   Computable n (isType [] A) ->
   Σ[ G ∈ RawType ] (A =>t G) × Derivable (typeEq [] A G)
 canonicalType (compTyClosedTop _ ev corr) = tyTop , (ev , corr)
-canonicalType (compTyClosedSigma {B = B} {C = C} _ ev corr _ _ _ _) =
+canonicalType (compTyClosedSigma {B = B} {C = C} _ ev corr _ _) =
   tySigma B C , (ev , corr)
 canonicalType (compTyClosedEq {B = B} {a = a} {b = b} _ ev corr _ _ _) =
   tyEq B a b , (ev , corr)

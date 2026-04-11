@@ -46,10 +46,6 @@ data Computable (n : ℕ) : JForm -> Type where
     -> Derivable (typeEq [] A (tySigma B C))
     -> Computable n (isType [] B)
     -> Derivable (isType (B ∷ []) C)
-    -> ((sigma : Subst) -> FitsSubst [] (B ∷ []) sigma
-         -> Computable n (closedSubJ sigma (isType (B ∷ []) C)))
-    -> ((sigma tau : Subst) -> FitsEqSubst [] (B ∷ []) sigma tau
-         -> Computable n (closedEqSubJ sigma tau (isType (B ∷ []) C)))
     -> Computable n (isType [] A)
 
   compTyClosedEq : {A B : RawType} {a b : RawTerm}
@@ -268,10 +264,8 @@ data HypComputable : ℕ -> JForm -> Type where
 -- where SCC 2 returns Computable n but the closure needs Computable (suc n).
 liftComputable : {n : ℕ} {J : JForm} → Computable n J → Computable (suc n) J
 liftComputable (compTyClosedTop d ev eq) = compTyClosedTop d ev eq
-liftComputable (compTyClosedSigma d ev eq compB dC subC subEqC) =
+liftComputable (compTyClosedSigma d ev eq compB dC) =
   compTyClosedSigma d ev eq (liftComputable compB) dC
-    (λ sigma fits → liftComputable (subC sigma fits))
-    (λ sigma tau fitsEq → liftComputable (subEqC sigma tau fitsEq))
 liftComputable (compTyClosedEq d ev eq compB compa compb) =
   compTyClosedEq d ev eq (liftComputable compB) (liftComputable compa) (liftComputable compb)
 liftComputable (compTyClosedQtr d ev eq compB) =

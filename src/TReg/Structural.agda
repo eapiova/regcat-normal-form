@@ -45,7 +45,7 @@ mutual
   compReflTyClosedAcc comp@(compTyClosedTop d ev corr) (acc rs) =
     compTyEqClosedTop (reflTy d) comp comp ev ev
   compReflTyClosedAcc
-    comp@(compTyClosedSigma {B = B} {C = C} d ev corr compA dFam subFam subEqFam)
+    comp@(compTyClosedSigma {B = B} {C = C} d ev corr compA dFam)
     (acc rs) =
     let
       acHead =

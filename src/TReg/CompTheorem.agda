@@ -569,8 +569,6 @@ mutual
       (reflTy (fSigma (compToDerivable compA) dB))
       compA
       dB
-      (λ sigma fits -> subB sigma fits (singleBinderComputableFits fits))
-      (λ sigma tau fitsEq -> subEqB sigma tau fitsEq (singleBinderComputableFitsEq fitsEq))
   
   compISigmaClosed : {n : ℕ} -> {a b : RawTerm} {A B : RawType}
     -> Computable n (hasTy [] a A)
@@ -2788,25 +2786,6 @@ mutual
       (reflTy (fSigma (compToDerivable compA) dB'))
       compA
       dB'
-      (λ sigma' fits' ->
-        let
-          composedFits = composeOneBinder fits dAσ fits'
-        in
-        subst
-          (λ T -> Computable n (isType [] T))
-          (sym (subTyComp sigma' (liftSubst sigma) B))
-          (substDerivTyCompCF dB composedFits (fitsToCompFits composedFits) (<-wellfounded _)))
-      (λ sigma' tau' fitsEq' ->
-        let
-          composedFitsEq = composeOneBinderEq fits dAσ fitsEq'
-        in
-        subst
-          (λ J -> Computable n J)
-          (sym
-            (cong₂ (typeEq [])
-              (subTyComp sigma' (liftSubst sigma) B)
-              (subTyComp tau' (liftSubst sigma) B)))
-          (eqSubDerivTyCompCF dB composedFitsEq (fitsEqToCompFitsEq composedFitsEq) (<-wellfounded _)))
   substDerivTyCompCF {n} (fEq {A = A} {a = a} {b = b} dA da db) fits cFits (acc rs) =
     compFEqClosed
       (substDerivTyCompCF dA fits cFits (rs _ (substMeasure-tyDepth< dA (fEq dA da db) (tyDepth-base<Eq A a b))))
@@ -7252,12 +7231,8 @@ mutual
       -> Computable n (isType [] (tySigma A B))
       -> HypComputable (suc n) (isType (A ∷ []) B)
     sigmaTyFamHypClosed
-      {n} (compTyClosedSigma {B = A} {C = B} _ evalSigma _ _ dB subB subEqB) =
-      hypTyOpen
-        nonemptyNeNil
-        dB
-        (λ sigma fits _ -> subB sigma fits)
-        (λ sigma tau fitsEq _ -> subEqB sigma tau fitsEq)
+      {n} (compTyClosedSigma {B = A} {C = B} _ evalSigma _ _ dB) =
+      mkHypComputableTy nonemptyNeNil dB
     sigmaTyFamHypClosed (compTyClosedTop _ () _)
     sigmaTyFamHypClosed (compTyClosedEq _ () _ _ _ _)
     sigmaTyFamHypClosed (compTyClosedQtr _ () _ _)

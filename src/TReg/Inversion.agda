@@ -20,7 +20,7 @@ open import TReg.Presupposition using (fitsEqSubstLeft)
 
 compToDerivable : {n : ℕ} -> {J : JForm} -> Computable n J -> Derivable J
 compToDerivable (compTyClosedTop d _ _) = d
-compToDerivable (compTyClosedSigma d _ _ _ _ _ _) = d
+compToDerivable (compTyClosedSigma d _ _ _ _) = d
 compToDerivable (compTyClosedEq d _ _ _ _ _) = d
 compToDerivable (compTyClosedQtr d _ _ _) = d
 compToDerivable (compTyEqClosedTop d _ _ _ _) = d
@@ -44,7 +44,7 @@ hypCompToDerivable (hypTmEqOpen _ d _ _ _) = d
 
 compTyEval : {n : ℕ} -> {A : RawType} -> Computable n (isType [] A) -> Σ RawType (λ G -> A =>t G)
 compTyEval (compTyClosedTop _ ev _) = tyTop , ev
-compTyEval (compTyClosedSigma {B = B} {C = C} _ ev _ _ _ _ _) = tySigma B C , ev
+compTyEval (compTyClosedSigma {B = B} {C = C} _ ev _ _ _) = tySigma B C , ev
 compTyEval (compTyClosedEq {B = B} {a = a} {b = b} _ ev _ _ _ _) = tyEq B a b , ev
 compTyEval (compTyClosedQtr {B = B} _ ev _ _) = tyQtr B , ev
 
@@ -278,14 +278,6 @@ record ClosedSigmaTyInv (n : ℕ) (G A B : RawType) : Type where
     sigmaTyCorr : Derivable (typeEq [] G (tySigma A B))
     sigmaTyCompHead : Computable n (isType [] A)
     sigmaTyFamDeriv : Derivable (isType (A ∷ []) B)
-    sigmaTyFamSub :
-      (sigma : Subst)
-      -> FitsSubst [] (A ∷ []) sigma
-      -> Computable n (closedSubJ sigma (isType (A ∷ []) B))
-    sigmaTyFamSubEq :
-      (sigma tau : Subst)
-      -> FitsEqSubst [] (A ∷ []) sigma tau
-      -> Computable n (closedEqSubJ sigma tau (isType (A ∷ []) B))
 
 record ClosedSigmaTmEqInv (n : ℕ) (t u : RawTerm) (A B : RawType) : Type where
   field
@@ -833,7 +825,7 @@ invertTopTy (compTyClosedTop d _ corr) _ =
     { topTyDeriv = d
     ; topTyCorr = corr
     }
-invertTopTy (compTyClosedSigma _ evSigma _ _ _ _ _) ev =
+invertTopTy (compTyClosedSigma _ evSigma _ _ _) ev =
   rec (topNeSigma (sym (evalTopPath ev) ∙ evalSigmaPath evSigma))
 invertTopTy (compTyClosedEq _ evEq _ _ _ _) ev =
   rec (topNeEq (sym (evalTopPath ev) ∙ evalEqPath evEq))
@@ -845,14 +837,12 @@ invertSigmaTy : {n : ℕ} -> {G A B : RawType}
   -> G =>t tySigma A B
   -> ClosedSigmaTyInv n G A B
 invertSigmaTy {A = A} {B = B}
-  (compTyClosedSigma {B = A} {C = B} d evalSigma corr compA dB subB subEqB) evalSigma =
+  (compTyClosedSigma {B = A} {C = B} d evalSigma corr compA dB) evalSigma =
   record
     { sigmaTyDeriv = d
     ; sigmaTyCorr = corr
     ; sigmaTyCompHead = compA
     ; sigmaTyFamDeriv = dB
-    ; sigmaTyFamSub = subB
-    ; sigmaTyFamSubEq = subEqB
     }
 invertSigmaTy (compTyClosedTop _ evTop _) ev =
   rec (sigmaNeTop (sym (evalSigmaPath ev) ∙ evalTopPath evTop))
@@ -876,7 +866,7 @@ invertEqTy {A = A} {a = a} {b = b}
     }
 invertEqTy (compTyClosedTop _ evTop _) ev =
   rec (eqNeTop (sym (evalEqPath ev) ∙ evalTopPath evTop))
-invertEqTy (compTyClosedSigma _ evSigma _ _ _ _ _) ev =
+invertEqTy (compTyClosedSigma _ evSigma _ _ _) ev =
   rec (eqNeSigma (sym (evalEqPath ev) ∙ evalSigmaPath evSigma))
 invertEqTy (compTyClosedQtr _ evQtr _ _) ev =
   rec (eqNeQtr (sym (evalEqPath ev) ∙ evalQtrPath evQtr))
@@ -893,7 +883,7 @@ invertQtrTy {A = A} (compTyClosedQtr {B = A} d evalQtr corr compA) evalQtr =
     }
 invertQtrTy (compTyClosedTop _ evTop _) ev =
   rec (qtrNeTop (sym (evalQtrPath ev) ∙ evalTopPath evTop))
-invertQtrTy (compTyClosedSigma _ evSigma _ _ _ _ _) ev =
+invertQtrTy (compTyClosedSigma _ evSigma _ _ _) ev =
   rec (qtrNeSigma (sym (evalQtrPath ev) ∙ evalSigmaPath evSigma))
 invertQtrTy (compTyClosedEq _ evEq _ _ _ _) ev =
   rec (qtrNeEq (sym (evalQtrPath ev) ∙ evalEqPath evEq))
