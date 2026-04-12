@@ -1,10 +1,10 @@
 {-# OPTIONS #-}
--- CompTheorem uses {-# TERMINATING #-} on the main mutual block (line 160).
--- The remaining termination cycle is:
---   fitsToCompFits → computableTmClosed → substTmClosed →
---   substDerivTmCompCF → closures → fitsToCompFits
--- This cycle is semantically terminating (Valentini's computational complexity argument)
--- but cannot be expressed in Agda's termination checker under --safe.
+-- TERMINATING is still required on the main mutual block. Remaining
+-- termination issues are concentrated in 4 functions:
+--   substDerivTyCompCF, substDerivTmCompCF, mkHypComputableTy,
+--   sigmaTyFamHypClosed
+-- These need Acc-witness propagation through mkHypComputable* closures
+-- (currently they use fresh <-wellfounded instead of receiving Acc from caller).
 
 module TReg.CompTheorem where
 
@@ -162,7 +162,7 @@ composeOneBinderEqNR {gamma = gamma} {A = A} {sigma = sigma} {tau₁ = tau₁} {
       (cong (compSub tau₂) (liftSubstCompKeepNR sigma))
       (composeEqFits fitsEq (liftFitsOneNR fits dAσ)))
 
-{-# TERMINATING #-}
+-- DIAGNOSTIC: TERMINATING temporarily stripped to reveal remaining failures.
 mutual
   substDerivTyCompCF : {n : ℕ} -> {gamma : Ctx} {A : RawType} {sigma : Subst}
     -> (d : Derivable (isType gamma A))
@@ -2771,7 +2771,7 @@ mutual
   substDerivTyCompCF {n} {gamma = gamma} {sigma = sigma} (fSigma {A = A} {B = B} dA dB) fits cFits (acc rs) =
     let
       compA = substDerivTyCompCF dA fits cFits
-        (rs _ (substMeasure-tyDepth< dA (fSigma dA dB) (tyDepth-fst<Sigma A B)))
+        (rs _ (substMeasure-fSigma-head< dA dB))
       dAσ = substTyRule dA fits
       dB' : Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
       dB' =
@@ -2788,17 +2788,17 @@ mutual
       dB'
   substDerivTyCompCF {n} (fEq {A = A} {a = a} {b = b} dA da db) fits cFits (acc rs) =
     compFEqClosed
-      (substDerivTyCompCF dA fits cFits (rs _ (substMeasure-tyDepth< dA (fEq dA da db) (tyDepth-base<Eq A a b))))
-      (substDerivTmCompCF da fits cFits (rs _ (substMeasure-tyDepth< da (fEq dA da db) (tyDepth-base<Eq A a b))))
-      (substDerivTmCompCF db fits cFits (rs _ (substMeasure-tyDepth< db (fEq dA da db) (tyDepth-base<Eq A a b))))
+      (substDerivTyCompCF dA fits cFits (rs _ (substMeasure-fEq-base< dA da db)))
+      (substDerivTmCompCF da fits cFits (rs _ (substMeasure-fEq-leftTm< dA da db)))
+      (substDerivTmCompCF db fits cFits (rs _ (substMeasure-fEq-rightTm< dA da db)))
   substDerivTyCompCF {n} (fQtr {A = A} dA) fits cFits (acc rs) =
-    compFQtrClosed (substDerivTyCompCF dA fits cFits (rs _ (substMeasure-tyDepth< dA (fQtr dA) (tyDepth-base<Qtr A))))
-  substDerivTyCompCF {n} {sigma = sigma} (weakenTy {delta = delta} {A = A} d wf) fits cFits _ =
+    compFQtrClosed (substDerivTyCompCF dA fits cFits (rs _ (substMeasure-fQtr-base< dA)))
+  substDerivTyCompCF {n} {sigma = sigma} (weakenTy {delta = delta} {A = A} d wf) fits cFits (acc rs) =
     subst
       (λ T -> Computable n (isType [] T))
       (sym (subTyWkBy sigma (length delta) A))
-      (substDerivTyCompCF d (dropFits delta fits) (dropCompFits delta cFits) (<-wellfounded _))
-  substDerivTyCompCF {n} {sigma = sigma} (substTyRule {sigma = sigma'} {A = A} d fits') fits cFits _ =
+      (substDerivTyCompCF d (dropFits delta fits) (dropCompFits delta cFits) (rs _ (substMeasure-weakenTy< d wf)))
+  substDerivTyCompCF {n} {sigma = sigma} (substTyRule {sigma = sigma'} {A = A} d fits') fits cFits (acc rs) =
     let
       composedFits = composeFits fits fits'
       composedCFits = composeCompFits fits cFits fits'
@@ -2806,14 +2806,16 @@ mutual
     subst
       (λ T -> Computable n (isType [] T))
       (sym (subTyComp sigma sigma' A))
-      (substDerivTyCompCF d composedFits composedCFits (<-wellfounded _))
-  
-  substDerivTyEqCompCF {n} (reflTy d) fits cFits _ =
-    compReflTy (substDerivTyCompCF d fits cFits (<-wellfounded _))
-  substDerivTyEqCompCF {n} (symTy d _) fits cFits _ =
-    compSymTyClosed (substDerivTyEqCompCF d fits cFits (<-wellfounded _))
-  substDerivTyEqCompCF {n} (transTy d₁ d₂) fits cFits _ =
-    compTransTyClosed (substDerivTyEqCompCF d₁ fits cFits (<-wellfounded _)) (substDerivTyEqCompCF d₂ fits cFits (<-wellfounded _))
+      (substDerivTyCompCF d composedFits composedCFits (rs _ (substMeasure-substTyRule< d fits')))
+
+  substDerivTyEqCompCF {n} (reflTy d) fits cFits (acc rs) =
+    compReflTy (substDerivTyCompCF d fits cFits (rs _ (substMeasure-reflTy< d)))
+  substDerivTyEqCompCF {n} (symTy d dB) fits cFits (acc rs) =
+    compSymTyClosed (substDerivTyEqCompCF d fits cFits (rs _ (substMeasure-symTy-left< d dB)))
+  substDerivTyEqCompCF {n} (transTy d₁ d₂) fits cFits (acc rs) =
+    compTransTyClosed
+      (substDerivTyEqCompCF d₁ fits cFits (rs _ (substMeasure-transTy-left< d₁ d₂)))
+      (substDerivTyEqCompCF d₂ fits cFits (rs _ (substMeasure-transTy-right< d₁ d₂)))
   substDerivTyEqCompCF {n} {sigma = sigma} (fSigmaEq {A = A} {B = B} {D = D} dAC dB dBD) fits cFits _ =
     let
       compAC = substDerivTyEqCompCF dAC fits cFits (<-wellfounded _)
@@ -6495,8 +6497,8 @@ mutual
     hypTyOpen
       neq
       d
-      (λ sigma fits cFits -> liftComputable (substDerivTyCompCF d fits cFits (<-wellfounded _)))
-      (λ sigma tau fitsEq cFitsEq -> liftComputable (eqSubDerivTyCompCF d fitsEq cFitsEq (<-wellfounded _)))
+      (λ sigma fits cFits -> substDerivTyCompCF d fits cFits (<-wellfounded _))
+      (λ sigma tau fitsEq cFitsEq -> eqSubDerivTyCompCF d fitsEq cFitsEq (<-wellfounded _))
 
   leftTyWitnessEq : {gamma : Ctx} {A B : RawType}
     -> Derivable (typeEq gamma A B)
@@ -6551,8 +6553,8 @@ mutual
       neq
       d
       (mkHypComputableTy neq (leftTyWitnessEq d))
-      (λ sigma fits cFits -> liftComputable (substDerivTyEqCompCF d fits cFits (<-wellfounded _)))
-      (λ sigma tau fitsEq cFitsEq -> liftComputable (eqSubDerivTyEqCompCF d fitsEq cFitsEq (<-wellfounded _)))
+      (λ sigma fits cFits -> substDerivTyEqCompCF d fits cFits (<-wellfounded _))
+      (λ sigma tau fitsEq cFitsEq -> eqSubDerivTyEqCompCF d fitsEq cFitsEq (<-wellfounded _))
   
   mkHypComputableTm : {n : ℕ} -> {gamma : Ctx} {t : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
@@ -6564,8 +6566,8 @@ mutual
       neq
       d
       compA
-      (λ sigma fits cFits -> liftComputable (substDerivTmCompCF d fits cFits (<-wellfounded _)))
-      (λ sigma tau fitsEq cFitsEq -> liftComputable (eqSubDerivTmCompCF d fitsEq cFitsEq (<-wellfounded _)))
+      (λ sigma fits cFits -> substDerivTmCompCF d fits cFits (<-wellfounded _))
+      (λ sigma tau fitsEq cFitsEq -> eqSubDerivTmCompCF d fitsEq cFitsEq (<-wellfounded _))
   
   mkHypComputableTmEq : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
@@ -6577,8 +6579,8 @@ mutual
       neq
       d
       compt
-      (λ sigma fits cFits -> liftComputable (substDerivTmEqCompCF d fits cFits (<-wellfounded _)))
-      (λ sigma tau fitsEq cFitsEq -> liftComputable (eqSubDerivTmEqCompCF d fitsEq cFitsEq (<-wellfounded _)))
+      (λ sigma fits cFits -> substDerivTmEqCompCF d fits cFits (<-wellfounded _))
+      (λ sigma tau fitsEq cFitsEq -> eqSubDerivTmEqCompCF d fitsEq cFitsEq (<-wellfounded _))
   
   hypComputableTy : {n : ℕ} -> {A B : RawType} {gamma : Ctx}
     -> Derivable (isType (B ∷ gamma) A)

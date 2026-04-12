@@ -295,7 +295,7 @@ sigmaCompComputableFitsEqHelper {n} {A = A} {B = B} {b = b} {c = c} {e = e} {f =
 compSingleSubstTyEqClosed : {n : ℕ} -> {A B C : RawType} {t : RawTerm}
   -> HypComputable (suc n) (typeEq (A ∷ []) B C)
   -> Computable n (hasTy [] t A)
-  -> Computable (suc n) (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst t) C))
+  -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst t) C))
 compSingleSubstTyEqClosed {t = t} (hypTyEqOpen _ _ _ sub _) compt =
   sub (singleSubst t)
     (fst (singleComputableFitsSubstHelper compt))
@@ -304,7 +304,7 @@ compSingleSubstTyEqClosed {t = t} (hypTyEqOpen _ _ _ sub _) compt =
 compSingleEqSubstTyClosed : {n : ℕ} -> {A B : RawType} {t u : RawTerm}
   -> HypComputable (suc n) (isType (A ∷ []) B)
   -> Computable n (termEq [] t u A)
-  -> Computable (suc n) (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst u) B))
+  -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst u) B))
 compSingleEqSubstTyClosed {t = t} {u = u} (hypTyOpen _ _ _ subEq) comptu =
   subEq
     (singleSubst t)

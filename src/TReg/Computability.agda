@@ -216,10 +216,10 @@ data HypComputable : ℕ -> JForm -> Type where
     -> Derivable (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Computable (suc n) (closedSubJ sigma (isType gamma A)))
+         -> Computable n (closedSubJ sigma (isType gamma A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Computable (suc n) (closedEqSubJ sigma tau (isType gamma A)))
+         -> Computable n (closedEqSubJ sigma tau (isType gamma A)))
     -> HypComputable (suc n) (isType gamma A)
 
   hypTyEqOpen : {n : ℕ} {gamma : Ctx} {A B : RawType}
@@ -228,10 +228,10 @@ data HypComputable : ℕ -> JForm -> Type where
     -> HypComputable (suc n) (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Computable (suc n) (closedSubJ sigma (typeEq gamma A B)))
+         -> Computable n (closedSubJ sigma (typeEq gamma A B)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Computable (suc n) (closedEqSubJ sigma tau (typeEq gamma A B)))
+         -> Computable n (closedEqSubJ sigma tau (typeEq gamma A B)))
     -> HypComputable (suc n) (typeEq gamma A B)
 
   hypTmOpen : {n : ℕ} {gamma : Ctx} {t : RawTerm} {A : RawType}
@@ -240,10 +240,10 @@ data HypComputable : ℕ -> JForm -> Type where
     -> HypComputable (suc n) (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Computable (suc n) (closedSubJ sigma (hasTy gamma t A)))
+         -> Computable n (closedSubJ sigma (hasTy gamma t A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Computable (suc n) (closedEqSubJ sigma tau (hasTy gamma t A)))
+         -> Computable n (closedEqSubJ sigma tau (hasTy gamma t A)))
     -> HypComputable (suc n) (hasTy gamma t A)
 
   hypTmEqOpen : {n : ℕ} {gamma : Ctx} {t u : RawTerm} {A : RawType}
@@ -252,10 +252,10 @@ data HypComputable : ℕ -> JForm -> Type where
     -> HypComputable (suc n) (hasTy gamma t A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Computable (suc n) (closedSubJ sigma (termEq gamma t u A)))
+         -> Computable n (closedSubJ sigma (termEq gamma t u A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Computable (suc n) (closedEqSubJ sigma tau (termEq gamma t u A)))
+         -> Computable n (closedEqSubJ sigma tau (termEq gamma t u A)))
     -> HypComputable (suc n) (termEq gamma t u A)
 
 -- Level lifting: Computable n → Computable (suc n).

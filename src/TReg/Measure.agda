@@ -5,8 +5,9 @@ module TReg.Measure where
 open import Cubical.Foundations.Prelude
 open import Cubical.Data.Nat using (ℕ ; zero ; suc ; _+_)
 open import Cubical.Data.Nat.Properties using (max ; maxSuc)
-open import Cubical.Data.Nat.Order using (_<_ ; _≤_ ; ≤-refl ; ≤-suc ; suc-≤-suc ; ≤SumLeft ; ≤SumRight ; <-wellfounded ; maxLUB)
+open import Cubical.Data.Nat.Order using (_<_ ; _≤_ ; ≤-refl ; ≤-suc ; suc-≤-suc ; ≤SumLeft ; ≤SumRight ; <-wellfounded ; maxLUB ; <-k+)
 open import Cubical.Induction.WellFounded using (Acc ; acc ; WellFounded)
+open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_)
 
 open import TReg.Syntax
 open import TReg.Context
@@ -132,14 +133,14 @@ outputType (typeEq _ A _) = A
 outputType (hasTy _ _ A) = A
 outputType (termEq _ _ _ A) = A
 
--- The SCC 2 task measure: just tyDepth of the output type.
--- This is substitution-invariant (tyDepth-subTy) and weakening-invariant
--- (tyDepth-wkTy). The Acc parameter based on this handles the tyDepth-crossing
--- calls (fSigma head, fEq/fQtr components). Same-tyDepth calls (reflTy, symTy,
--- transTy, substTyRule, weakenTy, conv, etc.) are structurally decreasing on
--- the derivation and handled by Agda's SCT.
+-- The SCC 2 task measure: just derivSize.
+-- Every direct sub-derivation has strictly smaller derivSize (by structural
+-- induction on the Derivable constructors), so the sum is unnecessary.
+-- For cases like `conv` where the output type can change unrelated to the
+-- parent, derivSize still strictly decreases on the recursive call, while
+-- tyDepth has no useful relationship.
 substTaskMeasure : {J : JForm} -> Derivable J -> ℕ
-substTaskMeasure {J = J} _ = tyDepth (outputType J)
+substTaskMeasure d = derivSize d
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Decrease lemmas for substTaskMeasure
@@ -173,21 +174,13 @@ derivSize-sub-suc-right< {n} {m} = suc-≤-suc (≤SumRight {m} {n})
 -- substTaskMeasure decrease lemmas
 -- ═══════════════════════════════════════════════════════════════════
 
--- KEY LEMMA: If tyDepth of the output type strictly decreases,
--- substTaskMeasure decreases. With the simplified measure (just tyDepth),
--- this is trivial.
-substMeasure-tyDepth< : {J₁ J₂ : JForm}
+-- KEY LEMMA: If derivSize strictly decreases, substTaskMeasure strictly decreases.
+-- Since substTaskMeasure = derivSize, this is direct.
+substMeasure-derivSize< : {J₁ J₂ : JForm}
   -> (d₁ : Derivable J₁) -> (d₂ : Derivable J₂)
-  -> tyDepth (outputType J₁) < tyDepth (outputType J₂)
+  -> derivSize d₁ < derivSize d₂
   -> substTaskMeasure d₁ < substTaskMeasure d₂
-substMeasure-tyDepth< _ _ p = p
-
--- Same tyDepth implies same substTaskMeasure (for sub-witnesses with refl)
-substMeasure-sameTyDepth : {J₁ J₂ : JForm}
-  -> (d₁ : Derivable J₁) -> (d₂ : Derivable J₂)
-  -> tyDepth (outputType J₁) ≡ tyDepth (outputType J₂)
-  -> substTaskMeasure d₁ ≡ substTaskMeasure d₂
-substMeasure-sameTyDepth _ _ p = p
+substMeasure-derivSize< _ _ p = p
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Concrete decrease lemmas for SCC 2 cases
@@ -224,3 +217,211 @@ tyDepth-renTy rho (tyQtr A) = cong suc (tyDepth-renTy rho A)
 
 tyDepth-wkTy : (k : ℕ) -> (A : RawType) -> tyDepth (wkTyBy k A) ≡ tyDepth A
 tyDepth-wkTy k A = tyDepth-renTy (addRen k) A
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Per-constructor convenience lemmas: substTaskMeasure d' < substTaskMeasure d
+-- ═══════════════════════════════════════════════════════════════════
+-- Each of these packages a specific "sub-derivation" decrease into a
+-- single <-proof on substTaskMeasure. They are used as the decrease witnesses
+-- inside the Acc sub-witness construction `rs _ <proof>`.
+
+-- Per-constructor convenience lemmas. Each proves the recursive sub-derivation
+-- has strictly smaller derivSize than its parent.
+
+substMeasure-fSigma-head< : {gamma : Ctx} {A B : RawType}
+  -> (dA : Derivable (isType gamma A)) -> (dB : Derivable (isType (A ∷ gamma) B))
+  -> substTaskMeasure dA < substTaskMeasure (fSigma dA dB)
+substMeasure-fSigma-head< dA dB =
+  suc-≤-suc (≤SumLeft {derivSize dA} {derivSize dB})
+
+-- derivSize (fEq dA da db) = suc ((derivSize dA + derivSize da) + derivSize db)
+fEqLeft-size≤ : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+  -> (dA : Derivable (isType gamma A)) -> (da : Derivable (hasTy gamma a A)) -> (db : Derivable (hasTy gamma b A))
+  -> derivSize dA + derivSize da ≤ derivSize dA + derivSize da + derivSize db
+fEqLeft-size≤ dA da db =
+  ≤SumLeft {derivSize dA + derivSize da} {derivSize db}
+
+substMeasure-fEq-base< : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+  -> (dA : Derivable (isType gamma A)) -> (da : Derivable (hasTy gamma a A)) -> (db : Derivable (hasTy gamma b A))
+  -> substTaskMeasure dA < substTaskMeasure (fEq dA da db)
+substMeasure-fEq-base< dA da db =
+  suc-≤-suc (≤-trans (≤SumLeft {derivSize dA} {derivSize da}) (fEqLeft-size≤ dA da db))
+
+substMeasure-fEq-leftTm< : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+  -> (dA : Derivable (isType gamma A)) -> (da : Derivable (hasTy gamma a A)) -> (db : Derivable (hasTy gamma b A))
+  -> substTaskMeasure da < substTaskMeasure (fEq dA da db)
+substMeasure-fEq-leftTm< dA da db =
+  suc-≤-suc (≤-trans (≤SumRight {derivSize da} {derivSize dA}) (fEqLeft-size≤ dA da db))
+
+substMeasure-fEq-rightTm< : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+  -> (dA : Derivable (isType gamma A)) -> (da : Derivable (hasTy gamma a A)) -> (db : Derivable (hasTy gamma b A))
+  -> substTaskMeasure db < substTaskMeasure (fEq dA da db)
+substMeasure-fEq-rightTm< dA da db =
+  suc-≤-suc (≤SumRight {derivSize db} {derivSize dA + derivSize da})
+
+substMeasure-fQtr-base< : {gamma : Ctx} {A : RawType}
+  -> (dA : Derivable (isType gamma A))
+  -> substTaskMeasure dA < substTaskMeasure (fQtr dA)
+substMeasure-fQtr-base< dA = ≤-refl
+
+-- Structural same-constructor sub-derivation lemmas for weakenTy/substTyRule/
+-- conv/reflTy/symTy/transTy/convEq etc. Each one derivSize-strictly-decreases.
+substMeasure-weakenTy< : {gamma delta : Ctx} {A : RawType}
+  -> (d : Derivable (isType gamma A)) -> (wf : CtxWF (delta ++ gamma))
+  -> substTaskMeasure d < substTaskMeasure (weakenTy d wf)
+substMeasure-weakenTy< d wf =
+  suc-≤-suc (≤SumLeft {derivSize d} {ctxWFSize wf})
+
+substMeasure-weakenTyEq< : {gamma delta : Ctx} {A B : RawType}
+  -> (d : Derivable (typeEq gamma A B)) -> (wf : CtxWF (delta ++ gamma))
+  -> substTaskMeasure d < substTaskMeasure (weakenTyEq d wf)
+substMeasure-weakenTyEq< d wf =
+  suc-≤-suc (≤SumLeft {derivSize d} {ctxWFSize wf})
+
+substMeasure-weakenTm< : {gamma delta : Ctx} {t : RawTerm} {A : RawType}
+  -> (d : Derivable (hasTy gamma t A)) -> (wf : CtxWF (delta ++ gamma))
+  -> substTaskMeasure d < substTaskMeasure (weakenTm d wf)
+substMeasure-weakenTm< d wf =
+  suc-≤-suc (≤SumLeft {derivSize d} {ctxWFSize wf})
+
+substMeasure-weakenTmEq< : {gamma delta : Ctx} {t u : RawTerm} {A : RawType}
+  -> (d : Derivable (termEq gamma t u A)) -> (wf : CtxWF (delta ++ gamma))
+  -> substTaskMeasure d < substTaskMeasure (weakenTmEq d wf)
+substMeasure-weakenTmEq< d wf =
+  suc-≤-suc (≤SumLeft {derivSize d} {ctxWFSize wf})
+
+substMeasure-substTyRule< : {gamma delta : Ctx} {sigma : Subst} {A : RawType}
+  -> (d : Derivable (isType delta A)) -> (fits : FitsSubst gamma delta sigma)
+  -> substTaskMeasure d < substTaskMeasure (substTyRule d fits)
+substMeasure-substTyRule< d fits =
+  suc-≤-suc (≤SumLeft {derivSize d} {fitsSize fits})
+
+substMeasure-substTyEqRule< : {gamma delta : Ctx} {sigma : Subst} {A B : RawType}
+  -> (d : Derivable (typeEq delta A B)) -> (fits : FitsSubst gamma delta sigma)
+  -> substTaskMeasure d < substTaskMeasure (substTyEqRule d fits)
+substMeasure-substTyEqRule< d fits =
+  suc-≤-suc (≤SumLeft {derivSize d} {fitsSize fits})
+
+substMeasure-substTmRule< : {gamma delta : Ctx} {sigma : Subst} {t : RawTerm} {A : RawType}
+  -> (d : Derivable (hasTy delta t A)) -> (fits : FitsSubst gamma delta sigma)
+  -> substTaskMeasure d < substTaskMeasure (substTmRule d fits)
+substMeasure-substTmRule< d fits =
+  suc-≤-suc (≤SumLeft {derivSize d} {fitsSize fits})
+
+substMeasure-substTmEqRule< : {gamma delta : Ctx} {sigma : Subst} {t u : RawTerm} {A : RawType}
+  -> (d : Derivable (termEq delta t u A)) -> (fits : FitsSubst gamma delta sigma)
+  -> substTaskMeasure d < substTaskMeasure (substTmEqRule d fits)
+substMeasure-substTmEqRule< d fits =
+  suc-≤-suc (≤SumLeft {derivSize d} {fitsSize fits})
+
+substMeasure-eqSubTyRule< : {gamma delta : Ctx} {sigma tau : Subst} {A : RawType}
+  -> (d : Derivable (isType delta A)) -> (fitsEq : FitsEqSubst gamma delta sigma tau)
+  -> substTaskMeasure d < substTaskMeasure (eqSubTyRule d fitsEq)
+substMeasure-eqSubTyRule< d fitsEq =
+  suc-≤-suc (≤SumLeft {derivSize d} {fitsEqSize fitsEq})
+
+substMeasure-eqSubTyEqRule< : {gamma delta : Ctx} {sigma tau : Subst} {A B : RawType}
+  -> (d : Derivable (typeEq delta A B)) -> (fitsEq : FitsEqSubst gamma delta sigma tau)
+  -> substTaskMeasure d < substTaskMeasure (eqSubTyEqRule d fitsEq)
+substMeasure-eqSubTyEqRule< d fitsEq =
+  suc-≤-suc (≤SumLeft {derivSize d} {fitsEqSize fitsEq})
+
+substMeasure-eqSubTmRule< : {gamma delta : Ctx} {sigma tau : Subst} {t : RawTerm} {A : RawType}
+  -> (d : Derivable (hasTy delta t A)) -> (fitsEq : FitsEqSubst gamma delta sigma tau)
+  -> substTaskMeasure d < substTaskMeasure (eqSubTmRule d fitsEq)
+substMeasure-eqSubTmRule< d fitsEq =
+  suc-≤-suc (≤SumLeft {derivSize d} {fitsEqSize fitsEq})
+
+substMeasure-eqSubTmEqRule< : {gamma delta : Ctx} {sigma tau : Subst} {t u : RawTerm} {A : RawType}
+  -> (d : Derivable (termEq delta t u A)) -> (fitsEq : FitsEqSubst gamma delta sigma tau)
+  -> substTaskMeasure d < substTaskMeasure (eqSubTmEqRule d fitsEq)
+substMeasure-eqSubTmEqRule< d fitsEq =
+  suc-≤-suc (≤SumLeft {derivSize d} {fitsEqSize fitsEq})
+
+substMeasure-conv-tm< : {gamma : Ctx} {t : RawTerm} {A B : RawType}
+  -> (d : Derivable (hasTy gamma t A)) -> (dAB : Derivable (typeEq gamma A B))
+  -> substTaskMeasure d < substTaskMeasure (conv d dAB)
+substMeasure-conv-tm< d dAB =
+  suc-≤-suc (≤SumLeft {derivSize d} {derivSize dAB})
+
+substMeasure-conv-tyEq< : {gamma : Ctx} {t : RawTerm} {A B : RawType}
+  -> (d : Derivable (hasTy gamma t A)) -> (dAB : Derivable (typeEq gamma A B))
+  -> substTaskMeasure dAB < substTaskMeasure (conv d dAB)
+substMeasure-conv-tyEq< d dAB =
+  suc-≤-suc (≤SumRight {derivSize dAB} {derivSize d})
+
+substMeasure-convEq-tm< : {gamma : Ctx} {t u : RawTerm} {A B : RawType}
+  -> (d : Derivable (termEq gamma t u A)) -> (dAB : Derivable (typeEq gamma A B))
+  -> substTaskMeasure d < substTaskMeasure (convEq d dAB)
+substMeasure-convEq-tm< d dAB =
+  suc-≤-suc (≤SumLeft {derivSize d} {derivSize dAB})
+
+substMeasure-convEq-tyEq< : {gamma : Ctx} {t u : RawTerm} {A B : RawType}
+  -> (d : Derivable (termEq gamma t u A)) -> (dAB : Derivable (typeEq gamma A B))
+  -> substTaskMeasure dAB < substTaskMeasure (convEq d dAB)
+substMeasure-convEq-tyEq< d dAB =
+  suc-≤-suc (≤SumRight {derivSize dAB} {derivSize d})
+
+substMeasure-reflTy< : {gamma : Ctx} {A : RawType}
+  -> (d : Derivable (isType gamma A))
+  -> substTaskMeasure d < substTaskMeasure (reflTy d)
+substMeasure-reflTy< d = ≤-refl
+
+substMeasure-reflTm< : {gamma : Ctx} {t : RawTerm} {A : RawType}
+  -> (d : Derivable (hasTy gamma t A))
+  -> substTaskMeasure d < substTaskMeasure (reflTm d)
+substMeasure-reflTm< d = ≤-refl
+
+substMeasure-symTy-left< : {gamma : Ctx} {A B : RawType}
+  -> (d : Derivable (typeEq gamma A B)) -> (dB : Derivable (isType gamma B))
+  -> substTaskMeasure d < substTaskMeasure (symTy d dB)
+substMeasure-symTy-left< d dB =
+  suc-≤-suc (≤SumLeft {derivSize d} {derivSize dB})
+
+substMeasure-symTy-right< : {gamma : Ctx} {A B : RawType}
+  -> (d : Derivable (typeEq gamma A B)) -> (dB : Derivable (isType gamma B))
+  -> substTaskMeasure dB < substTaskMeasure (symTy d dB)
+substMeasure-symTy-right< d dB =
+  suc-≤-suc (≤SumRight {derivSize dB} {derivSize d})
+
+substMeasure-symTm-eq< : {gamma : Ctx} {t u : RawTerm} {A : RawType}
+  -> (d : Derivable (termEq gamma t u A)) -> (du : Derivable (hasTy gamma u A)) -> (dA : Derivable (isType gamma A))
+  -> substTaskMeasure d < substTaskMeasure (symTm d du dA)
+substMeasure-symTm-eq< d du dA =
+  suc-≤-suc (≤-trans (≤SumLeft {derivSize d} {derivSize du}) (≤SumLeft {derivSize d + derivSize du} {derivSize dA}))
+
+substMeasure-symTm-right< : {gamma : Ctx} {t u : RawTerm} {A : RawType}
+  -> (d : Derivable (termEq gamma t u A)) -> (du : Derivable (hasTy gamma u A)) -> (dA : Derivable (isType gamma A))
+  -> substTaskMeasure du < substTaskMeasure (symTm d du dA)
+substMeasure-symTm-right< d du dA =
+  suc-≤-suc (≤-trans (≤SumRight {derivSize du} {derivSize d}) (≤SumLeft {derivSize d + derivSize du} {derivSize dA}))
+
+substMeasure-symTm-ty< : {gamma : Ctx} {t u : RawTerm} {A : RawType}
+  -> (d : Derivable (termEq gamma t u A)) -> (du : Derivable (hasTy gamma u A)) -> (dA : Derivable (isType gamma A))
+  -> substTaskMeasure dA < substTaskMeasure (symTm d du dA)
+substMeasure-symTm-ty< d du dA =
+  suc-≤-suc (≤SumRight {derivSize dA} {derivSize d + derivSize du})
+
+substMeasure-transTy-left< : {gamma : Ctx} {A B C : RawType}
+  -> (d₁ : Derivable (typeEq gamma A B)) -> (d₂ : Derivable (typeEq gamma B C))
+  -> substTaskMeasure d₁ < substTaskMeasure (transTy d₁ d₂)
+substMeasure-transTy-left< d₁ d₂ =
+  suc-≤-suc (≤SumLeft {derivSize d₁} {derivSize d₂})
+
+substMeasure-transTy-right< : {gamma : Ctx} {A B C : RawType}
+  -> (d₁ : Derivable (typeEq gamma A B)) -> (d₂ : Derivable (typeEq gamma B C))
+  -> substTaskMeasure d₂ < substTaskMeasure (transTy d₁ d₂)
+substMeasure-transTy-right< d₁ d₂ =
+  suc-≤-suc (≤SumRight {derivSize d₂} {derivSize d₁})
+
+substMeasure-transTm-left< : {gamma : Ctx} {t u v : RawTerm} {A : RawType}
+  -> (d₁ : Derivable (termEq gamma t u A)) -> (d₂ : Derivable (termEq gamma u v A))
+  -> substTaskMeasure d₁ < substTaskMeasure (transTm d₁ d₂)
+substMeasure-transTm-left< d₁ d₂ =
+  suc-≤-suc (≤SumLeft {derivSize d₁} {derivSize d₂})
+
+substMeasure-transTm-right< : {gamma : Ctx} {t u v : RawTerm} {A : RawType}
+  -> (d₁ : Derivable (termEq gamma t u A)) -> (d₂ : Derivable (termEq gamma u v A))
+  -> substTaskMeasure d₂ < substTaskMeasure (transTm d₁ d₂)
+substMeasure-transTm-right< d₁ d₂ =
+  suc-≤-suc (≤SumRight {derivSize d₂} {derivSize d₁})
