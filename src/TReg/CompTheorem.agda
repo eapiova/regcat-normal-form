@@ -195,6 +195,13 @@ composeOneBinderEqNR {gamma = gamma} {A = A} {sigma = sigma} {tau₁ = tau₁} {
 --   sigmaTyFamHypClosed is restructured (e.g. via inversion records with
 --   a decrease witness on dB, or by moving to post-mutual with TERMINATING
 --   scoped to just those 2 functions via a separate mutual block).
+--
+-- Phase E status (2026-04-18): Sigma-family cycle BROKEN via lex-fst decrease.
+-- Without TERMINATING, Agda now reports Phase D cycles involving
+-- composeCompFits/openHypTm1 where lambda-body calls cannot be traced by SCT
+-- across closure application boundaries. These require further architectural
+-- work (e.g. inlining closures at pattern-match sites) that is out of Phase E's
+-- scope. TERMINATING retained for this subset.
 {-# TERMINATING #-}
 mutual
   substDerivTyCompCF : {n : ℕ} -> {gamma : Ctx} {A : RawType} {sigma : Subst}
