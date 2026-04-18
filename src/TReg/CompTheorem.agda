@@ -874,7 +874,7 @@ mutual
     bodyEqD =
       convEqCl
         branchEqPair
-        (compSingleEqSubstTyClosed compM compLeftCorrSym)
+        (compSingleEqSubstTyClosed compM compLeftCorrSym (LexLt-wf _))
   
     bodyLeft : Computable n
       (hasTy []
@@ -1617,7 +1617,7 @@ mutual
     bodyEqP =
       convEqCl
         bodyEqClassA
-        (compSingleEqSubstTyClosed compL (symCl compLeftCorr))
+        (compSingleEqSubstTyClosed compL (symCl compLeftCorr) (LexLt-wf _))
   
     bodyLeft : Computable n
       (hasTy []
@@ -4086,7 +4086,7 @@ mutual
       compb = compTmEqLeft compbd
       compdA = compTmEqRightClosed compbd
       compd =
-        compConvTmClosed compdA (compSingleEqSubstTyClosed compB compac)
+        compConvTmClosed compdA (compSingleEqSubstTyClosed compB compac (LexLt-wf _))
       compPairLeft = compISigmaClosed compa compb (compFSigmaClosed compA (hypCompToDerivable compB))
       compPairRight = compISigmaClosed compcA compd (compFSigmaClosed compA (hypCompToDerivable compB))
     in
@@ -5539,7 +5539,12 @@ mutual
       compb = compTmEqLeft compbd
       compdA = compTmEqRightClosed compbd
       compd =
-        compConvTmClosed compdA (compSingleEqSubstTyClosed compBσ compac)
+        compConvTmClosed compdA
+          (compSingleEqSubstTyClosed compBσ compac
+            (rs _ (lex-fst
+              (subst (λ m → m < tyDepth (tySigma A B))
+                (sym (tyDepth-subTy (liftSubst sigma) B))
+                (tyDepth-snd<Sigma A B)))))
       compPairLeft = compISigmaClosed compa compb compSigma
       compPairRight = compISigmaClosed compcA compd compSigma
     in
@@ -6112,7 +6117,7 @@ mutual
       compb = compTmEqLeft compbd
       compdA = compTmEqRightClosed compbd
       compd =
-        compConvTmClosed compdA (compSingleEqSubstTyClosed compB compac)
+        compConvTmClosed compdA (compSingleEqSubstTyClosed compB compac (LexLt-wf _))
       compPairLeft = compISigmaClosed compa compb (compFSigmaClosed compA (hypCompToDerivable compB))
       compPairRight = compISigmaClosed compcA compd (compFSigmaClosed compA (hypCompToDerivable compB))
     in
@@ -6625,14 +6630,15 @@ mutual
   
   mkHypComputableTy : {n : ℕ} -> {gamma : Ctx} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
-    -> Derivable (isType gamma A)
+    -> (d : Derivable (isType gamma A))
+    -> Acc LexLt (substTaskLexMeasure d)
     -> HypComputable (suc n) (isType gamma A)
-  mkHypComputableTy {n} neq d =
+  mkHypComputableTy {n} neq d acc0 =
     hypTyOpen
       neq
       d
-      (λ sigma fits cFits accD -> substDerivTyCompCF d fits cFits accD)
-      (λ sigma tau fitsEq cFitsEq accD -> eqSubDerivTyCompCF d fitsEq cFitsEq accD)
+      (λ sigma fits cFits _ -> substDerivTyCompCF d fits cFits acc0)
+      (λ sigma tau fitsEq cFitsEq _ -> eqSubDerivTyCompCF d fitsEq cFitsEq acc0)
 
   leftTyWitnessEq : {gamma : Ctx} {A B : RawType}
     -> Derivable (typeEq gamma A B)
@@ -6686,7 +6692,7 @@ mutual
     hypTyEqOpen
       neq
       d
-      (mkHypComputableTy neq (leftTyWitnessEq d))
+      (mkHypComputableTy neq (leftTyWitnessEq d) (LexLt-wf _))
       (λ sigma fits cFits accD -> substDerivTyEqCompCF d fits cFits accD)
       (λ sigma tau fitsEq cFitsEq accD -> eqSubDerivTyEqCompCF d fitsEq cFitsEq accD)
   
@@ -6719,7 +6725,7 @@ mutual
   hypComputableTy : {n : ℕ} -> {A B : RawType} {gamma : Ctx}
     -> Derivable (isType (B ∷ gamma) A)
     -> HypComputable (suc n) (isType (B ∷ gamma) A)
-  hypComputableTy {n} = mkHypComputableTy nonemptyNeNil
+  hypComputableTy {n} d = mkHypComputableTy nonemptyNeNil d (LexLt-wf _)
   
   hypComputableTyEq : {n : ℕ} -> {A B C : RawType} {gamma : Ctx}
     -> Derivable (typeEq (C ∷ gamma) A B)
@@ -7340,7 +7346,7 @@ mutual
         compc = compTmEqLeft compcf
         compfA = compTmEqRightClosed compcf
         compf =
-          compConvTmClosed compfA (compSingleEqSubstTyClosed compBσ compbe)
+          compConvTmClosed compfA (compSingleEqSubstTyClosed compBσ compbe (LexLt-wf _))
         compPairLeft = compISigmaClosed compb compc compSigma
         compPairRight = compISigmaClosed compeA compf compSigma
         compPairEq =
@@ -7389,7 +7395,7 @@ mutual
       -> HypComputable (suc n) (isType (A ∷ []) B)
     sigmaTyFamHypClosed
       {n} (compTyClosedSigma {B = A} {C = B} _ evalSigma _ _ dB) =
-      mkHypComputableTy nonemptyNeNil dB
+      mkHypComputableTy nonemptyNeNil dB (LexLt-wf _)
     sigmaTyFamHypClosed (compTyClosedTop _ () _)
     sigmaTyFamHypClosed (compTyClosedEq _ () _ _ _ _)
     sigmaTyFamHypClosed (compTyClosedQtr _ () _ _)
@@ -7399,7 +7405,7 @@ mutual
       -> Computable n (termEq [] t u A)
       -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst u) B))
     sigmaTyFamEqSubClosed {n} compSigma comptu =
-      compSingleEqSubstTyClosed (sigmaTyFamHypClosed compSigma) comptu
+      compSingleEqSubstTyClosed (sigmaTyFamHypClosed compSigma) comptu (LexLt-wf _)
   
   compConvTmClosedAcc : {n : ℕ} -> {t : RawTerm} {A B : RawType}
     -> Computable n (hasTy [] t A)
@@ -7446,7 +7452,7 @@ mutual
             {A = subTy (singleSubst sigmaTmFst) D} {B = tySigma C D}
             (subTySigmaFamilyDepth< (singleSubst sigmaTmFst) C D)))
       compaE = compConvTmClosedAcc sigmaTmCompFst compCE acFst
-      compDFa = compSingleSubstTyEqClosed (hypComputableTyEq dDF) sigmaTmCompFst
+      compDFa = compSingleSubstTyEqClosed (hypComputableTyEq dDF) sigmaTmCompFst (LexLt-wf _)
       compbF = compConvTmClosedAcc sigmaTmCompSnd compDFa acSnd
     in
     compTmClosedSigma
@@ -7592,7 +7598,7 @@ mutual
       compLeftB = compConvTmClosedAcc compLeftA compAB' acSame
       compRightB = compConvTmClosedAcc compRightA compAB' acSame
       compFstE = compConvTmEqClosedAcc sigmaTmEqCompFst compCE acFst
-      compDFa = compSingleSubstTyEqClosed (hypComputableTyEq dDF) (compTmEqLeft sigmaTmEqCompFst)
+      compDFa = compSingleSubstTyEqClosed (hypComputableTyEq dDF) (compTmEqLeft sigmaTmEqCompFst) (LexLt-wf _)
       compSndF = compConvTmEqClosedAcc sigmaTmEqCompSnd compDFa acSnd
     in
     compTmEqClosedSigma

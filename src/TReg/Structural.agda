@@ -293,23 +293,25 @@ sigmaCompComputableFitsEqHelper {n} {A = A} {B = B} {b = b} {c = c} {e = e} {f =
       compcf
 
 compSingleSubstTyEqClosed : {n : ℕ} -> {A B C : RawType} {t : RawTerm}
-  -> HypComputable (suc n) (typeEq (A ∷ []) B C)
+  -> (hyp : HypComputable (suc n) (typeEq (A ∷ []) B C))
   -> Computable n (hasTy [] t A)
+  -> Acc LexLt (substTaskLexMeasure (hypCompToDerivable hyp))
   -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst t) C))
-compSingleSubstTyEqClosed {t = t} (hypTyEqOpen _ _ _ sub _) compt =
+compSingleSubstTyEqClosed {t = t} (hypTyEqOpen _ _ _ sub _) compt accH =
   sub (singleSubst t)
     (fst (singleComputableFitsSubstHelper compt))
     (snd (singleComputableFitsSubstHelper compt))
-    (LexLt-wf _)
+    accH
 
 compSingleEqSubstTyClosed : {n : ℕ} -> {A B : RawType} {t u : RawTerm}
-  -> HypComputable (suc n) (isType (A ∷ []) B)
+  -> (hyp : HypComputable (suc n) (isType (A ∷ []) B))
   -> Computable n (termEq [] t u A)
+  -> Acc LexLt (substTaskLexMeasure (hypCompToDerivable hyp))
   -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst u) B))
-compSingleEqSubstTyClosed {t = t} {u = u} (hypTyOpen _ _ _ subEq) comptu =
+compSingleEqSubstTyClosed {t = t} {u = u} (hypTyOpen _ _ _ subEq) comptu accH =
   subEq
     (singleSubst t)
     (singleSubst u)
     (fst (singleComputableFitsEqSubstHelper comptu))
     (snd (singleComputableFitsEqSubstHelper comptu))
-    (LexLt-wf _)
+    accH
