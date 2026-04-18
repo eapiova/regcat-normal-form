@@ -5,6 +5,8 @@ module TReg.Computability where
 open import Cubical.Foundations.Prelude
 open import Cubical.Data.Empty.Base using (⊥)
 open import Cubical.Data.Nat using (ℕ ; zero ; suc)
+open import Cubical.Data.Nat.Order using (_<_)
+open import Cubical.Induction.WellFounded using (Acc)
 open import Cubical.Data.Sigma using (Σ-syntax)
 open import Cubical.Data.List.Base using ([] ; _∷_)
 
@@ -13,6 +15,7 @@ open import TReg.Context
 open import TReg.Substitution
 open import TReg.Evaluation
 open import TReg.Derivability
+open import TReg.Measure using (derivSize)
 
 closedSubJ : Subst -> JForm -> JForm
 closedSubJ sigma (isType gamma A) = isType [] (subTy sigma A)
@@ -213,48 +216,56 @@ data ComputableFitsEq (n : ℕ) : {gamma : Ctx} {sigma tau : Subst}
 data HypComputable : ℕ -> JForm -> Type where
   hypTyOpen : {n : ℕ} {gamma : Ctx} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
-    -> Derivable (isType gamma A)
+    -> (d : Derivable (isType gamma A))
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
+         -> Acc _<_ (derivSize d)
          -> Computable n (closedSubJ sigma (isType gamma A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
+         -> Acc _<_ (derivSize d)
          -> Computable n (closedEqSubJ sigma tau (isType gamma A)))
     -> HypComputable (suc n) (isType gamma A)
 
   hypTyEqOpen : {n : ℕ} {gamma : Ctx} {A B : RawType}
     -> ((gamma ≡ []) -> ⊥)
-    -> Derivable (typeEq gamma A B)
+    -> (d : Derivable (typeEq gamma A B))
     -> HypComputable (suc n) (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
+         -> Acc _<_ (derivSize d)
          -> Computable n (closedSubJ sigma (typeEq gamma A B)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
+         -> Acc _<_ (derivSize d)
          -> Computable n (closedEqSubJ sigma tau (typeEq gamma A B)))
     -> HypComputable (suc n) (typeEq gamma A B)
 
   hypTmOpen : {n : ℕ} {gamma : Ctx} {t : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
-    -> Derivable (hasTy gamma t A)
+    -> (d : Derivable (hasTy gamma t A))
     -> HypComputable (suc n) (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
+         -> Acc _<_ (derivSize d)
          -> Computable n (closedSubJ sigma (hasTy gamma t A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
+         -> Acc _<_ (derivSize d)
          -> Computable n (closedEqSubJ sigma tau (hasTy gamma t A)))
     -> HypComputable (suc n) (hasTy gamma t A)
 
   hypTmEqOpen : {n : ℕ} {gamma : Ctx} {t u : RawTerm} {A : RawType}
     -> ((gamma ≡ []) -> ⊥)
-    -> Derivable (termEq gamma t u A)
+    -> (d : Derivable (termEq gamma t u A))
     -> HypComputable (suc n) (hasTy gamma t A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
+         -> Acc _<_ (derivSize d)
          -> Computable n (closedSubJ sigma (termEq gamma t u A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
+         -> Acc _<_ (derivSize d)
          -> Computable n (closedEqSubJ sigma tau (termEq gamma t u A)))
     -> HypComputable (suc n) (termEq gamma t u A)
 
