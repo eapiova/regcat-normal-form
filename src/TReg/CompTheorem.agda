@@ -201,56 +201,56 @@ mutual
     -> (d : Derivable (isType gamma A))
     -> (fits : FitsSubst [] gamma sigma)
     -> ComputableFits n fits
-    -> Acc _<_ (substTaskMeasure d)
+    -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (isType [] (subTy sigma A))
 
   substDerivTmCompCF : {n : ℕ} -> {gamma : Ctx} {t : RawTerm} {A : RawType} {sigma : Subst}
     -> (d : Derivable (hasTy gamma t A))
     -> (fits : FitsSubst [] gamma sigma)
     -> ComputableFits n fits
-    -> Acc _<_ (substTaskMeasure d)
+    -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (hasTy [] (subTm sigma t) (subTy sigma A))
 
   substDerivTmEqCompCF : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType} {sigma : Subst}
     -> (d : Derivable (termEq gamma t u A))
     -> (fits : FitsSubst [] gamma sigma)
     -> ComputableFits n fits
-    -> Acc _<_ (substTaskMeasure d)
+    -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (termEq [] (subTm sigma t) (subTm sigma u) (subTy sigma A))
 
   eqSubDerivTyCompCF : {n : ℕ} -> {gamma : Ctx} {A : RawType} {sigma tau : Subst}
     -> (d : Derivable (isType gamma A))
     -> (fitsEq : FitsEqSubst [] gamma sigma tau)
     -> ComputableFitsEq n fitsEq
-    -> Acc _<_ (substTaskMeasure d)
+    -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (typeEq [] (subTy sigma A) (subTy tau A))
 
   eqSubDerivTmCompCF : {n : ℕ} -> {gamma : Ctx} {t : RawTerm} {A : RawType} {sigma tau : Subst}
     -> (d : Derivable (hasTy gamma t A))
     -> (fitsEq : FitsEqSubst [] gamma sigma tau)
     -> ComputableFitsEq n fitsEq
-    -> Acc _<_ (substTaskMeasure d)
+    -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A))
 
   eqSubDerivTmEqCompCF : {n : ℕ} -> {gamma : Ctx} {t u : RawTerm} {A : RawType} {sigma tau : Subst}
     -> (d : Derivable (termEq gamma t u A))
     -> (fitsEq : FitsEqSubst [] gamma sigma tau)
     -> ComputableFitsEq n fitsEq
-    -> Acc _<_ (substTaskMeasure d)
+    -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (termEq [] (subTm sigma t) (subTm tau u) (subTy sigma A))
 
   substDerivTyEqCompCF : {n : ℕ} -> {gamma : Ctx} {A B : RawType} {sigma : Subst}
     -> (d : Derivable (typeEq gamma A B))
     -> (fits : FitsSubst [] gamma sigma)
     -> ComputableFits n fits
-    -> Acc _<_ (substTaskMeasure d)
+    -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (typeEq [] (subTy sigma A) (subTy sigma B))
 
   eqSubDerivTyEqCompCF : {n : ℕ} -> {gamma : Ctx} {A B : RawType} {sigma tau : Subst}
     -> (d : Derivable (typeEq gamma A B))
     -> (fitsEq : FitsEqSubst [] gamma sigma tau)
     -> ComputableFitsEq n fitsEq
-    -> Acc _<_ (substTaskMeasure d)
+    -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (typeEq [] (subTy sigma A) (subTy tau B))
   
   substDerivTmCompClosed : {n : ℕ} -> {t : RawTerm} {A : RawType}

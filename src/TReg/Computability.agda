@@ -15,7 +15,7 @@ open import TReg.Context
 open import TReg.Substitution
 open import TReg.Evaluation
 open import TReg.Derivability
-open import TReg.Measure using (derivSize)
+open import TReg.Measure using (derivSize ; LexLt ; substTaskLexMeasure)
 
 closedSubJ : Subst -> JForm -> JForm
 closedSubJ sigma (isType gamma A) = isType [] (subTy sigma A)
@@ -219,11 +219,11 @@ data HypComputable : ℕ -> JForm -> Type where
     -> (d : Derivable (isType gamma A))
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Acc _<_ (derivSize d)
+         -> Acc LexLt (substTaskLexMeasure d)
          -> Computable n (closedSubJ sigma (isType gamma A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Acc _<_ (derivSize d)
+         -> Acc LexLt (substTaskLexMeasure d)
          -> Computable n (closedEqSubJ sigma tau (isType gamma A)))
     -> HypComputable (suc n) (isType gamma A)
 
@@ -233,11 +233,11 @@ data HypComputable : ℕ -> JForm -> Type where
     -> HypComputable (suc n) (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Acc _<_ (derivSize d)
+         -> Acc LexLt (substTaskLexMeasure d)
          -> Computable n (closedSubJ sigma (typeEq gamma A B)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Acc _<_ (derivSize d)
+         -> Acc LexLt (substTaskLexMeasure d)
          -> Computable n (closedEqSubJ sigma tau (typeEq gamma A B)))
     -> HypComputable (suc n) (typeEq gamma A B)
 
@@ -247,11 +247,11 @@ data HypComputable : ℕ -> JForm -> Type where
     -> HypComputable (suc n) (isType gamma A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Acc _<_ (derivSize d)
+         -> Acc LexLt (substTaskLexMeasure d)
          -> Computable n (closedSubJ sigma (hasTy gamma t A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Acc _<_ (derivSize d)
+         -> Acc LexLt (substTaskLexMeasure d)
          -> Computable n (closedEqSubJ sigma tau (hasTy gamma t A)))
     -> HypComputable (suc n) (hasTy gamma t A)
 
@@ -261,11 +261,11 @@ data HypComputable : ℕ -> JForm -> Type where
     -> HypComputable (suc n) (hasTy gamma t A)
     -> ((sigma : Subst) (fits : FitsSubst [] gamma sigma)
          -> ComputableFits n fits
-         -> Acc _<_ (derivSize d)
+         -> Acc LexLt (substTaskLexMeasure d)
          -> Computable n (closedSubJ sigma (termEq gamma t u A)))
     -> ((sigma tau : Subst) (fitsEq : FitsEqSubst [] gamma sigma tau)
          -> ComputableFitsEq n fitsEq
-         -> Acc _<_ (derivSize d)
+         -> Acc LexLt (substTaskLexMeasure d)
          -> Computable n (closedEqSubJ sigma tau (termEq gamma t u A)))
     -> HypComputable (suc n) (termEq gamma t u A)
 
