@@ -742,12 +742,12 @@ mutual
          -> Computable n (termEq [] t u U))
     -> HypComputable (suc n) (isType ((tySigma A B) ∷ []) M)
     -> Computable n (termEq [] d d' (tySigma A B))
-    -> HypComputable (suc n) (termEq (B ∷ A ∷ []) m m' (sigmaBranchTy M))
+    -> (dmm' : Derivable (termEq (B ∷ A ∷ []) m m' (sigmaBranchTy M)))
+    -> Acc _<_ (substTaskMeasure dmm')
     -> Computable n
          (termEq [] (tmElSigma d m) (tmElSigma d' m') (subTy (singleSubst d) M))
   compESigmaClosed {n} {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'}
-    transCl convEqCl compM compdd'
-    compmm'@(hypTmEqOpen neq dll' compBranchTy sub subEq) =
+    transCl convEqCl compM compdd' dmm' accDmm' =
     transCl leftCan (transCl bodyEqD rightCanSym)
     where
     open ClosedSigmaTmEqInv (invertSigmaTmEq compdd' evalSigma)
@@ -826,11 +826,7 @@ mutual
               (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
               T))
         (sigmaBranchTyComp sigmaTmEqLeftFst sigmaTmEqLeftSnd M)
-        (subEq
-          (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd)
-          (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd)
-          (fst branchFitsEq)
-          (snd branchFitsEq))
+        (eqSubDerivTmEqCompCF dmm' (fst branchFitsEq) (snd branchFitsEq) accDmm')
   
     bodyEqD : Computable n
       (termEq []
@@ -858,10 +854,10 @@ mutual
     dM = hypCompToDerivable compM
   
     dm : Derivable (hasTy (B ∷ A ∷ []) m (sigmaBranchTy M))
-    dm = assocTmLeft dll'
-  
+    dm = assocTmLeft dmm'
+
     dm' : Derivable (hasTy (B ∷ A ∷ []) m' (sigmaBranchTy M))
-    dm' = assocTmRight dll'
+    dm' = assocTmRight dmm'
   
     db : Derivable (hasTy [] sigmaTmEqLeftFst A)
     db = compToDerivable sigmaTmEqLeftCompFstTy
@@ -3099,8 +3095,42 @@ mutual
             dBσ
             compBranchTy
             dm)
-  
-      resultPath : 
+
+      -- Stage 3 v29: build raw dmm' : Derivable (termEq (B_sub ∷ A_sub ∷ []) m_sub m_sub ...).
+      -- Wraps dm with substTmRule (2-binder lift) and reflTm.
+      lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+      lifted1 =
+        subst
+          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+          (liftSubstCompKeep sigma)
+          (liftFitsOne fits dAσ)
+      lifted2 : FitsSubst
+        (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+        (liftSubst (liftSubst sigma))
+      lifted2 =
+        subst
+          (λ rho -> FitsSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma) rho)
+          (liftSubstCompKeep (liftSubst sigma))
+          (liftFits lifted1 dBσ)
+      dmSub : Derivable
+        (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+          (subTm (liftSubst (liftSubst sigma)) m)
+          (sigmaBranchTy (subTy (liftSubst sigma) M)))
+      dmSub =
+        subst
+          (λ T ->
+            Derivable (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+              (subTm (liftSubst (liftSubst sigma)) m) T))
+          (sigmaBranchTyLiftComp sigma M)
+          (substTmRule dm lifted2)
+      dmm' : Derivable
+        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+          (subTm (liftSubst (liftSubst sigma)) m)
+          (subTm (liftSubst (liftSubst sigma)) m)
+          (sigmaBranchTy (subTy (liftSubst sigma) M)))
+      dmm' = reflTm dmSub
+
+      resultPath :
         hasTy [] (subTm sigma (tmElSigma d m)) (subTy sigma (subTy (singleSubst d) M))
           ≡
         hasTy []
@@ -3119,7 +3149,7 @@ mutual
       (sym resultPath)
       (compTmEqLeft
         (compESigmaClosed compTransTmClosed compConvTmEqClosed
-          compM (compReflTm compdd) (hypReflTm compdm)))
+          compM (compReflTm compdd) dmm' (<-wellfounded _)))
   substDerivTmCompCF
     {n} {gamma = gamma} {sigma = sigma}
     (eQtr {A = A} {L = L} {l = l} {p = p} dL dp dBranch dl dcoh) fits cFits (acc rs) =
@@ -3438,7 +3468,36 @@ mutual
             dBσ
             compAssoc
             dm)
-  
+
+      -- Stage 3 v29: raw dmm' from substTmEqRule on the outer dm (gamma-level termEq).
+      lifted1dmm' : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+      lifted1dmm' =
+        subst
+          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+          (liftSubstCompKeep sigma)
+          (liftFitsOne fits dAσ)
+      lifted2dmm' : FitsSubst
+        (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+        (liftSubst (liftSubst sigma))
+      lifted2dmm' =
+        subst
+          (λ rho -> FitsSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma) rho)
+          (liftSubstCompKeep (liftSubst sigma))
+          (liftFits lifted1dmm' dBσ)
+      dmm' : Derivable
+        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+          (subTm (liftSubst (liftSubst sigma)) m)
+          (subTm (liftSubst (liftSubst sigma)) m')
+          (sigmaBranchTy (subTy (liftSubst sigma) M)))
+      dmm' =
+        subst
+          (λ T ->
+            Derivable (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+              (subTm (liftSubst (liftSubst sigma)) m)
+              (subTm (liftSubst (liftSubst sigma)) m') T))
+          (sigmaBranchTyLiftComp sigma M)
+          (substTmEqRule dm lifted2dmm')
+
       resultPath :
         termEq []
           (subTm sigma (tmElSigma d m))
@@ -3461,7 +3520,7 @@ mutual
     subst
       (λ J -> Computable n J)
       (sym resultPath)
-      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd compdm)
+      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd dmm' (<-wellfounded _))
   
   substDerivTmEqCompEQtrEq
     : {n : ℕ} -> {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm} {sigma : Subst}
@@ -5667,7 +5726,58 @@ mutual
                   dm
                   composedFitsEq
                   (fitsEqToCompFitsEq composedFitsEq) (<-wellfounded _))))
-  
+
+      -- Stage 3 v29: raw dmm' for eqSub-eSigma. Uses eqSubTmRule dm lifted2Eq + transport.
+      -- Reconstruct lifted2Eq locally (it was inside compdm's let block).
+      dmm' : Derivable
+        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+          (subTm (liftSubst (liftSubst sigma)) m)
+          (subTm (liftSubst (liftSubst tau)) m)
+          (sigmaBranchTy (subTy (liftSubst sigma) M)))
+      dmm' =
+        let
+          lifted1EqOuter :
+            FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+              (liftSubst sigma)
+              (liftSubst tau)
+          lifted1EqOuter =
+            subst
+              (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+              (liftSubstCompKeep sigma)
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                    rho)
+                (liftSubstCompKeep tau)
+                (liftFitsEqOne fitsEq dAσ))
+          lifted2EqOuter :
+            FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+              (liftSubst (liftSubst sigma))
+              (liftSubst (liftSubst tau))
+          lifted2EqOuter =
+            subst
+              (λ rho ->
+                FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                  rho
+                  (liftSubst (liftSubst tau)))
+              (liftSubstCompKeep (liftSubst sigma))
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                    rho)
+                (liftSubstCompKeep (liftSubst tau))
+                (liftFitsEq lifted1EqOuter dBσ))
+        in
+        subst
+          (λ T ->
+            Derivable (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+              (subTm (liftSubst (liftSubst sigma)) m)
+              (subTm (liftSubst (liftSubst tau)) m) T))
+          (sigmaBranchTyLiftComp sigma M)
+          (eqSubTmRule dm lifted2EqOuter)
+
       resultPath :
         termEq []
           (subTm sigma (tmElSigma d m))
@@ -5690,7 +5800,7 @@ mutual
     subst
       (λ J -> Computable n J)
       (sym resultPath)
-      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd compdm)
+      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd dmm' (<-wellfounded _))
   eqSubDerivTmCompCF
     {n} {gamma = gamma} {sigma = sigma} {tau = tau}
     (eQtr {A = A} {L = L} {l = l} {p = p} dL dp dBranch dl dcoh) fitsEq cFitsEq (acc rs) =
@@ -6283,6 +6393,56 @@ mutual
                   composedFitsEq
                   (fitsEqToCompFitsEq composedFitsEq) (<-wellfounded _))))
   
+      -- Stage 3 v29: raw dmm' for eqSub-eSigmaEq. Uses eqSubTmEqRule dm lifted2Eq + transport.
+      dmm' : Derivable
+        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+          (subTm (liftSubst (liftSubst sigma)) m)
+          (subTm (liftSubst (liftSubst tau)) m')
+          (sigmaBranchTy (subTy (liftSubst sigma) M)))
+      dmm' =
+        let
+          lifted1EqOuter :
+            FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+              (liftSubst sigma)
+              (liftSubst tau)
+          lifted1EqOuter =
+            subst
+              (λ rho -> FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma) rho (liftSubst tau))
+              (liftSubstCompKeep sigma)
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy sigma A ∷ []) (A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+                    rho)
+                (liftSubstCompKeep tau)
+                (liftFitsEqOne fitsEq dAσ))
+          lifted2EqOuter :
+            FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+              (liftSubst (liftSubst sigma))
+              (liftSubst (liftSubst tau))
+          lifted2EqOuter =
+            subst
+              (λ rho ->
+                FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                  rho
+                  (liftSubst (liftSubst tau)))
+              (liftSubstCompKeep (liftSubst sigma))
+              (subst
+                (λ rho ->
+                  FitsEqSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+                    (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                    rho)
+                (liftSubstCompKeep (liftSubst tau))
+                (liftFitsEq lifted1EqOuter dBσ))
+        in
+        subst
+          (λ T ->
+            Derivable (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+              (subTm (liftSubst (liftSubst sigma)) m)
+              (subTm (liftSubst (liftSubst tau)) m') T))
+          (sigmaBranchTyLiftComp sigma M)
+          (eqSubTmEqRule dm lifted2EqOuter)
+
       resultPath :
         termEq []
           (subTm sigma (tmElSigma d m))
@@ -6305,7 +6465,7 @@ mutual
     subst
       (λ J -> Computable n J)
       (sym resultPath)
-      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd compdm)
+      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd dmm' (<-wellfounded _))
   eqSubDerivTmEqCompCF {n} {gamma = gamma} {sigma = sigma} {tau = tau}
     (cSigma {A = A} {B = B} {M = M} {b = b} {c = c} {m = m} dM dSigma db dc dm) fitsEq cFitsEq (acc rs) =
     let
