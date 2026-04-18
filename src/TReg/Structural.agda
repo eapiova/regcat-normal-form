@@ -300,7 +300,7 @@ compSingleSubstTyEqClosed {t = t} (hypTyEqOpen _ _ _ sub _) compt =
   sub (singleSubst t)
     (fst (singleComputableFitsSubstHelper compt))
     (snd (singleComputableFitsSubstHelper compt))
-    (<-wellfounded _)
+    (LexLt-wf _)
 
 compSingleEqSubstTyClosed : {n : ℕ} -> {A B : RawType} {t u : RawTerm}
   -> HypComputable (suc n) (isType (A ∷ []) B)
@@ -312,4 +312,4 @@ compSingleEqSubstTyClosed {t = t} {u = u} (hypTyOpen _ _ _ subEq) comptu =
     (singleSubst u)
     (fst (singleComputableFitsEqSubstHelper comptu))
     (snd (singleComputableFitsEqSubstHelper comptu))
-    (<-wellfounded _)
+    (LexLt-wf _)
