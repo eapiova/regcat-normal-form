@@ -1409,18 +1409,17 @@ mutual
          -> Computable n (termEq [] t u U))
     -> HypComputable (suc n) (isType ((tyQtr A) ∷ []) L)
     -> Computable n (termEq [] p p' (tyQtr A))
-    -> HypComputable (suc n) (termEq (A ∷ []) l l' (qtrBranchTy L))
-    -> HypComputable (suc n)
-         (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
-    -> HypComputable (suc n)
-         (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L))
+    -> (dll' : Derivable (termEq (A ∷ []) l l' (qtrBranchTy L)))
+    -> Acc _<_ (substTaskMeasure dll')
+    -> (dcoh : Derivable
+         (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+    -> (dcoh' : Derivable
+         (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L)))
+    -> Acc _<_ (substTaskMeasure dcoh')
     -> Computable n
          (termEq [] (tmElQtr l p) (tmElQtr l' p') (subTy (singleSubst p) L))
   compEQtrClosed {n} {A = A} {L = L} {l = l} {l' = l'} {p = p} {p' = p'}
-    transCl symCl convEqCl compL comppp'
-    compll'@(hypTmEqOpen neq dll' compBranchTy sub subEq)
-    coh
-    coh'@(hypTmEqOpen neqCoh' dcoh'comp compCohTy' subCoh' subEqCoh') =
+    transCl symCl convEqCl compL comppp' dll' accDll' dcoh dcoh' accDcoh' =
     transCl leftCan (transCl bodyEqP (symCl rightCan))
     where
     open ClosedQtrTmEqInv (invertQtrTmEq comppp' evalQtr)
@@ -1462,20 +1461,12 @@ mutual
   
     dL : Derivable (isType ((tyQtr A) ∷ []) L)
     dL = hypCompToDerivable compL
-  
+
     dl : Derivable (hasTy (A ∷ []) l (qtrBranchTy L))
     dl = assocTmLeft dll'
-  
+
     dl' : Derivable (hasTy (A ∷ []) l' (qtrBranchTy L))
     dl' = assocTmRight dll'
-  
-    dcoh : Derivable
-      (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
-    dcoh = hypCompToDerivable coh
-  
-    dcoh' : Derivable
-      (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L))
-    dcoh' = hypCompToDerivable coh'
 
     dBranch : Derivable (isType (A ∷ []) (qtrBranchTy L))
     dBranch = assocTmTy dll'
@@ -1523,10 +1514,7 @@ mutual
               (subTm (qtrCompSub qtrTmEqLeftRepr) l')
               T))
         (qtrBranchTyComp qtrTmEqLeftRepr L)
-        (sub
-          (qtrCompSub qtrTmEqLeftRepr)
-          (fst branchFitsLeft)
-          (snd branchFitsLeft))
+        (substDerivTmEqCompCF dll' (fst branchFitsLeft) (snd branchFitsLeft) accDll')
   
     cohFitsRight : FitsSubst [] (wkTyBy 1 A ∷ A ∷ [])
       (consSubst qtrTmEqRightRepr (consSubst qtrTmEqLeftRepr idSubst))
@@ -1574,10 +1562,7 @@ mutual
                     (renTm qtrSecondBranchRen l'))
                   T))
             (qtrCohTyComp qtrTmEqLeftRepr qtrTmEqRightRepr L)
-            (subCoh'
-              (consSubst qtrTmEqRightRepr (consSubst qtrTmEqLeftRepr idSubst))
-              cohFitsRight
-              cohFitsRightComp)))
+            (substDerivTmEqCompCF dcoh' cohFitsRight cohFitsRightComp accDcoh')))
   
     bodyEqClassA : Computable n
       (termEq []
@@ -3321,6 +3306,9 @@ mutual
           (subTyComp sigma (singleSubst p) L
             ∙ cong (λ rho -> subTy rho L) (sym (singleSubstCompLift sigma p))
             ∙ sym (subTyComp (singleSubst (subTm sigma p)) (liftSubst sigma) L))
+      -- Stage 3 v29: extract raw Derivables + <-wellfounded for compEQtrClosed.
+      dll'OpenEQtr = reflTm (hypCompToDerivable compl)
+      dcohOpenEQtr = hypCompToDerivable compcoh
     in
     subst
       (λ J -> Computable n J)
@@ -3332,9 +3320,9 @@ mutual
           compConvTmEqClosed
           compL
           (compReflTm compdp)
-          (hypReflTm compl)
-          compcoh
-          compcoh))
+          dll'OpenEQtr (<-wellfounded _)
+          dcohOpenEQtr
+          dcohOpenEQtr (<-wellfounded _)))
   substDerivTmCompCF {n} (conv d dAB) fits cFits (acc rs) =
     compConvTmClosed
       (substDerivTmCompCF d fits cFits (rs _ (substMeasure-conv-tm< d dAB)))
@@ -3799,13 +3787,17 @@ mutual
           (subTyComp sigma (singleSubst p) L
             ∙ cong (λ rho -> subTy rho L) (sym (singleSubstCompLift sigma p))
             ∙ sym (subTyComp (singleSubst (subTm sigma p)) (liftSubst sigma) L))
+      -- Stage 3 v29: extract raw Derivables + <-wellfounded for compEQtrClosed (eQtrEq case).
+      dll'Arg = hypCompToDerivable compl
+      dcohArg = hypCompToDerivable compcoh
+      dcoh'Arg = hypCompToDerivable compcoh'
     in
     subst
       (λ J -> Computable n J)
       (sym resultPath)
       (compEQtrClosed compTransTmClosed compSymTmClosed compConvTmEqClosed
-        compL compdp compl compcoh compcoh')
-  
+        compL compdp dll'Arg (<-wellfounded _) dcohArg dcoh'Arg (<-wellfounded _))
+
   substDerivTmEqCompCQtr
     : {n : ℕ} -> {gamma : Ctx} {A L : RawType} {a l : RawTerm} {sigma : Subst}
     -> (dL : Derivable (isType ((tyQtr A) ∷ gamma) L))
@@ -5170,13 +5162,17 @@ mutual
           (subTyComp sigma (singleSubst p) L
             ∙ cong (λ rho -> subTy rho L) (sym (singleSubstCompLift sigma p))
             ∙ sym (subTyComp (singleSubst (subTm sigma p)) (liftSubst sigma) L))
+      -- Stage 3 v29: extract raw Derivables + <-wellfounded for compEQtrClosed (eqSub-eQtr case).
+      dll'Arg = hypCompToDerivable branchEq
+      dcohArg = hypCompToDerivable cohσ
+      dcoh'Arg = hypCompToDerivable cohτ
     in
     subst
       (λ J -> Computable n J)
       (sym resultPath)
       (compEQtrClosed compTransTmClosed compSymTmClosed compConvTmEqClosed
-        compL compp branchEq cohσ cohτ)
-  
+        compL compp dll'Arg (<-wellfounded _) dcohArg dcoh'Arg (<-wellfounded _))
+
   eqSubDerivTmEqCompCQtr
     : {n : ℕ} -> {gamma : Ctx} {A L : RawType} {a l : RawTerm} {sigma tau : Subst}
     -> Derivable (isType ((tyQtr A) ∷ gamma) L)
@@ -6127,12 +6123,16 @@ mutual
           (subTyComp sigma (singleSubst p) L
             ∙ cong (λ rho -> subTy rho L) (sym (singleSubstCompLift sigma p))
             ∙ sym (subTyComp (singleSubst (subTm sigma p)) (liftSubst sigma) L))
+      -- Stage 3 v29: extract raw Derivables + <-wellfounded for compEQtrClosed (eqSub-eQtrEq case).
+      dll'Arg4 = hypCompToDerivable branchEq
+      dcohArg4 = hypCompToDerivable cohσ
+      dcoh'Arg4 = hypCompToDerivable cohτ
     in
     subst
       (λ J -> Computable n J)
       (sym resultPath)
       (compEQtrClosed compTransTmClosed compSymTmClosed compConvTmEqClosed
-        compL compp branchEq cohσ cohτ)
+        compL compp dll'Arg4 (<-wellfounded _) dcohArg4 dcoh'Arg4 (<-wellfounded _))
   eqSubDerivTmCompCF {n} (conv d dAB) fitsEq cFitsEq (acc rs) =
     let
       sigmaFits = fitsEqSubstLeft fitsEq
