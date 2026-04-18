@@ -976,3 +976,34 @@ subjectTyDepth (termEq _ _ _ A)   = tyDepth A
 
 substTaskLexMeasure : {J : JForm} → Derivable J → ℕ × ℕ
 substTaskLexMeasure {J = J} d = (subjectTyDepth J , derivSize d)
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Phase E.2: Lifting helpers to convert derivSize-based lemmas into lex
+-- ═══════════════════════════════════════════════════════════════════
+-- Instead of duplicating all 81 substMeasure-X< lemmas, we provide three
+-- generic helpers that wrap the existing derivSize lemmas + a proof about
+-- the subjectTyDepth relationship. At call sites, the appropriate helper
+-- is chosen based on whether the subject type stays the same, decreases,
+-- or weakly decreases.
+
+-- Case 1: subject tyDepth is EQUAL (most common — substitution, weakening, same-form)
+lift-lex-eq : {J₁ J₂ : JForm} {d₁ : Derivable J₁} {d₂ : Derivable J₂}
+  → subjectTyDepth J₁ ≡ subjectTyDepth J₂
+  → derivSize d₁ < derivSize d₂
+  → LexLt (substTaskLexMeasure d₁) (substTaskLexMeasure d₂)
+lift-lex-eq {J₁} {J₂} {d₁} {d₂} eq size< =
+  subst (λ x → LexLt (subjectTyDepth J₁ , derivSize d₁) (x , derivSize d₂)) eq (lex-snd size<)
+
+-- Case 2: subject tyDepth strictly DECREASES (elimination forms, Sigma-family unfold)
+lift-lex-depth : {J₁ J₂ : JForm} {d₁ : Derivable J₁} {d₂ : Derivable J₂}
+  → subjectTyDepth J₁ < subjectTyDepth J₂
+  → LexLt (substTaskLexMeasure d₁) (substTaskLexMeasure d₂)
+lift-lex-depth depth< = lex-fst depth<
+
+-- Case 3: subject tyDepth is ≤ AND derivSize strictly decreases
+-- (covers both equal and strictly smaller cases via ≤-split)
+lift-lex-≤ : {J₁ J₂ : JForm} {d₁ : Derivable J₁} {d₂ : Derivable J₂}
+  → subjectTyDepth J₁ ≤ subjectTyDepth J₂
+  → derivSize d₁ < derivSize d₂
+  → LexLt (substTaskLexMeasure d₁) (substTaskLexMeasure d₂)
+lift-lex-≤ depth≤ size< = lex-≤-<-snd depth≤ size<
