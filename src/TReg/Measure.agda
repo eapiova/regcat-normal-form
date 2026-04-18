@@ -1007,3 +1007,26 @@ lift-lex-≤ : {J₁ J₂ : JForm} {d₁ : Derivable J₁} {d₂ : Derivable J�
   → derivSize d₁ < derivSize d₂
   → LexLt (substTaskLexMeasure d₁) (substTaskLexMeasure d₂)
 lift-lex-≤ depth≤ size< = lex-≤-<-snd depth≤ size<
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Phase E.8a: Acc cast via tyDepth-subTy rewrite
+-- ═══════════════════════════════════════════════════════════════════
+-- When substDerivT*CompCF is called inside a closure, Agda normalizes
+-- the result type through substitution, causing the subject tyDepth
+-- to appear as `tyDepth (subTy sigma T)` instead of `tyDepth T`.
+-- These are propositionally equal (by tyDepth-subTy), but not
+-- definitionally. This cast recovers the expected Acc type.
+
+cast-lex-acc-subTy : {gamma : Ctx} {t : RawTerm} {T : RawType} {sigma : Subst}
+  → (d : Derivable (hasTy gamma t T))
+  → Acc LexLt (tyDepth T , derivSize d)
+  → Acc LexLt (tyDepth (subTy sigma T) , derivSize d)
+cast-lex-acc-subTy {T = T} {sigma = sigma} d ax =
+  subst (λ m → Acc LexLt (m , derivSize d)) (sym (tyDepth-subTy sigma T)) ax
+
+cast-lex-acc-subTy-eq : {gamma : Ctx} {t u : RawTerm} {T : RawType} {sigma : Subst}
+  → (d : Derivable (termEq gamma t u T))
+  → Acc LexLt (tyDepth T , derivSize d)
+  → Acc LexLt (tyDepth (subTy sigma T) , derivSize d)
+cast-lex-acc-subTy-eq {T = T} {sigma = sigma} d ax =
+  subst (λ m → Acc LexLt (m , derivSize d)) (sym (tyDepth-subTy sigma T)) ax
