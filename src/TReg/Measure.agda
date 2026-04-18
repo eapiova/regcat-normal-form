@@ -11,7 +11,7 @@ open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_)
 
 open import TReg.Syntax
 open import TReg.Context
-open import TReg.Substitution using (Subst ; subTy ; subTm ; liftSubst)
+open import TReg.Substitution using (Subst ; subTy ; subTm ; liftSubst ; singleSubst)
 
 -- Type depth: measures the nesting of type constructors
 tyDepth : RawType -> ℕ
@@ -206,7 +206,7 @@ substMeasure-derivSize< _ _ p = p
 --   derivSize d < derivSize (weakenTy d wf) trivially.
 
 -- tyDepth is preserved by weakening (renaming)
-open import TReg.Substitution using (Ren ; renTy ; raiseRen ; addRen ; wkTyBy)
+open import TReg.Substitution using (Ren ; renTy ; renTm ; raiseRen ; addRen ; wkTyBy ; wkTmBy)
 
 tyDepth-renTy : (rho : Ren) -> (A : RawType) -> tyDepth (renTy rho A) ≡ tyDepth A
 tyDepth-renTy rho tyTop = refl
@@ -425,3 +425,428 @@ substMeasure-transTm-right< : {gamma : Ctx} {t u v : RawTerm} {A : RawType}
   -> substTaskMeasure d₂ < substTaskMeasure (transTm d₁ d₂)
 substMeasure-transTm-right< d₁ d₂ =
   suc-≤-suc (≤SumRight {derivSize d₂} {derivSize d₁})
+
+-- convEq premises:
+substMeasure-convEq-tmEq< : {gamma : Ctx} {t u : RawTerm} {A B : RawType}
+  -> (d : Derivable (termEq gamma t u A)) -> (dAB : Derivable (typeEq gamma A B))
+  -> substTaskMeasure d < substTaskMeasure (convEq d dAB)
+substMeasure-convEq-tmEq< d dAB =
+  suc-≤-suc (≤SumLeft {derivSize d} {derivSize dAB})
+
+substMeasure-convEq-tyEq2< : {gamma : Ctx} {t u : RawTerm} {A B : RawType}
+  -> (d : Derivable (termEq gamma t u A)) -> (dAB : Derivable (typeEq gamma A B))
+  -> substTaskMeasure dAB < substTaskMeasure (convEq d dAB)
+substMeasure-convEq-tyEq2< d dAB =
+  suc-≤-suc (≤SumRight {derivSize dAB} {derivSize d})
+
+-- Introduction rule premises (all sub-derivations strictly smaller):
+-- derivSize (iSigma da db dSigma) = suc (derivSize da + derivSize db + derivSize dSigma)
+-- Left-associated: (a + b) + c
+
+iSigmaLeft-size≤ : {gamma : Ctx} {A B : RawType} {a b : RawTerm}
+  -> (da : Derivable (hasTy gamma a A)) -> (db : Derivable (hasTy gamma b (subTy (singleSubst a) B)))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> derivSize da + derivSize db ≤ derivSize da + derivSize db + derivSize dSigma
+iSigmaLeft-size≤ da db dSigma = ≤SumLeft {derivSize da + derivSize db} {derivSize dSigma}
+
+substMeasure-iSigma-a< : {gamma : Ctx} {A B : RawType} {a b : RawTerm}
+  -> (da : Derivable (hasTy gamma a A)) -> (db : Derivable (hasTy gamma b (subTy (singleSubst a) B)))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> substTaskMeasure da < substTaskMeasure (iSigma da db dSigma)
+substMeasure-iSigma-a< da db dSigma =
+  suc-≤-suc (≤-trans (≤SumLeft {derivSize da} {derivSize db}) (iSigmaLeft-size≤ da db dSigma))
+
+substMeasure-iSigma-b< : {gamma : Ctx} {A B : RawType} {a b : RawTerm}
+  -> (da : Derivable (hasTy gamma a A)) -> (db : Derivable (hasTy gamma b (subTy (singleSubst a) B)))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> substTaskMeasure db < substTaskMeasure (iSigma da db dSigma)
+substMeasure-iSigma-b< da db dSigma =
+  suc-≤-suc (≤-trans (≤SumRight {derivSize db} {derivSize da}) (iSigmaLeft-size≤ da db dSigma))
+
+substMeasure-iSigma-Sigma< : {gamma : Ctx} {A B : RawType} {a b : RawTerm}
+  -> (da : Derivable (hasTy gamma a A)) -> (db : Derivable (hasTy gamma b (subTy (singleSubst a) B)))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> substTaskMeasure dSigma < substTaskMeasure (iSigma da db dSigma)
+substMeasure-iSigma-Sigma< da db dSigma =
+  suc-≤-suc (≤SumRight {derivSize dSigma} {derivSize da + derivSize db})
+
+substMeasure-iEq< : {gamma : Ctx} {A : RawType} {a : RawTerm}
+  -> (da : Derivable (hasTy gamma a A))
+  -> substTaskMeasure da < substTaskMeasure (iEq da)
+substMeasure-iEq< da = ≤-refl
+
+substMeasure-iQtr< : {gamma : Ctx} {A : RawType} {a : RawTerm}
+  -> (da : Derivable (hasTy gamma a A))
+  -> substTaskMeasure da < substTaskMeasure (iQtr da)
+substMeasure-iQtr< da = ≤-refl
+
+substMeasure-cTop< : {gamma : Ctx} {a : RawTerm}
+  -> (d : Derivable (hasTy gamma a tyTop))
+  -> substTaskMeasure d < substTaskMeasure (cTop d)
+substMeasure-cTop< d = ≤-refl
+
+-- eSigma dM dd dm : derivSize = suc ((derivSize dM + derivSize dd) + derivSize dm)
+eSigmaLeft-size≤ : {gamma : Ctx} {A B M : RawType} {d m : RawTerm}
+  -> (dM : Derivable (isType (tySigma A B ∷ gamma) M))
+  -> (dd : Derivable (hasTy gamma d (tySigma A B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> derivSize dM + derivSize dd ≤ derivSize dM + derivSize dd + derivSize dm
+eSigmaLeft-size≤ dM dd dm = ≤SumLeft {derivSize dM + derivSize dd} {derivSize dm}
+
+substMeasure-eSigma-dM< : {gamma : Ctx} {A B M : RawType} {d m : RawTerm}
+  -> (dM : Derivable (isType (tySigma A B ∷ gamma) M))
+  -> (dd : Derivable (hasTy gamma d (tySigma A B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> substTaskMeasure dM < substTaskMeasure (eSigma dM dd dm)
+substMeasure-eSigma-dM< dM dd dm =
+  suc-≤-suc (≤-trans (≤SumLeft {derivSize dM} {derivSize dd}) (eSigmaLeft-size≤ dM dd dm))
+
+substMeasure-eSigma-dd< : {gamma : Ctx} {A B M : RawType} {d m : RawTerm}
+  -> (dM : Derivable (isType (tySigma A B ∷ gamma) M))
+  -> (dd : Derivable (hasTy gamma d (tySigma A B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> substTaskMeasure dd < substTaskMeasure (eSigma dM dd dm)
+substMeasure-eSigma-dd< dM dd dm =
+  suc-≤-suc (≤-trans (≤SumRight {derivSize dd} {derivSize dM}) (eSigmaLeft-size≤ dM dd dm))
+
+substMeasure-eSigma-dm< : {gamma : Ctx} {A B M : RawType} {d m : RawTerm}
+  -> (dM : Derivable (isType (tySigma A B ∷ gamma) M))
+  -> (dd : Derivable (hasTy gamma d (tySigma A B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> substTaskMeasure dm < substTaskMeasure (eSigma dM dd dm)
+substMeasure-eSigma-dm< dM dd dm =
+  suc-≤-suc (≤SumRight {derivSize dm} {derivSize dM + derivSize dd})
+
+substMeasure-fSigmaEq-left< : {gamma : Ctx} {A B C D : RawType}
+  -> (dAC : Derivable (typeEq gamma A C))
+  -> (dB : Derivable (isType (A ∷ gamma) B))
+  -> (dBD : Derivable (typeEq (A ∷ gamma) B D))
+  -> substTaskMeasure dAC < substTaskMeasure (fSigmaEq dAC dB dBD)
+substMeasure-fSigmaEq-left< dAC dB dBD =
+  suc-≤-suc (≤-trans (≤SumLeft {derivSize dAC} {derivSize dB}) (≤SumLeft {derivSize dAC + derivSize dB} {derivSize dBD}))
+
+substMeasure-fSigmaEq-middle< : {gamma : Ctx} {A B C D : RawType}
+  -> (dAC : Derivable (typeEq gamma A C))
+  -> (dB : Derivable (isType (A ∷ gamma) B))
+  -> (dBD : Derivable (typeEq (A ∷ gamma) B D))
+  -> substTaskMeasure dB < substTaskMeasure (fSigmaEq dAC dB dBD)
+substMeasure-fSigmaEq-middle< dAC dB dBD =
+  suc-≤-suc (≤-trans (≤SumRight {derivSize dB} {derivSize dAC}) (≤SumLeft {derivSize dAC + derivSize dB} {derivSize dBD}))
+
+substMeasure-fSigmaEq-right< : {gamma : Ctx} {A B C D : RawType}
+  -> (dAC : Derivable (typeEq gamma A C))
+  -> (dB : Derivable (isType (A ∷ gamma) B))
+  -> (dBD : Derivable (typeEq (A ∷ gamma) B D))
+  -> substTaskMeasure dBD < substTaskMeasure (fSigmaEq dAC dB dBD)
+substMeasure-fSigmaEq-right< dAC dB dBD =
+  suc-≤-suc (≤SumRight {derivSize dBD} {derivSize dAC + derivSize dB})
+
+substMeasure-fEqEq-left< : {gamma : Ctx} {A C : RawType} {a b c d : RawTerm}
+  -> (dAC : Derivable (typeEq gamma A C))
+  -> (dac : Derivable (termEq gamma a c A))
+  -> (dbd : Derivable (termEq gamma b d A))
+  -> substTaskMeasure dAC < substTaskMeasure (fEqEq dAC dac dbd)
+substMeasure-fEqEq-left< dAC dac dbd =
+  suc-≤-suc (≤-trans (≤SumLeft {derivSize dAC} {derivSize dac}) (≤SumLeft {derivSize dAC + derivSize dac} {derivSize dbd}))
+
+substMeasure-fEqEq-middleTm< : {gamma : Ctx} {A C : RawType} {a b c d : RawTerm}
+  -> (dAC : Derivable (typeEq gamma A C))
+  -> (dac : Derivable (termEq gamma a c A))
+  -> (dbd : Derivable (termEq gamma b d A))
+  -> substTaskMeasure dac < substTaskMeasure (fEqEq dAC dac dbd)
+substMeasure-fEqEq-middleTm< dAC dac dbd =
+  suc-≤-suc (≤-trans (≤SumRight {derivSize dac} {derivSize dAC}) (≤SumLeft {derivSize dAC + derivSize dac} {derivSize dbd}))
+
+substMeasure-fEqEq-rightTm< : {gamma : Ctx} {A C : RawType} {a b c d : RawTerm}
+  -> (dAC : Derivable (typeEq gamma A C))
+  -> (dac : Derivable (termEq gamma a c A))
+  -> (dbd : Derivable (termEq gamma b d A))
+  -> substTaskMeasure dbd < substTaskMeasure (fEqEq dAC dac dbd)
+substMeasure-fEqEq-rightTm< dAC dac dbd =
+  suc-≤-suc (≤SumRight {derivSize dbd} {derivSize dAC + derivSize dac})
+
+substMeasure-fQtrEq-base< : {gamma : Ctx} {A B : RawType}
+  -> (dAB : Derivable (typeEq gamma A B))
+  -> substTaskMeasure dAB < substTaskMeasure (fQtrEq dAB)
+substMeasure-fQtrEq-base< dAB = ≤-refl
+
+substMeasure-iSigmaEq-ac< : {gamma : Ctx} {a b c d : RawTerm} {A B : RawType}
+  -> (dac : Derivable (termEq gamma a c A))
+  -> (dbd : Derivable (termEq gamma b d (subTy (singleSubst a) B)))
+  -> (dA : Derivable (isType gamma A))
+  -> (dB : Derivable (isType (A ∷ gamma) B))
+  -> substTaskMeasure dac < substTaskMeasure (iSigmaEq dac dbd dA dB)
+substMeasure-iSigmaEq-ac< dac dbd dA dB =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤SumLeft {derivSize dac} {derivSize dbd})
+        (≤SumLeft {derivSize dac + derivSize dbd} {derivSize dA}))
+      (≤SumLeft {derivSize dac + derivSize dbd + derivSize dA} {derivSize dB}))
+
+substMeasure-iSigmaEq-bd< : {gamma : Ctx} {a b c d : RawTerm} {A B : RawType}
+  -> (dac : Derivable (termEq gamma a c A))
+  -> (dbd : Derivable (termEq gamma b d (subTy (singleSubst a) B)))
+  -> (dA : Derivable (isType gamma A))
+  -> (dB : Derivable (isType (A ∷ gamma) B))
+  -> substTaskMeasure dbd < substTaskMeasure (iSigmaEq dac dbd dA dB)
+substMeasure-iSigmaEq-bd< dac dbd dA dB =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤SumRight {derivSize dbd} {derivSize dac})
+        (≤SumLeft {derivSize dac + derivSize dbd} {derivSize dA}))
+      (≤SumLeft {derivSize dac + derivSize dbd + derivSize dA} {derivSize dB}))
+
+substMeasure-iSigmaEq-A< : {gamma : Ctx} {a b c d : RawTerm} {A B : RawType}
+  -> (dac : Derivable (termEq gamma a c A))
+  -> (dbd : Derivable (termEq gamma b d (subTy (singleSubst a) B)))
+  -> (dA : Derivable (isType gamma A))
+  -> (dB : Derivable (isType (A ∷ gamma) B))
+  -> substTaskMeasure dA < substTaskMeasure (iSigmaEq dac dbd dA dB)
+substMeasure-iSigmaEq-A< dac dbd dA dB =
+  suc-≤-suc
+    (≤-trans
+      (≤SumRight {derivSize dA} {derivSize dac + derivSize dbd})
+      (≤SumLeft {derivSize dac + derivSize dbd + derivSize dA} {derivSize dB}))
+
+substMeasure-iSigmaEq-B< : {gamma : Ctx} {a b c d : RawTerm} {A B : RawType}
+  -> (dac : Derivable (termEq gamma a c A))
+  -> (dbd : Derivable (termEq gamma b d (subTy (singleSubst a) B)))
+  -> (dA : Derivable (isType gamma A))
+  -> (dB : Derivable (isType (A ∷ gamma) B))
+  -> substTaskMeasure dB < substTaskMeasure (iSigmaEq dac dbd dA dB)
+substMeasure-iSigmaEq-B< dac dbd dA dB =
+  suc-≤-suc (≤SumRight {derivSize dB} {derivSize dac + derivSize dbd + derivSize dA})
+
+substMeasure-iEqEq< : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+  -> (dab : Derivable (termEq gamma a b A))
+  -> substTaskMeasure dab < substTaskMeasure (iEqEq dab)
+substMeasure-iEqEq< dab = ≤-refl
+
+substMeasure-iQtrEq-left< : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+  -> (da : Derivable (hasTy gamma a A))
+  -> (db : Derivable (hasTy gamma b A))
+  -> substTaskMeasure da < substTaskMeasure (iQtrEq da db)
+substMeasure-iQtrEq-left< da db =
+  suc-≤-suc (≤SumLeft {derivSize da} {derivSize db})
+
+substMeasure-iQtrEq-right< : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+  -> (da : Derivable (hasTy gamma a A))
+  -> (db : Derivable (hasTy gamma b A))
+  -> substTaskMeasure db < substTaskMeasure (iQtrEq da db)
+substMeasure-iQtrEq-right< da db =
+  suc-≤-suc (≤SumRight {derivSize db} {derivSize da})
+
+substMeasure-eSigmaEq-dd< : {gamma : Ctx} {A B M : RawType} {d d' m m' : RawTerm}
+  -> (dM : Derivable (isType ((tySigma A B) ∷ gamma) M))
+  -> (dd : Derivable (termEq gamma d d' (tySigma A B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> (dm' : Derivable (termEq (B ∷ A ∷ gamma) m m' (sigmaBranchTy M)))
+  -> substTaskMeasure dd < substTaskMeasure (eSigmaEq dM dd dm dm')
+substMeasure-eSigmaEq-dd< dM dd dm dm' =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤SumRight {derivSize dd} {derivSize dM})
+        (≤SumLeft {derivSize dM + derivSize dd} {derivSize dm}))
+      (≤SumLeft {derivSize dM + derivSize dd + derivSize dm} {derivSize dm'}))
+
+substMeasure-cSigma-Sigma< : {gamma : Ctx} {A B M : RawType} {b c m : RawTerm}
+  -> (dM : Derivable (isType ((tySigma A B) ∷ gamma) M))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> (db : Derivable (hasTy gamma b A))
+  -> (dc : Derivable (hasTy gamma c (subTy (singleSubst b) B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> substTaskMeasure dSigma < substTaskMeasure (cSigma dM dSigma db dc dm)
+substMeasure-cSigma-Sigma< dM dSigma db dc dm =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤SumRight {derivSize dSigma} {derivSize dM})
+          (≤SumLeft {derivSize dM + derivSize dSigma} {derivSize db}))
+        (≤SumLeft {derivSize dM + derivSize dSigma + derivSize db} {derivSize dc}))
+      (≤SumLeft {derivSize dM + derivSize dSigma + derivSize db + derivSize dc} {derivSize dm}))
+
+substMeasure-cSigma-b< : {gamma : Ctx} {A B M : RawType} {b c m : RawTerm}
+  -> (dM : Derivable (isType ((tySigma A B) ∷ gamma) M))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> (db : Derivable (hasTy gamma b A))
+  -> (dc : Derivable (hasTy gamma c (subTy (singleSubst b) B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> substTaskMeasure db < substTaskMeasure (cSigma dM dSigma db dc dm)
+substMeasure-cSigma-b< dM dSigma db dc dm =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤SumRight {derivSize db} {derivSize dM + derivSize dSigma})
+        (≤SumLeft {derivSize dM + derivSize dSigma + derivSize db} {derivSize dc}))
+      (≤SumLeft {derivSize dM + derivSize dSigma + derivSize db + derivSize dc} {derivSize dm}))
+
+substMeasure-cSigma-c< : {gamma : Ctx} {A B M : RawType} {b c m : RawTerm}
+  -> (dM : Derivable (isType ((tySigma A B) ∷ gamma) M))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> (db : Derivable (hasTy gamma b A))
+  -> (dc : Derivable (hasTy gamma c (subTy (singleSubst b) B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> substTaskMeasure dc < substTaskMeasure (cSigma dM dSigma db dc dm)
+substMeasure-cSigma-c< dM dSigma db dc dm =
+  suc-≤-suc
+    (≤-trans
+      (≤SumRight {derivSize dc} {derivSize dM + derivSize dSigma + derivSize db})
+      (≤SumLeft {derivSize dM + derivSize dSigma + derivSize db + derivSize dc} {derivSize dm}))
+
+substMeasure-cSigma-m< : {gamma : Ctx} {A B M : RawType} {b c m : RawTerm}
+  -> (dM : Derivable (isType ((tySigma A B) ∷ gamma) M))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> (db : Derivable (hasTy gamma b A))
+  -> (dc : Derivable (hasTy gamma c (subTy (singleSubst b) B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> substTaskMeasure dm < substTaskMeasure (cSigma dM dSigma db dc dm)
+substMeasure-cSigma-m< dM dSigma db dc dm =
+  suc-≤-suc (≤SumRight {derivSize dm} {derivSize dM + derivSize dSigma + derivSize db + derivSize dc})
+
+substMeasure-cSigma-M< : {gamma : Ctx} {A B M : RawType} {b c m : RawTerm}
+  -> (dM : Derivable (isType ((tySigma A B) ∷ gamma) M))
+  -> (dSigma : Derivable (isType gamma (tySigma A B)))
+  -> (db : Derivable (hasTy gamma b A))
+  -> (dc : Derivable (hasTy gamma c (subTy (singleSubst b) B)))
+  -> (dm : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
+  -> substTaskMeasure dM < substTaskMeasure (cSigma dM dSigma db dc dm)
+substMeasure-cSigma-M< dM dSigma db dc dm =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤SumLeft {derivSize dM} {derivSize dSigma})
+          (≤SumLeft {derivSize dM + derivSize dSigma} {derivSize db}))
+        (≤SumLeft {derivSize dM + derivSize dSigma + derivSize db} {derivSize dc}))
+      (≤SumLeft {derivSize dM + derivSize dSigma + derivSize db + derivSize dc} {derivSize dm}))
+
+substMeasure-eEqStar-p< : {gamma : Ctx} {A : RawType} {a b p : RawTerm}
+  -> (dp : Derivable (hasTy gamma p (tyEq A a b)))
+  -> (dA : Derivable (isType gamma A))
+  -> (da : Derivable (hasTy gamma a A))
+  -> (db : Derivable (hasTy gamma b A))
+  -> substTaskMeasure dp < substTaskMeasure (eEqStar dp dA da db)
+substMeasure-eEqStar-p< dp dA da db =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤SumLeft {derivSize dp} {derivSize dA})
+        (≤SumLeft {derivSize dp + derivSize dA} {derivSize da}))
+      (≤SumLeft {derivSize dp + derivSize dA + derivSize da} {derivSize db}))
+
+substMeasure-cEq-p< : {gamma : Ctx} {A : RawType} {a b p : RawTerm}
+  -> (dp : Derivable (hasTy gamma p (tyEq A a b)))
+  -> (dA : Derivable (isType gamma A))
+  -> (da : Derivable (hasTy gamma a A))
+  -> (db : Derivable (hasTy gamma b A))
+  -> substTaskMeasure dp < substTaskMeasure (cEq dp dA da db)
+substMeasure-cEq-p< dp dA da db =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤SumLeft {derivSize dp} {derivSize dA})
+        (≤SumLeft {derivSize dp + derivSize dA} {derivSize da}))
+      (≤SumLeft {derivSize dp + derivSize dA + derivSize da} {derivSize db}))
+
+substMeasure-eEqStar-b< : {gamma : Ctx} {A : RawType} {a b p : RawTerm}
+  -> (dp : Derivable (hasTy gamma p (tyEq A a b)))
+  -> (dA : Derivable (isType gamma A))
+  -> (da : Derivable (hasTy gamma a A))
+  -> (db : Derivable (hasTy gamma b A))
+  -> substTaskMeasure db < substTaskMeasure (eEqStar dp dA da db)
+substMeasure-eEqStar-b< dp dA da db =
+  suc-≤-suc (≤SumRight {derivSize db} {derivSize dp + derivSize dA + derivSize da})
+
+substMeasure-eQtr-p< : {gamma : Ctx} {A L : RawType} {l p : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (dp : Derivable (hasTy gamma p (tyQtr A)))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> substTaskMeasure dp < substTaskMeasure (eQtr dL dp dBranchTy dl dcoh)
+substMeasure-eQtr-p< dL dp dBranchTy dl dcoh =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤SumRight {derivSize dp} {derivSize dL})
+          (≤SumLeft {derivSize dL + derivSize dp} {derivSize dBranchTy}))
+        (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy} {derivSize dl}))
+      (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
+
+substMeasure-eQtrEq-p< : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (dp : Derivable (termEq gamma p p' (tyQtr A)))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dl' : Derivable (hasTy (A ∷ gamma) l' (qtrBranchTy L)))
+  -> (dll' : Derivable (termEq (A ∷ gamma) l l' (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> (dcoh' : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L)))
+  -> substTaskMeasure dp < substTaskMeasure (eQtrEq dL dp dBranchTy dl dl' dll' dcoh dcoh')
+substMeasure-eQtrEq-p< dL dp dBranchTy dl dl' dll' dcoh dcoh' =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤-trans
+            (≤-trans
+              (≤-trans
+                (≤SumRight {derivSize dp} {derivSize dL})
+                (≤SumLeft {derivSize dL + derivSize dp} {derivSize dBranchTy}))
+              (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy} {derivSize dl}))
+            (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl} {derivSize dl'}))
+          (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl'} {derivSize dll'}))
+        (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll'} {derivSize dcoh}))
+      (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll' + derivSize dcoh} {derivSize dcoh'}))
+
+substMeasure-cQtr-a< : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (da : Derivable (hasTy gamma a A))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> substTaskMeasure da < substTaskMeasure (cQtr dL da dBranchTy dl dcoh)
+substMeasure-cQtr-a< dL da dBranchTy dl dcoh =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤SumRight {derivSize da} {derivSize dL})
+          (≤SumLeft {derivSize dL + derivSize da} {derivSize dBranchTy}))
+        (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy} {derivSize dl}))
+      (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
+
+substMeasure-cQtr-l< : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (da : Derivable (hasTy gamma a A))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> substTaskMeasure dl < substTaskMeasure (cQtr dL da dBranchTy dl dcoh)
+substMeasure-cQtr-l< dL da dBranchTy dl dcoh =
+  suc-≤-suc
+    (≤-trans
+      (≤SumRight {derivSize dl} {derivSize dL + derivSize da + derivSize dBranchTy})
+      (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
+
+substMeasure-cQtr-L< : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (da : Derivable (hasTy gamma a A))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> substTaskMeasure dL < substTaskMeasure (cQtr dL da dBranchTy dl dcoh)
+substMeasure-cQtr-L< dL da dBranchTy dl dcoh =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤SumLeft {derivSize dL} {derivSize da})
+          (≤SumLeft {derivSize dL + derivSize da} {derivSize dBranchTy}))
+        (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy} {derivSize dl}))
+      (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
