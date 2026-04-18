@@ -5,9 +5,11 @@ module TReg.Measure where
 open import Cubical.Foundations.Prelude
 open import Cubical.Data.Nat using (ℕ ; zero ; suc ; _+_)
 open import Cubical.Data.Nat.Properties using (max ; maxSuc)
-open import Cubical.Data.Nat.Order using (_<_ ; _≤_ ; ≤-refl ; ≤-suc ; suc-≤-suc ; ≤SumLeft ; ≤SumRight ; <-wellfounded ; maxLUB ; <-k+)
+open import Cubical.Data.Nat.Order using (_<_ ; _≤_ ; ≤-refl ; ≤-suc ; suc-≤-suc ; ≤SumLeft ; ≤SumRight ; <-wellfounded ; maxLUB ; <-k+ ; ≤-split)
 open import Cubical.Induction.WellFounded using (Acc ; acc ; WellFounded)
 open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_)
+open import Cubical.Data.Sigma using (_×_ ; _,_ ; fst ; snd)
+open import Cubical.Data.Sum using (_⊎_ ; inl ; inr)
 
 open import TReg.Syntax
 open import TReg.Context
@@ -930,3 +932,47 @@ substMeasure-cQtr-L< dL da dBranchTy dl dcoh =
           (≤SumLeft {derivSize dL + derivSize da} {derivSize dBranchTy}))
         (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy} {derivSize dl}))
       (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
+
+-- ═══════════════════════════════════════════════════════════════════
+-- Phase E.1: Lex ordering on ℕ × ℕ for termination via (tyDepth, derivSize)
+-- ═══════════════════════════════════════════════════════════════════
+--
+-- The measure (tyDepth subject, derivSize d) is used for termination of
+-- SCC 2 functions in CompTheorem.agda:
+--   - Most recursions keep tyDepth constant and decrease derivSize (lex-snd)
+--   - Sigma-family unfolding via sigmaTyFamHypClosed's closure decreases
+--     tyDepth strictly (tyDepth B < tyDepth (tySigma A B)), using lex-fst.
+
+-- Lex relation on ℕ × ℕ
+data LexLt : ℕ × ℕ → ℕ × ℕ → Type where
+  lex-fst : ∀ {a a' b b'} → a < a' → LexLt (a , b) (a' , b')
+  lex-snd : ∀ {a b b'}   → b < b' → LexLt (a , b) (a , b')
+
+-- Well-foundedness of LexLt
+LexLt-wf : WellFounded LexLt
+LexLt-wf (a , b) = acc (aux a b (<-wellfounded a) (<-wellfounded b))
+  where
+    aux : (a b : ℕ) → Acc _<_ a → Acc _<_ b
+        → (y : ℕ × ℕ) → LexLt y (a , b) → Acc LexLt y
+    aux a b (acc rsA) _ (a' , b') (lex-fst a'<a) =
+      acc (aux a' b' (rsA a' a'<a) (<-wellfounded b'))
+    aux a b accA (acc rsB) (_ , b') (lex-snd b'<b) =
+      acc (aux a b' accA (rsB b' b'<b))
+
+-- Convenience: combine a ≤ a' with b < b' to get LexLt (a,b) (a',b')
+-- Useful when tyDepth stays OR decreases, and derivSize strictly decreases
+lex-≤-<-snd : ∀ {a a' b b'} → a ≤ a' → b < b' → LexLt (a , b) (a' , b')
+lex-≤-<-snd {a} {a'} {b} {b'} a≤a' b<b' with ≤-split a≤a'
+... | inl a<a'  = lex-fst a<a'
+... | inr a≡a'  = subst (λ x → LexLt (a , b) (x , b')) a≡a' (lex-snd b<b')
+
+-- Subject type extraction for the lex measure.
+-- For typeEq, we use max of both types so symTy preserves the first component.
+subjectTyDepth : JForm → ℕ
+subjectTyDepth (isType _ A)       = tyDepth A
+subjectTyDepth (typeEq _ A B)     = max (tyDepth A) (tyDepth B)
+subjectTyDepth (hasTy _ _ A)      = tyDepth A
+subjectTyDepth (termEq _ _ _ A)   = tyDepth A
+
+substTaskLexMeasure : {J : JForm} → Derivable J → ℕ × ℕ
+substTaskLexMeasure {J = J} d = (subjectTyDepth J , derivSize d)
