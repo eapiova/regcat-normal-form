@@ -610,12 +610,14 @@ mutual
     -> HypComputable (suc n) (isType ((tySigma A B) ∷ []) M)
     -> Computable n (hasTy [] b A)
     -> Computable n (hasTy [] c (subTy (singleSubst b) B))
-    -> HypComputable (suc n) (hasTy (B ∷ A ∷ []) m (sigmaBranchTy M))
+    -> (dm : Derivable (hasTy (B ∷ A ∷ []) m (sigmaBranchTy M)))
+    -> Computable n
+         (hasTy [] (subTm (sigmaCompSub b c) m) (subTy (sigmaCompSub b c) (sigmaBranchTy M)))
     -> Computable n
          (termEq [] (tmElSigma (tmPair b c) m) (subTm (sigmaCompSub b c) m)
            (subTy (singleSubst (tmPair b c)) M))
   compCSigmaClosed {n} {b = b} {c = c} {m = m} {A = A} {B = B} {M = M}
-    compM compb compc compm@(hypTmOpen neq dm compBranchTy sub subEq) =
+    compM compb compc dm rawBody =
     lhsEq body
     where
     db : Derivable (hasTy [] b A)
@@ -630,13 +632,6 @@ mutual
     dSigma : Derivable (isType [] (tySigma A B))
     dSigma = ctxSuffixTy {delta = []} {gamma = []} {A = tySigma A B} (derivToCtxWF dM)
 
-    bodyFits : CompFitsBundle n (B ∷ A ∷ []) (sigmaCompSub b c)
-    bodyFits = sigmaCompComputableFitsHelper compb compc
-
-    rawBody : Computable n
-      (hasTy [] (subTm (sigmaCompSub b c) m) (subTy (sigmaCompSub b c) (sigmaBranchTy M)))
-    rawBody = sub (sigmaCompSub b c) (fst bodyFits) (snd bodyFits)
-  
     body : Computable n
       (hasTy [] (subTm (sigmaCompSub b c) m) (subTy (singleSubst (tmPair b c)) M))
     body =
@@ -1282,36 +1277,29 @@ mutual
   compCQtrClosed : {n : ℕ} -> {a l : RawTerm} {A L : RawType}
     -> HypComputable (suc n) (isType ((tyQtr A) ∷ []) L)
     -> Computable n (hasTy [] a A)
-    -> HypComputable (suc n) (hasTy (A ∷ []) l (qtrBranchTy L))
+    -> (dBranch : Derivable (isType (A ∷ []) (qtrBranchTy L)))
+    -> (dl : Derivable (hasTy (A ∷ []) l (qtrBranchTy L)))
+    -> Computable n
+         (hasTy [] (subTm (qtrCompSub a) l) (subTy (qtrCompSub a) (qtrBranchTy L)))
     -> HypComputable (suc n)
          (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
     -> Computable n
          (termEq [] (tmElQtr l (tmClass a)) (subTm (qtrCompSub a) l)
            (subTy (singleSubst (tmClass a)) L))
   compCQtrClosed {n} {a = a} {l = l} {A = A} {L = L}
-    compL compa compl@(hypTmOpen neq dl compBranchTy sub subEq) coh =
+    compL compa dBranch dl rawBody coh =
     lhsEq body
     where
     dL : Derivable (isType ((tyQtr A) ∷ []) L)
     dL = hypCompToDerivable compL
-  
+
     da : Derivable (hasTy [] a A)
     da = compToDerivable compa
-  
+
     dcoh : Derivable
       (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L))
     dcoh = hypCompToDerivable coh
 
-    dBranch : Derivable (isType (A ∷ []) (qtrBranchTy L))
-    dBranch = hypCompToDerivable compBranchTy
-  
-    fits : Σ (FitsSubst [] (A ∷ []) (qtrCompSub a)) (λ fit -> ComputableFits n fit)
-    fits = qtrCompComputableFitsHelper compa
-  
-    rawBody : Computable n
-      (hasTy [] (subTm (qtrCompSub a) l) (subTy (qtrCompSub a) (qtrBranchTy L)))
-    rawBody = sub (qtrCompSub a) (fst fits) (snd fits)
-  
     body : Computable n
       (hasTy [] (subTm (qtrCompSub a) l) (subTy (singleSubst (tmClass a)) L))
     body =
@@ -3853,7 +3841,73 @@ mutual
                   dBranch
                   (composeOneBinderEq fits dAσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq fits dAσ fitsEq2)) (<-wellfounded _))))
   
-      compl =
+      -- Build dBranchSub and dlSub for the new compCQtrClosed signature.
+      -- liftFitsOne gives consSubst form; transport the result of substTyRule directly.
+      liftedOneARaw : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma)
+        (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+      liftedOneARaw = liftFitsOne fits dAσ
+      dBranchSub : Derivable
+        (isType (subTy sigma A ∷ []) (qtrBranchTy (subTy (liftSubst sigma) L)))
+      dBranchSub =
+        subst
+          (λ T -> Derivable (isType (subTy sigma A ∷ []) T))
+          (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma)
+            ∙ qtrBranchTyLiftComp sigma L)
+          (substTyRule dBranch liftedOneARaw)
+      dlSub : Derivable
+        (hasTy (subTy sigma A ∷ []) (subTm (liftSubst sigma) l)
+          (qtrBranchTy (subTy (liftSubst sigma) L)))
+      dlSub =
+        subst
+          (λ J -> Derivable J)
+          (cong₂
+            (hasTy (subTy sigma A ∷ []))
+            (cong (λ rho -> subTm rho l) (liftSubstCompKeep sigma))
+            (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma)
+              ∙ qtrBranchTyLiftComp sigma L))
+          (substTmRule dl liftedOneARaw)
+      -- v28 Stage 2: build rawBody via SCC 2 recursion on original dl with sub-Acc
+      -- We need: Computable n (hasTy [] (subTm (qtrCompSub a') (subTm (liftSubst sigma) l))
+      --                           (subTy (qtrCompSub a') (qtrBranchTy (subTy (liftSubst sigma) L))))
+      -- where a' = subTm sigma a. By qtrCompSubLiftComp: compSub sigma (qtrCompSub a) ≡ compSub (qtrCompSub a') (liftSubst sigma)
+      lBodyFits : CompFitsBundle n (subTy sigma A ∷ []) (qtrCompSub (subTm sigma a))
+      lBodyFits = qtrCompComputableFitsHelper {A = subTy sigma A} compa
+      composedFitsL :
+        FitsSubst [] (A ∷ gamma)
+          (compSub (qtrCompSub (subTm sigma a)) (liftSubst sigma))
+      composedFitsL = composeOneBinder fits dAσ (fst lBodyFits)
+      composedFitsLFinal :
+        FitsSubst [] (A ∷ gamma) (compSub sigma (qtrCompSub a))
+      composedFitsLFinal =
+        subst
+          (λ rho -> FitsSubst [] (A ∷ gamma) rho)
+          (sym (qtrCompSubLiftComp sigma a))
+          composedFitsL
+      composedCFitsLFinal : ComputableFits n composedFitsLFinal
+      composedCFitsLFinal = fitsToCompFits composedFitsLFinal
+      rawBodyRaw : Computable n
+        (hasTy [] (subTm (compSub sigma (qtrCompSub a)) l)
+          (subTy (compSub sigma (qtrCompSub a)) (qtrBranchTy L)))
+      rawBodyRaw =
+        substDerivTmCompCF dl composedFitsLFinal composedCFitsLFinal (<-wellfounded _)
+      rawBody : Computable n
+        (hasTy [] (subTm (qtrCompSub (subTm sigma a)) (subTm (liftSubst sigma) l))
+          (subTy (qtrCompSub (subTm sigma a)) (qtrBranchTy (subTy (liftSubst sigma) L))))
+      rawBody =
+        subst
+          (λ J -> Computable n J)
+          (cong₂ (hasTy [])
+            (cong (λ rho -> subTm rho l) (qtrCompSubLiftComp sigma a)
+              ∙ sym (subTmComp (qtrCompSub (subTm sigma a)) (liftSubst sigma) l))
+            (cong (λ rho -> subTy rho (qtrBranchTy L)) (qtrCompSubLiftComp sigma a)
+              ∙ sym (subTyComp (qtrCompSub (subTm sigma a)) (liftSubst sigma) (qtrBranchTy L))
+              ∙ cong (subTy (qtrCompSub (subTm sigma a))) (qtrBranchTyLiftComp sigma L)))
+          rawBodyRaw
+
+      -- compcoh (coherence) computation unchanged — still uses openHypTmEq2 + weakenOneOpenTm
+      -- This is unchanged because we're not rewriting the coh HypComputable in Stage 2
+      -- (that's for Stage 3 when we rewrite compEQtrClosed/compCQtrClosed coh path).
+      complForCoh =
         subst
           (λ T ->
             HypComputable (suc n)
@@ -3867,7 +3921,7 @@ mutual
             dAσ
             compBranchTy
             dl)
-  
+
       compcohAssoc =
         subst
           (λ J -> HypComputable (suc n) J)
@@ -3876,8 +3930,8 @@ mutual
             (sym (wkTmLiftSubst (liftSubst sigma) l))
             (qtrBranchTyWk (subTy (liftSubst sigma) L)
               ∙ sym (qtrCohTyLiftComp sigma L)))
-          (weakenOneOpenTm compl wkCtxWF)
-  
+          (weakenOneOpenTm complForCoh wkCtxWF)
+
       compcoh =
         subst
           (λ J -> HypComputable (suc n) J)
@@ -3915,7 +3969,7 @@ mutual
             dWkAσ
             compcohAssoc
             dcoh)
-  
+
       resultPath :
         termEq []
           (subTm sigma (tmElQtr l (tmClass a)))
@@ -3940,8 +3994,8 @@ mutual
     subst
       (λ J -> Computable n J)
       (sym resultPath)
-      (compCQtrClosed compL compa compl compcoh)
-  
+      (compCQtrClosed compL compa dBranchSub dlSub rawBody compcoh)
+
   substDerivTmEqCompCF {n} (reflTm d) fits cFits (acc rs) =
     compReflTmClosed (substDerivTmCompCF d fits cFits (rs _ (substMeasure-reflTm< d)))
   substDerivTmEqCompCF {n} (symTm d du dA) fits cFits (acc rs) =
@@ -4060,46 +4114,6 @@ mutual
                   dM
                   (composeOneBinderEq fits dSigmaσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq fits dSigmaσ fitsEq2)) (<-wellfounded _))))
   
-      compdm =
-        let
-          lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-          lifted1 =
-            subst
-              (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-              (liftSubstCompKeep sigma)
-              (liftFitsOne fits dAσ)
-          dBranch =
-            subst
-              (λ T ->
-                Derivable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
-              (sigmaBranchTyLiftComp sigma M)
-              (subst
-                (λ T ->
-                  Derivable (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
-                (cong (λ rho -> subTy rho (sigmaBranchTy M))
-                  (liftSubstCompKeep (liftSubst sigma)))
-                (substTyRule (assocTy dm) (liftFits lifted1 dBσ)))
-          compBranchTy =
-            subst
-              (λ T ->
-                HypComputable (suc n) (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) T))
-              (sym (sigmaBranchTyLiftComp sigma M))
-              (sigmaBranchTyHypFromMotive dBranch compAσ compBσ compM)
-        in
-        subst
-          (λ J -> HypComputable (suc n) J)
-          (cong
-            (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-              (subTm (liftSubst (liftSubst sigma)) m))
-            (sigmaBranchTyLiftComp sigma M))
-          (openHypTm2
-            fits
-            (fitsToCompFits fits)
-            dAσ
-            dBσ
-            compBranchTy
-            dm)
-  
       compcRaw = substDerivTmCompCF dc fits cFits (rs _ (substMeasure-cSigma-c< dM dSigma db dc dm))
       compc =
         subst
@@ -4108,7 +4122,93 @@ mutual
             ∙ cong (λ rho -> subTy rho B) (sym (singleSubstCompLift sigma b))
             ∙ sym (subTyComp (singleSubst (subTm sigma b)) (liftSubst sigma) B))
           compcRaw
-  
+
+      -- v28 Stage 2: build the body Computable directly via SCC 2 recursion
+      -- on the ORIGINAL dm, using sub-Acc via substMeasure-cSigma-m<.
+      -- The composition path sigmaCompSubLiftComp gives us:
+      --   compSub sigma (sigmaCompSub b c) ≡ compSub (sigmaCompSub b' c') (liftSubst (liftSubst sigma))
+      -- Step 1: build the 2-element fits for sigmaCompSub at substituted (B ∷ A ∷ [])
+      bodyFits2 : CompFitsBundle n
+        (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+        (sigmaCompSub (subTm sigma b) (subTm sigma c))
+      bodyFits2 = sigmaCompComputableFitsHelper {A = subTy sigma A} {B = subTy (liftSubst sigma) B} compb compc
+      -- Step 2: compose with outer fits to get fits for (B ∷ A ∷ gamma)
+      composedFitsTwoBinder :
+        FitsSubst [] (B ∷ A ∷ gamma)
+          (compSub (sigmaCompSub (subTm sigma b) (subTm sigma c))
+                   (liftSubst (liftSubst sigma)))
+      composedFitsTwoBinder =
+        composeTwoBinders fits dAσ dBσ (fst bodyFits2)
+      -- Step 3: transport fits along sigmaCompSubLiftComp
+      composedFitsFinal :
+        FitsSubst [] (B ∷ A ∷ gamma) (compSub sigma (sigmaCompSub b c))
+      composedFitsFinal =
+        subst
+          (λ rho -> FitsSubst [] (B ∷ A ∷ gamma) rho)
+          (sym (sigmaCompSubLiftComp sigma b c))
+          composedFitsTwoBinder
+      -- Step 4: build CompFits for composedFitsFinal
+      composedCFitsFinal : ComputableFits n composedFitsFinal
+      composedCFitsFinal = fitsToCompFits composedFitsFinal
+      -- Step 5: recursive call on original dm with sub-Acc. The result lives at
+      -- context (compSub sigma (sigmaCompSub b c)).
+      rawBodyRaw : Computable n
+        (hasTy [] (subTm (compSub sigma (sigmaCompSub b c)) m)
+          (subTy (compSub sigma (sigmaCompSub b c)) (sigmaBranchTy M)))
+      rawBodyRaw =
+        substDerivTmCompCF dm composedFitsFinal composedCFitsFinal
+          (rs _ (substMeasure-cSigma-m< dM dSigma db dc dm))
+      -- Step 6: transport to the (sigmaCompSub b' c') (liftSubst (liftSubst sigma)) form.
+      rawBody : Computable n
+        (hasTy [] (subTm (sigmaCompSub (subTm sigma b) (subTm sigma c))
+                    (subTm (liftSubst (liftSubst sigma)) m))
+          (subTy (sigmaCompSub (subTm sigma b) (subTm sigma c))
+            (sigmaBranchTy (subTy (liftSubst sigma) M))))
+      rawBody =
+        subst
+          (λ J -> Computable n J)
+          (cong₂ (hasTy [])
+            (sym (subTmComp sigma (sigmaCompSub b c) m)
+              ∙ subTmComp sigma (sigmaCompSub b c) m  -- identity: just to start the chain
+              -- Actually: we want compSub sigma (sigmaCompSub b c) → sigmaCompSub b' c' composed with liftSubst (liftSubst sigma)
+              -- Use cong directly on the substitution equality
+              ∙ cong (λ rho -> subTm rho m) (sigmaCompSubLiftComp sigma b c)
+              ∙ sym (subTmComp (sigmaCompSub (subTm sigma b) (subTm sigma c))
+                  (liftSubst (liftSubst sigma)) m))
+            (cong (λ rho -> subTy rho (sigmaBranchTy M)) (sigmaCompSubLiftComp sigma b c)
+              ∙ sym (subTyComp (sigmaCompSub (subTm sigma b) (subTm sigma c))
+                  (liftSubst (liftSubst sigma)) (sigmaBranchTy M))
+              ∙ cong (subTy (sigmaCompSub (subTm sigma b) (subTm sigma c)))
+                  (sigmaBranchTyLiftComp sigma M)))
+          rawBodyRaw
+
+      -- Substituted dm for dEq construction (not used recursively, so derivSize bound not needed)
+      liftedOne : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+      liftedOne =
+        subst
+          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+          (liftSubstCompKeep sigma)
+          (liftFitsOne fits dAσ)
+      liftedTwo : FitsSubst
+        (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+        (liftSubst (liftSubst sigma))
+      liftedTwo =
+        subst
+          (λ rho -> FitsSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma) rho)
+          (liftSubstCompKeep (liftSubst sigma))
+          (liftFits liftedOne dBσ)
+      dmSub : Derivable
+        (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+          (subTm (liftSubst (liftSubst sigma)) m)
+          (sigmaBranchTy (subTy (liftSubst sigma) M)))
+      dmSub =
+        subst
+          (λ T ->
+            Derivable (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+              (subTm (liftSubst (liftSubst sigma)) m) T))
+          (sigmaBranchTyLiftComp sigma M)
+          (substTmRule dm liftedTwo)
+
       resultPath :
         termEq []
           (subTm sigma (tmElSigma (tmPair b c) m))
@@ -4138,7 +4238,7 @@ mutual
     subst
       (λ J -> Computable n J)
       (sym resultPath)
-      (compCSigmaClosed compM compb compc compdm)
+      (compCSigmaClosed compM compb compc dmSub rawBody)
   substDerivTmEqCompCF {n} (iEqEq d) fits cFits (acc rs) =
     compReflTm (compIEqClosed (compTmEqLeft (substDerivTmEqCompCF d fits cFits (rs _ (substMeasure-iEqEq< d)))))
   substDerivTmEqCompCF {n} (eEqStar dp dA da db) fits cFits (acc rs) =
@@ -5113,6 +5213,65 @@ mutual
                   dBranch
                   (composeOneBinderEq sigmaFits dAσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq sigmaFits dAσ fitsEq2)) (<-wellfounded _))))
   
+      -- Build dBranchSubσ and dlSubσ for the new compCQtrClosed signature
+      liftedOneARawσ : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma)
+        (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+      liftedOneARawσ = liftFitsOne sigmaFits dAσ
+      dBranchSubσ : Derivable
+        (isType (subTy sigma A ∷ []) (qtrBranchTy (subTy (liftSubst sigma) L)))
+      dBranchSubσ =
+        subst
+          (λ T -> Derivable (isType (subTy sigma A ∷ []) T))
+          (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma)
+            ∙ qtrBranchTyLiftComp sigma L)
+          (substTyRule dBranch liftedOneARawσ)
+      dlSubσ : Derivable
+        (hasTy (subTy sigma A ∷ []) (subTm (liftSubst sigma) l)
+          (qtrBranchTy (subTy (liftSubst sigma) L)))
+      dlSubσ =
+        subst
+          (λ J -> Derivable J)
+          (cong₂
+            (hasTy (subTy sigma A ∷ []))
+            (cong (λ rho -> subTm rho l) (liftSubstCompKeep sigma))
+            (cong (λ rho -> subTy rho (qtrBranchTy L)) (liftSubstCompKeep sigma)
+              ∙ qtrBranchTyLiftComp sigma L))
+          (substTmRule dl liftedOneARawσ)
+      -- Build rawBodyσ via SCC 2 on original dl with <-wellfounded (this helper doesn't receive Acc)
+      lBodyFitsσ : CompFitsBundle n (subTy sigma A ∷ []) (qtrCompSub (subTm sigma a))
+      lBodyFitsσ = qtrCompComputableFitsHelper {A = subTy sigma A} compaσ
+      composedFitsLσ :
+        FitsSubst [] (A ∷ gamma)
+          (compSub (qtrCompSub (subTm sigma a)) (liftSubst sigma))
+      composedFitsLσ = composeOneBinder sigmaFits dAσ (fst lBodyFitsσ)
+      composedFitsLFinalσ :
+        FitsSubst [] (A ∷ gamma) (compSub sigma (qtrCompSub a))
+      composedFitsLFinalσ =
+        subst
+          (λ rho -> FitsSubst [] (A ∷ gamma) rho)
+          (sym (qtrCompSubLiftComp sigma a))
+          composedFitsLσ
+      composedCFitsLFinalσ : ComputableFits n composedFitsLFinalσ
+      composedCFitsLFinalσ = fitsToCompFits composedFitsLFinalσ
+      rawBodyRawσ : Computable n
+        (hasTy [] (subTm (compSub sigma (qtrCompSub a)) l)
+          (subTy (compSub sigma (qtrCompSub a)) (qtrBranchTy L)))
+      rawBodyRawσ =
+        substDerivTmCompCF dl composedFitsLFinalσ composedCFitsLFinalσ (<-wellfounded _)
+      rawBodyσ : Computable n
+        (hasTy [] (subTm (qtrCompSub (subTm sigma a)) (subTm (liftSubst sigma) l))
+          (subTy (qtrCompSub (subTm sigma a)) (qtrBranchTy (subTy (liftSubst sigma) L))))
+      rawBodyσ =
+        subst
+          (λ J -> Computable n J)
+          (cong₂ (hasTy [])
+            (cong (λ rho -> subTm rho l) (qtrCompSubLiftComp sigma a)
+              ∙ sym (subTmComp (qtrCompSub (subTm sigma a)) (liftSubst sigma) l))
+            (cong (λ rho -> subTy rho (qtrBranchTy L)) (qtrCompSubLiftComp sigma a)
+              ∙ sym (subTyComp (qtrCompSub (subTm sigma a)) (liftSubst sigma) (qtrBranchTy L))
+              ∙ cong (subTy (qtrCompSub (subTm sigma a))) (qtrBranchTyLiftComp sigma L)))
+          rawBodyRawσ
+      -- complσ (unchanged - still needed for compcohAssoc/compcohσ)
       complσ =
         subst
           (λ T ->
@@ -5175,7 +5334,7 @@ mutual
             compcohAssoc
             dcoh)
   
-      leftCan = compCQtrClosed compL compaσ complσ compcohσ
+      leftCan = compCQtrClosed compL compaσ dBranchSubσ dlSubσ rawBodyσ compcohσ
   
       complEq =
         subst
