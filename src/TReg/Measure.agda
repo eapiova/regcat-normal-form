@@ -886,6 +886,105 @@ substMeasure-eQtrEq-dcoh'< dL dp dBranchTy dl dl' dll' dcoh dcoh' =
   suc-≤-suc
     (≤SumRight {derivSize dcoh'} {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll' + derivSize dcoh})
 
+-- 2026-04-19 (F.1a): bound `dL` (leftmost summand) inside eQtrEq.
+-- derivSize (eQtrEq dL dp dBranchTy dl dl' dll' dcoh dcoh')
+--   = suc (dL + dp + dBranchTy + dl + dl' + dll' + dcoh + dcoh')
+-- dL is the 1st summand.
+substMeasure-eQtrEq-dL< : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (dp : Derivable (termEq gamma p p' (tyQtr A)))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dl' : Derivable (hasTy (A ∷ gamma) l' (qtrBranchTy L)))
+  -> (dll' : Derivable (termEq (A ∷ gamma) l l' (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> (dcoh' : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L)))
+  -> substTaskMeasure dL < substTaskMeasure (eQtrEq dL dp dBranchTy dl dl' dll' dcoh dcoh')
+substMeasure-eQtrEq-dL< dL dp dBranchTy dl dl' dll' dcoh dcoh' =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤-trans
+            (≤-trans
+              (≤-trans
+                (≤SumLeft {derivSize dL} {derivSize dp})
+                (≤SumLeft {derivSize dL + derivSize dp} {derivSize dBranchTy}))
+              (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy} {derivSize dl}))
+            (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl} {derivSize dl'}))
+          (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl'} {derivSize dll'}))
+        (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll'} {derivSize dcoh}))
+      (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll' + derivSize dcoh} {derivSize dcoh'}))
+
+-- 2026-04-19 (F.1a): bound `dBranchTy` (3rd summand) inside eQtrEq.
+substMeasure-eQtrEq-dBranch< : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (dp : Derivable (termEq gamma p p' (tyQtr A)))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dl' : Derivable (hasTy (A ∷ gamma) l' (qtrBranchTy L)))
+  -> (dll' : Derivable (termEq (A ∷ gamma) l l' (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> (dcoh' : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L)))
+  -> substTaskMeasure dBranchTy < substTaskMeasure (eQtrEq dL dp dBranchTy dl dl' dll' dcoh dcoh')
+substMeasure-eQtrEq-dBranch< dL dp dBranchTy dl dl' dll' dcoh dcoh' =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤-trans
+            (≤-trans
+              (≤SumRight {derivSize dBranchTy} {derivSize dL + derivSize dp})
+              (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy} {derivSize dl}))
+            (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl} {derivSize dl'}))
+          (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl'} {derivSize dll'}))
+        (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll'} {derivSize dcoh}))
+      (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll' + derivSize dcoh} {derivSize dcoh'}))
+
+-- 2026-04-19 (F.1a): bound `dl` (4th summand, aka dlL) inside eQtrEq.
+substMeasure-eQtrEq-dlL< : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (dp : Derivable (termEq gamma p p' (tyQtr A)))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dl' : Derivable (hasTy (A ∷ gamma) l' (qtrBranchTy L)))
+  -> (dll' : Derivable (termEq (A ∷ gamma) l l' (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> (dcoh' : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L)))
+  -> substTaskMeasure dl < substTaskMeasure (eQtrEq dL dp dBranchTy dl dl' dll' dcoh dcoh')
+substMeasure-eQtrEq-dlL< dL dp dBranchTy dl dl' dll' dcoh dcoh' =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤-trans
+            (≤SumRight {derivSize dl} {derivSize dL + derivSize dp + derivSize dBranchTy})
+            (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl} {derivSize dl'}))
+          (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl'} {derivSize dll'}))
+        (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll'} {derivSize dcoh}))
+      (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll' + derivSize dcoh} {derivSize dcoh'}))
+
+-- 2026-04-19 (F.1a): bound `dl'` (5th summand, aka dlR) inside eQtrEq.
+substMeasure-eQtrEq-dlR< : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (dp : Derivable (termEq gamma p p' (tyQtr A)))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dl' : Derivable (hasTy (A ∷ gamma) l' (qtrBranchTy L)))
+  -> (dll' : Derivable (termEq (A ∷ gamma) l l' (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> (dcoh' : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L)))
+  -> substTaskMeasure dl' < substTaskMeasure (eQtrEq dL dp dBranchTy dl dl' dll' dcoh dcoh')
+substMeasure-eQtrEq-dlR< dL dp dBranchTy dl dl' dll' dcoh dcoh' =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤-trans
+          (≤SumRight {derivSize dl'} {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl})
+          (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl'} {derivSize dll'}))
+        (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll'} {derivSize dcoh}))
+      (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl + derivSize dl' + derivSize dll' + derivSize dcoh} {derivSize dcoh'}))
+
 substMeasure-cQtr-a< : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
   -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
   -> (da : Derivable (hasTy gamma a A))
