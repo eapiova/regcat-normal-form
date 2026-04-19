@@ -3391,9 +3391,12 @@ mutual
            (subTy sigma (subTy (singleSubst p) L)))
   substDerivTmEqCompEQtrEqCF
     {n} {gamma = gamma} {A = A} {L = L} {l = l} {l' = l'} {p = p} {p' = p'} {sigma = sigma}
-    dL dp dBranch dlL dlR dl dcoh dcoh' fits cFits accDP =
+    dL dp dBranch dlL dlR dl dcoh dcoh' fits cFits (acc rs) =
     let
-      compdp = substDerivTmEqCompCF dp fits cFits accDP
+      -- Phase F.1c: destructure the Acc witness so `rs` is in scope inside the body.
+      -- Reconstruct (acc rs) for the one call that needs the full witness; later
+      -- phases (F.1e) will replace internal (LexLt-wf _) calls with rs _ proof<.
+      compdp = substDerivTmEqCompCF dp fits cFits (acc rs)
       compQtrσ = compTmToCompTy (compTmEqLeft compdp)
       dQtrσ = compToDerivable compQtrσ
       tyInv = invertQtrTy compQtrσ evalQtr
