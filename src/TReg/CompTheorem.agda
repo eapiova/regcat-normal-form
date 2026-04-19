@@ -3954,7 +3954,12 @@ mutual
   substDerivTmEqCompCF {n} (eSigmaEq dM dd dmL dm) fits cFits (acc rs) =
     substDerivTmEqCompESigmaEq dM dd dmL dm fits cFits (LexLt-wf _)
   substDerivTmEqCompCF {n} (eQtrEq dL dp dBranch dlL dlR dl dcoh dcoh') fits cFits (acc rs) =
-    substDerivTmEqCompEQtrEqCF dL dp dBranch dlL dlR dl dcoh dcoh' fits cFits (LexLt-wf _)
+    -- Phase F.1b: pass a proper Acc sub-witness for dp tied to rs
+    -- (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-p< ...))) instead of (LexLt-wf _).
+    -- This is semantic-preserving (both are valid Acc LexLt (substTaskLexMeasure dp)
+    -- witnesses) but provides a structural sub-Acc of the outer (acc rs).
+    substDerivTmEqCompEQtrEqCF dL dp dBranch dlL dlR dl dcoh dcoh' fits cFits
+      (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-p< dL dp dBranch dlL dlR dl dcoh dcoh')))
   substDerivTmEqCompCF {n} {gamma = gamma} {sigma = sigma}
     (cSigma {A = A} {B = B} {M = M} {b = b} {c = c} {m = m} dM dSigma db dc dm) fits cFits (acc rs) =
     let
