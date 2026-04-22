@@ -3757,7 +3757,9 @@ mutual
                   dBranch
                   composedFitsEq
                   (fitsEqToCompFitsEq composedFitsEq) (LexLt-wf _))))
-      complAssoc = openHypTm1 fits cFits dAσ compBranchTy dlL (LexLt-wf _)
+      -- Phase F.1e-step2 (Scope A): use rs _ proof< for dlL recursion
+      complAssoc = openHypTm1 fits cFits dAσ compBranchTy dlL
+        (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-dlL< dL dp dBranch dlL dlR dl dcoh dcoh')))
   
       compl =
         subst
@@ -3768,12 +3770,13 @@ mutual
                 (subTm (liftSubst sigma) l')
                 T))
           (qtrBranchTyLiftComp sigma L)
+          -- Phase F.1e-step2 (Scope A): use rs _ proof< for dl (=dll') recursion
           (openHypTmEq1
             fits
             dAσ
             complAssoc
             dl
-            (LexLt-wf _))
+            (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-dll< dL dp dBranch dlL dlR dl dcoh dcoh'))))
   
       compcohAssoc =
         subst
@@ -3784,7 +3787,7 @@ mutual
             (qtrBranchTyWk (subTy (liftSubst sigma) L)
               ∙ sym (qtrCohTyLiftComp sigma L)))
           (weakenOneOpenTm (hypTmEqLeft compl) wkCtxWF)
-  
+
       compcoh =
         subst
           (λ J -> HypComputable (suc n) J)
@@ -3816,13 +3819,14 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l))
                     T)
                 (qtrCohTyLiftComp sigma L))
+          -- Phase F.1e-step2 (Scope A): use rs _ proof< for dcoh recursion
           (openHypTmEq2
             fits
             dAσ
             dWkAσ
             compcohAssoc
             dcoh
-            (LexLt-wf _))
+            (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-dcoh< dL dp dBranch dlL dlR dl dcoh dcoh'))))
   
       compcohAssoc' =
         subst
@@ -3865,13 +3869,14 @@ mutual
                     (renTm qtrSecondBranchRen (subTm (liftSubst sigma) l'))
                     T)
                 (qtrCohTyLiftComp sigma L))
+          -- Phase F.1e-step2 (Scope A): use rs _ proof< for dcoh' recursion
           (openHypTmEq2
             fits
             dAσ
             dWkAσ
             compcohAssoc'
             dcoh'
-            (LexLt-wf _))
+            (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-dcoh'< dL dp dBranch dlL dlR dl dcoh dcoh'))))
   
       resultPath :
         termEq []
