@@ -3689,7 +3689,8 @@ mutual
           (hypTyOpen
             nonemptyNeNil
             (substTyRule dL (liftFitsOne fits dQtrσ))
-            (λ rho fits2 cFits2 accD ->
+            -- Phase F.1e-step3 (Scope B): destructure closure Acc, use accRs _ proof<
+            (λ rho fits2 cFits2 (acc accRs) ->
               let
                 composedFits = composeOneBinder fits dQtrσ fits2
               in
@@ -3701,8 +3702,10 @@ mutual
                 (substDerivTyCompCF
                   dL
                   composedFits
-                  (fitsToCompFits composedFits) (LexLt-wf _)))
-            (λ rho eta fitsEq2 cFitsEq2 accD ->
+                  (fitsToCompFits composedFits)
+                  (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ L))
+                    (substMeasure-substTyRule< dL (liftFitsOne fits dQtrσ))))))
+            (λ rho eta fitsEq2 cFitsEq2 (acc accRs) ->
               let
                 composedFitsEq = composeOneBinderEq fits dQtrσ fitsEq2
               in
@@ -3717,7 +3720,9 @@ mutual
                 (eqSubDerivTyCompCF
                   dL
                   composedFitsEq
-                  (fitsEqToCompFitsEq composedFitsEq) (LexLt-wf _))))
+                  (fitsEqToCompFitsEq composedFitsEq)
+                  (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ L))
+                    (substMeasure-substTyRule< dL (liftFitsOne fits dQtrσ)))))))
       compBranchTy =
         subst
           (λ T -> HypComputable (suc n) (isType (subTy sigma A ∷ []) T))
@@ -3725,7 +3730,8 @@ mutual
           (hypTyOpen
             nonemptyNeNil
             (substTyRule dBranch (liftFitsOne fits dAσ))
-            (λ rho fits2 cFits2 accD ->
+            -- Phase F.1e-step3 (Scope B): destructure closure Acc, use accRs _ proof<
+            (λ rho fits2 cFits2 (acc accRs) ->
               let
                 composedFits = composeOneBinder fits dAσ fits2
               in
@@ -3738,8 +3744,10 @@ mutual
                 (substDerivTyCompCF
                   dBranch
                   composedFits
-                  (fitsToCompFits composedFits) (LexLt-wf _)))
-            (λ rho eta fitsEq2 cFitsEq2 accD ->
+                  (fitsToCompFits composedFits)
+                  (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ (qtrBranchTy L)))
+                    (substMeasure-substTyRule< dBranch (liftFitsOne fits dAσ))))))
+            (λ rho eta fitsEq2 cFitsEq2 (acc accRs) ->
               let
                 composedFitsEq = composeOneBinderEq fits dAσ fitsEq2
               in
@@ -3756,7 +3764,9 @@ mutual
                 (eqSubDerivTyCompCF
                   dBranch
                   composedFitsEq
-                  (fitsEqToCompFitsEq composedFitsEq) (LexLt-wf _))))
+                  (fitsEqToCompFitsEq composedFitsEq)
+                  (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ (qtrBranchTy L)))
+                    (substMeasure-substTyRule< dBranch (liftFitsOne fits dAσ)))))))
       -- Phase F.1e-step2 (Scope A): use rs _ proof< for dlL recursion
       complAssoc = openHypTm1 fits cFits dAσ compBranchTy dlL
         (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-dlL< dL dp dBranch dlL dlR dl dcoh dcoh')))
