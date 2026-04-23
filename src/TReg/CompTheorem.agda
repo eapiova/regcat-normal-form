@@ -3228,112 +3228,6 @@ mutual
       (cong₂ (hasTy []) (subTmId t) (subTyId A))
       (substDerivTmCompCF d (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil) (fitsToCompFits (fitsNil {gamma = []} {delta = []} {sigma = idSubst} wfNil)) (LexLt-wf _))
 
-  substDerivTmEqCompESigmaEq
-    : {n : ℕ} -> {gamma : Ctx} {A B M : RawType} {d d' m m' : RawTerm} {sigma : Subst}
-    -> (dM : Derivable (isType ((tySigma A B) ∷ gamma) M))
-    -> (dd : Derivable (termEq gamma d d' (tySigma A B)))
-    -> (dmL : Derivable (hasTy (B ∷ A ∷ gamma) m (sigmaBranchTy M)))
-    -> (dm : Derivable (termEq (B ∷ A ∷ gamma) m m' (sigmaBranchTy M)))
-    -> (fits : FitsSubst [] gamma sigma)
-    -> ComputableFits n fits
-    -> Acc LexLt (substTaskLexMeasure dd)
-    -> Computable n
-         (termEq []
-           (subTm sigma (tmElSigma d m))
-           (subTm sigma (tmElSigma d' m'))
-           (subTy sigma (subTy (singleSubst d) M)))
-  substDerivTmEqCompESigmaEq
-    {n} {gamma = gamma} {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'} {sigma = sigma}
-    dM dd dmL dm fits cFits accDD =
-    let
-      compdd = substDerivTmEqCompCF dd fits cFits accDD
-      compSigma = compTmToCompTy (compTmEqLeft compdd)
-      dSigmaσ = compToDerivable compSigma
-      tyInv = invertSigmaTy compSigma evalSigma
-      compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      dAσ = compToDerivable compAσ
-      dBσ = ClosedSigmaTyInv.sigmaTyFamDeriv tyInv
-      compM =
-        subst
-          (λ T -> HypComputable (suc n) (isType (subTy sigma (tySigma A B) ∷ []) T))
-          (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
-          (hypTyOpen
-            nonemptyNeNil
-            (substTyRule dM (liftFitsOne fits dSigmaσ))
-            (λ rho fits2 _ accD ->
-              subst
-                (λ T -> Computable n (isType [] T))
-                (sym
-                  (cong (λ theta -> subTy rho (subTy theta M)) (liftSubstCompKeep sigma)
-                    ∙ subTyComp rho (liftSubst sigma) M))
-                (substDerivTyCompCF
-                  dM
-                  (composeOneBinder fits dSigmaσ fits2) (fitsToCompFits (composeOneBinder fits dSigmaσ fits2)) (LexLt-wf _)))
-            (λ rho eta fitsEq2 _ accD ->
-              subst
-                (λ J -> Computable n J)
-                (sym
-                  (cong₂ (typeEq [])
-                    (cong (λ theta -> subTy rho (subTy theta M)) (liftSubstCompKeep sigma)
-                      ∙ subTyComp rho (liftSubst sigma) M)
-                    (cong (λ theta -> subTy eta (subTy theta M)) (liftSubstCompKeep sigma)
-                      ∙ subTyComp eta (liftSubst sigma) M)))
-                (eqSubDerivTyCompCF
-                  dM
-                  (composeOneBinderEq fits dSigmaσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq fits dSigmaσ fitsEq2)) (LexLt-wf _))))
-  
-      -- Stage 3 v29: raw dmm' from substTmEqRule on the outer dm (gamma-level termEq).
-      lifted1dmm' : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
-      lifted1dmm' =
-        subst
-          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
-          (liftSubstCompKeep sigma)
-          (liftFitsOne fits dAσ)
-      lifted2dmm' : FitsSubst
-        (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
-        (liftSubst (liftSubst sigma))
-      lifted2dmm' =
-        subst
-          (λ rho -> FitsSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma) rho)
-          (liftSubstCompKeep (liftSubst sigma))
-          (liftFits lifted1dmm' dBσ)
-      dmm' : Derivable
-        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-          (subTm (liftSubst (liftSubst sigma)) m)
-          (subTm (liftSubst (liftSubst sigma)) m')
-          (sigmaBranchTy (subTy (liftSubst sigma) M)))
-      dmm' =
-        subst
-          (λ T ->
-            Derivable (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
-              (subTm (liftSubst (liftSubst sigma)) m)
-              (subTm (liftSubst (liftSubst sigma)) m') T))
-          (sigmaBranchTyLiftComp sigma M)
-          (substTmEqRule dm lifted2dmm')
-
-      resultPath :
-        termEq []
-          (subTm sigma (tmElSigma d m))
-          (subTm sigma (tmElSigma d' m'))
-          (subTy sigma (subTy (singleSubst d) M))
-          ≡
-        termEq []
-          (tmElSigma (subTm sigma d) (subTm (liftSubst (liftSubst sigma)) m))
-          (tmElSigma (subTm sigma d') (subTm (liftSubst (liftSubst sigma)) m'))
-          (subTy (singleSubst (subTm sigma d)) (subTy (liftSubst sigma) M))
-      resultPath =
-        cong₃
-          (termEq [])
-          refl
-          refl
-          (subTyComp sigma (singleSubst d) M
-            ∙ cong (λ rho -> subTy rho M) (sym (singleSubstCompLift sigma d))
-            ∙ sym (subTyComp (singleSubst (subTm sigma d)) (liftSubst sigma) M))
-    in
-    subst
-      (λ J -> Computable n J)
-      (sym resultPath)
-      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd dmm' (LexLt-wf _))
   
   substDerivTmEqCompCF {n} (reflTm d) fits cFits (acc rs) =
     compReflTmClosed (substDerivTmCompCF d fits cFits (LexLt-wf _))
@@ -3409,8 +3303,103 @@ mutual
       evalPair
       compac
       compbd
-  substDerivTmEqCompCF {n} (eSigmaEq dM dd dmL dm) fits cFits (acc rs) =
-    substDerivTmEqCompESigmaEq dM dd dmL dm fits cFits (LexLt-wf _)
+  substDerivTmEqCompCF {n} {gamma = gamma} {sigma = sigma}
+    (eSigmaEq {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'}
+      dM dd dmL dm) fits cFits (acc rs) =
+    -- Phase F.2 (eSigmaEq): inlined body of substDerivTmEqCompESigmaEq.
+    let
+      compdd = substDerivTmEqCompCF dd fits cFits
+        (rs _ (lift-lex-eq refl (substMeasure-eSigmaEq-dd< dM dd dmL dm)))
+      compSigma = compTmToCompTy (compTmEqLeft compdd)
+      dSigmaσ = compToDerivable compSigma
+      tyInv = invertSigmaTy compSigma evalSigma
+      compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
+      dAσ = compToDerivable compAσ
+      dBσ = ClosedSigmaTyInv.sigmaTyFamDeriv tyInv
+      compM =
+        subst
+          (λ T -> HypComputable (suc n) (isType (subTy sigma (tySigma A B) ∷ []) T))
+          (cong (λ rho -> subTy rho M) (liftSubstCompKeep sigma))
+          (hypTyOpen
+            nonemptyNeNil
+            (substTyRule dM (liftFitsOne fits dSigmaσ))
+            -- Phase F.2 (Scope B): destructure closure Acc, use accRs _ proof<
+            (λ rho fits2 _ (acc accRs) ->
+              subst
+                (λ T -> Computable n (isType [] T))
+                (sym
+                  (cong (λ theta -> subTy rho (subTy theta M)) (liftSubstCompKeep sigma)
+                    ∙ subTyComp rho (liftSubst sigma) M))
+                (substDerivTyCompCF
+                  dM
+                  (composeOneBinder fits dSigmaσ fits2) (fitsToCompFits (composeOneBinder fits dSigmaσ fits2)) (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ M)) (substMeasure-substTyRule< dM (liftFitsOne fits dSigmaσ))))))
+            -- Phase F.2 (Scope B): destructure closure Acc, use accRs _ proof<
+            (λ rho eta fitsEq2 _ (acc accRs) ->
+              subst
+                (λ J -> Computable n J)
+                (sym
+                  (cong₂ (typeEq [])
+                    (cong (λ theta -> subTy rho (subTy theta M)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp rho (liftSubst sigma) M)
+                    (cong (λ theta -> subTy eta (subTy theta M)) (liftSubstCompKeep sigma)
+                      ∙ subTyComp eta (liftSubst sigma) M)))
+                (eqSubDerivTyCompCF
+                  dM
+                  (composeOneBinderEq fits dSigmaσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq fits dSigmaσ fitsEq2)) (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ M)) (substMeasure-substTyRule< dM (liftFitsOne fits dSigmaσ)))))))
+  
+      -- Stage 3 v29: raw dmm' from substTmEqRule on the outer dm (gamma-level termEq).
+      lifted1dmm' : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+      lifted1dmm' =
+        subst
+          (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+          (liftSubstCompKeep sigma)
+          (liftFitsOne fits dAσ)
+      lifted2dmm' : FitsSubst
+        (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma)
+        (liftSubst (liftSubst sigma))
+      lifted2dmm' =
+        subst
+          (λ rho -> FitsSubst (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []) (B ∷ A ∷ gamma) rho)
+          (liftSubstCompKeep (liftSubst sigma))
+          (liftFits lifted1dmm' dBσ)
+      dmm' : Derivable
+        (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+          (subTm (liftSubst (liftSubst sigma)) m)
+          (subTm (liftSubst (liftSubst sigma)) m')
+          (sigmaBranchTy (subTy (liftSubst sigma) M)))
+      dmm' =
+        subst
+          (λ T ->
+            Derivable (termEq (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+              (subTm (liftSubst (liftSubst sigma)) m)
+              (subTm (liftSubst (liftSubst sigma)) m') T))
+          (sigmaBranchTyLiftComp sigma M)
+          (substTmEqRule dm lifted2dmm')
+
+      resultPath :
+        termEq []
+          (subTm sigma (tmElSigma d m))
+          (subTm sigma (tmElSigma d' m'))
+          (subTy sigma (subTy (singleSubst d) M))
+          ≡
+        termEq []
+          (tmElSigma (subTm sigma d) (subTm (liftSubst (liftSubst sigma)) m))
+          (tmElSigma (subTm sigma d') (subTm (liftSubst (liftSubst sigma)) m'))
+          (subTy (singleSubst (subTm sigma d)) (subTy (liftSubst sigma) M))
+      resultPath =
+        cong₃
+          (termEq [])
+          refl
+          refl
+          (subTyComp sigma (singleSubst d) M
+            ∙ cong (λ rho -> subTy rho M) (sym (singleSubstCompLift sigma d))
+            ∙ sym (subTyComp (singleSubst (subTm sigma d)) (liftSubst sigma) M))
+    in
+    subst
+      (λ J -> Computable n J)
+      (sym resultPath)
+      (compESigmaClosed compTransTmClosed compConvTmEqClosed compM compdd dmm' (LexLt-wf _))
+
   substDerivTmEqCompCF {n} {gamma = gamma} {sigma = sigma}
     (eQtrEq {A = A} {L = L} {l = l} {l' = l'} {p = p} {p' = p'}
       dL dp dBranch dlL dlR dl dcoh dcoh') fits cFits (acc rs) =
