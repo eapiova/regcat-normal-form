@@ -1184,7 +1184,8 @@ mutual
               (λ rho -> isType (subTy sigma A ∷ []) (subTy rho T))
               (liftSubstCompKeep sigma)))
           compT)
-        (λ tau fits2 cFits2 accDt ->
+        -- Phase F.3: destructure closure Acc, use accRs _ proof< for recursion on dt
+        (λ tau fits2 cFits2 (acc accRs) ->
           let
             composedFits =
               subst
@@ -1209,8 +1210,10 @@ mutual
                   ∙ subTmComp tau (liftSubst sigma) t)
                 (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
                   ∙ subTyComp tau (liftSubst sigma) T)))
-            (substDerivTmCompCF dt composedFits composedCFits (LexLt-wf _)))
-        (λ tau₁ tau₂ fitsEq2 _ accDt ->
+            (substDerivTmCompCF dt composedFits composedCFits
+              (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+                (substMeasure-substTmRule< dt (liftFitsOne fits dAσ))))))
+        (λ tau₁ tau₂ fitsEq2 _ (acc accRs) ->
           subst
             (λ J -> Computable n J)
             (sym
@@ -1225,7 +1228,8 @@ mutual
               dt
               (composeOneBinderEq fits dAσ fitsEq2)
               (fitsEqToCompFitsEq (composeOneBinderEq fits dAσ fitsEq2))
-              (LexLt-wf _))))
+              (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+                (substMeasure-substTmRule< dt (liftFitsOne fits dAσ)))))))
   
   openHypTmEq1 : {n : ℕ} -> {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma : Subst}
     -> FitsSubst [] gamma sigma
@@ -1261,7 +1265,8 @@ mutual
               (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
               (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma))))
           compt)
-        (λ tau fits2 _ accDtu ->
+        -- Phase F.3: destructure closure Acc, use accRs _ proof< for recursion on dtu
+        (λ tau fits2 _ (acc accRs) ->
           subst
             (λ J -> Computable n J)
             (sym
@@ -1276,8 +1281,9 @@ mutual
               dtu
               (composeOneBinder fits dAσ fits2)
               (fitsToCompFits (composeOneBinder fits dAσ fits2))
-              (LexLt-wf _)))
-        (λ tau₁ tau₂ fitsEq2 _ accDtu ->
+              (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+                (substMeasure-substTmEqRule< dtu (liftFitsOne fits dAσ))))))
+        (λ tau₁ tau₂ fitsEq2 _ (acc accRs) ->
           subst
             (λ J -> Computable n J)
             (sym
@@ -1292,7 +1298,8 @@ mutual
               dtu
               (composeOneBinderEq fits dAσ fitsEq2)
               (fitsEqToCompFitsEq (composeOneBinderEq fits dAσ fitsEq2))
-              (LexLt-wf _))))
+              (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+                (substMeasure-substTmEqRule< dtu (liftFitsOne fits dAσ)))))))
   
   openHypTm2 : {n : ℕ} -> {gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma : Subst}
     -> (fits : FitsSubst [] gamma sigma)
@@ -1336,7 +1343,8 @@ mutual
                   (subTy rho T))
               (liftSubstCompKeep (liftSubst sigma))))
           compT)
-        (λ tau fits2 cFits2 accDt ->
+        -- Phase F.3: destructure closure Acc, use accRs _ proof< for recursion on dt
+        (λ tau fits2 cFits2 (acc accRs) ->
           let
             composedFits =
               subst
@@ -1361,8 +1369,10 @@ mutual
                   ∙ subTmComp tau (liftSubst (liftSubst sigma)) t)
                 (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
                   ∙ subTyComp tau (liftSubst (liftSubst sigma)) T)))
-            (substDerivTmCompCF dt composedFits composedCFits (LexLt-wf _)))
-        (λ tau₁ tau₂ fitsEq2 _ accDt ->
+            (substDerivTmCompCF dt composedFits composedCFits
+              (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+                (substMeasure-substTmRule< dt (liftFits lifted1 dBσ))))))
+        (λ tau₁ tau₂ fitsEq2 _ (acc accRs) ->
           subst
             (λ J -> Computable n J)
             (sym
@@ -1377,7 +1387,8 @@ mutual
               dt
               (composeTwoBindersEq fits dAσ dBσ fitsEq2)
               (fitsEqToCompFitsEq (composeTwoBindersEq fits dAσ dBσ fitsEq2))
-              (LexLt-wf _))))
+              (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+                (substMeasure-substTmRule< dt (liftFits lifted1 dBσ)))))))
   
   openHypTmEq2 : {n : ℕ} -> {gamma : Ctx} {A B T : RawType} {t u : RawTerm} {sigma : Subst}
     -> FitsSubst [] gamma sigma
@@ -1422,7 +1433,8 @@ mutual
               (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
               (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma)))))
           compt)
-        (λ tau fits2 _ accDtu ->
+        -- Phase F.3: destructure closure Acc, use accRs _ proof< for recursion on dtu
+        (λ tau fits2 _ (acc accRs) ->
           subst
             (λ J -> Computable n J)
             (sym
@@ -1437,8 +1449,9 @@ mutual
               dtu
               (composeTwoBinders fits dAσ dBσ fits2)
               (fitsToCompFits (composeTwoBinders fits dAσ dBσ fits2))
-              (LexLt-wf _)))
-        (λ tau₁ tau₂ fitsEq2 _ accDtu ->
+              (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+                (substMeasure-substTmEqRule< dtu (liftFits lifted1 dBσ))))))
+        (λ tau₁ tau₂ fitsEq2 _ (acc accRs) ->
           subst
             (λ J -> Computable n J)
             (sym
@@ -1453,7 +1466,8 @@ mutual
               dtu
               (composeTwoBindersEq fits dAσ dBσ fitsEq2)
               (fitsEqToCompFitsEq (composeTwoBindersEq fits dAσ dBσ fitsEq2))
-              (LexLt-wf _))))
+              (accRs _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+                (substMeasure-substTmEqRule< dtu (liftFits lifted1 dBσ)))))))
   singleBinderComputableFits : {n : ℕ} ->    {A : RawType} {sigma : Subst}
     -> (fits : FitsSubst [] (A ∷ []) sigma)
     -> ComputableFits n fits
