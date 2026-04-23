@@ -1032,6 +1032,36 @@ substMeasure-cQtr-L< dL da dBranchTy dl dcoh =
         (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy} {derivSize dl}))
       (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
 
+-- 2026-04-19 (F.2): bound `dBranchTy` (3rd summand) inside cQtr.
+-- derivSize (cQtr dL da dBranchTy dl dcoh)
+--   = suc (dL + da + dBranchTy + dl + dcoh)
+substMeasure-cQtr-dBranch< : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (da : Derivable (hasTy gamma a A))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> substTaskMeasure dBranchTy < substTaskMeasure (cQtr dL da dBranchTy dl dcoh)
+substMeasure-cQtr-dBranch< dL da dBranchTy dl dcoh =
+  suc-≤-suc
+    (≤-trans
+      (≤-trans
+        (≤SumRight {derivSize dBranchTy} {derivSize dL + derivSize da})
+        (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy} {derivSize dl}))
+      (≤SumLeft {derivSize dL + derivSize da + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
+
+-- 2026-04-19 (F.2): bound `dcoh` (5th/last summand) inside cQtr.
+substMeasure-cQtr-dcoh< : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (da : Derivable (hasTy gamma a A))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> substTaskMeasure dcoh < substTaskMeasure (cQtr dL da dBranchTy dl dcoh)
+substMeasure-cQtr-dcoh< dL da dBranchTy dl dcoh =
+  suc-≤-suc
+    (≤SumRight {derivSize dcoh} {derivSize dL + derivSize da + derivSize dBranchTy + derivSize dl})
+
 -- ═══════════════════════════════════════════════════════════════════
 -- Phase E.1: Lex ordering on ℕ × ℕ for termination via (tyDepth, derivSize)
 -- ═══════════════════════════════════════════════════════════════════
