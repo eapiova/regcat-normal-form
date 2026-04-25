@@ -32,7 +32,7 @@ open import TReg.TopComp
 open import TReg.EqComp
 open import TReg.MainTheorem
 open import TReg.FitsHelpers
-open import TReg.OpenHyp using (openHypTm1)
+open import TReg.OpenHyp using (openHypTm1 ; openHypTmEq1)
 
 {-# TERMINATING #-}
 mutual
@@ -96,76 +96,6 @@ mutual
     -> Derivable (hasTy [] t A)
     -> Computable n (hasTy [] t A)
 
-  openHypTmEq1 : {n : ℕ} -> {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma : Subst}
-    -> FitsSubst [] gamma sigma
-    -> Derivable (isType [] (subTy sigma A))
-    -> HypComputable (suc n)
-         (hasTy (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTy (liftSubst sigma) T))
-    -> (dtu : Derivable (termEq (A ∷ gamma) t u T))
-    -> Acc LexLt (substTaskLexMeasure dtu)
-    -> HypComputable (suc n)
-         (termEq (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTm (liftSubst sigma) u)
-           (subTy (liftSubst sigma) T))
-  openHypTmEq1 {n} {A = A} {T = T} {t = t} {u = u} {sigma = sigma}
-    fits dAσ compt dtu accDtu =
-    subst
-      (λ J -> HypComputable (suc n) J)
-      (cong₃
-        (termEq (subTy sigma A ∷ []))
-        (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTm rho u) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
-      (hypTmEqOpen
-        nonemptyNeNil
-        (substTmEqRule dtu (liftFitsOne fits dAσ))
-        (subst
-          (λ J -> HypComputable (suc n) J)
-          (sym
-            (cong₂
-              (hasTy (subTy sigma A ∷ []))
-              (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-              (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma))))
-          compt)
-        -- Phase F.3: destructure closure Acc, use accRs _ proof< for recursion on dtu
-        (λ tau fits2 _ accD ->
-          subst
-            (λ J -> Computable n J)
-            (sym
-              (cong₃ (termEq [])
-                (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep sigma)
-                  ∙ subTmComp tau (liftSubst sigma) t)
-                (cong (λ rho -> subTm tau (subTm rho u)) (liftSubstCompKeep sigma)
-                  ∙ subTmComp tau (liftSubst sigma) u)
-                (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
-                  ∙ subTyComp tau (liftSubst sigma) T)))
-            (substDerivTmEqCompCF
-              dtu
-              (composeOneBinder fits dAσ fits2)
-              (fitsToCompFits (composeOneBinder fits dAσ fits2))
-              (access accD _ (lift-lex-eq (sym (tyDepth-subTy _ T))
-                (substMeasure-substTmEqRule< dtu (liftFitsOne fits dAσ))))))
-        (λ tau₁ tau₂ fitsEq2 _ accD ->
-          subst
-            (λ J -> Computable n J)
-            (sym
-              (cong₃ (termEq [])
-                (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep sigma)
-                  ∙ subTmComp tau₁ (liftSubst sigma) t)
-                (cong (λ rho -> subTm tau₂ (subTm rho u)) (liftSubstCompKeep sigma)
-                  ∙ subTmComp tau₂ (liftSubst sigma) u)
-                (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep sigma)
-                  ∙ subTyComp tau₁ (liftSubst sigma) T)))
-            (eqSubDerivTmEqCompCF
-              dtu
-              (composeOneBinderEq fits dAσ fitsEq2)
-              (fitsEqToCompFitsEq (composeOneBinderEq fits dAσ fitsEq2))
-              (access accD _ (lift-lex-eq (sym (tyDepth-subTy _ T))
-                (substMeasure-substTmEqRule< dtu (liftFitsOne fits dAσ)))))))
-  
   openHypTm2 : {n : ℕ} -> {gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma : Subst}
     -> (fits : FitsSubst [] gamma sigma)
     -> ComputableFits n fits
@@ -2398,7 +2328,7 @@ mutual
                 T))
           (qtrBranchTyLiftComp sigma L)
           -- Phase F.1e-step2 (Scope A): use rs _ proof< for dl (=dll') recursion
-          (openHypTmEq1
+          (openHypTmEq1 substDerivTmEqCompCF eqSubDerivTmEqCompCF fitsToCompFits fitsEqToCompFitsEq
             fits
             dAσ
             complAssoc
