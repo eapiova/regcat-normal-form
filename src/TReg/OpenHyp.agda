@@ -26,8 +26,10 @@ open import TReg.Measure
 open import TReg.Evaluation
 open import TReg.Derivability
 open import TReg.Computability
+open import TReg.Inversion
 open import TReg.StructuralBase using (composeFits)
-open import TReg.Presupposition using (fitsSubstCtxWF)
+open import TReg.Structural
+open import TReg.Presupposition
 open import TReg.FitsHelpers
 
 -- Type aliases for the callback signatures, to keep the openHypTm* signatures readable.
@@ -431,3 +433,465 @@ openHypTmEq2 substEqRec eqSubEqRec fitsToCompFitsCb fitsEqToCompFitsEqCb
             (access accD _ (lift-lex-eq {d₁ = dtu} {d₂ = substTmEqRule dtu (liftFits lifted1 dBσ)}
               (sym (tyDepth-subTy (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma))) T))
               (substMeasure-substTmEqRule< dtu (liftFits lifted1 dBσ)))))))
+compEQtrClosed : (substEqRec : SubEqRecTy)
+  -> {n : ℕ} -> {A L : RawType} {l l' p p' : RawTerm}
+  -> ({t u v : RawTerm} {T : RawType}
+       -> Computable n (termEq [] t u T)
+       -> Computable n (termEq [] u v T)
+       -> Computable n (termEq [] t v T))
+  -> ({t u : RawTerm} {T : RawType}
+       -> Computable n (termEq [] t u T)
+       -> Computable n (termEq [] u t T))
+  -> ({t u : RawTerm} {T U : RawType}
+       -> Computable n (termEq [] t u T)
+       -> Computable n (typeEq [] T U)
+       -> Computable n (termEq [] t u U))
+  -> HypComputable (suc n) (isType ((tyQtr A) ∷ []) L)
+  -> Computable n (termEq [] p p' (tyQtr A))
+  -> (dll' : Derivable (termEq (A ∷ []) l l' (qtrBranchTy L)))
+  -> Acc LexLt (substTaskLexMeasure dll')
+  -> (dcoh : Derivable
+       (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> (dcoh' : Derivable
+       (termEq (wkTyBy 1 A ∷ A ∷ []) (wkTmBy 1 l') (renTm qtrSecondBranchRen l') (qtrCohTy L)))
+  -> Acc LexLt (substTaskLexMeasure dcoh')
+  -> Computable n
+       (termEq [] (tmElQtr l p) (tmElQtr l' p') (subTy (singleSubst p) L))
+compEQtrClosed substEqRec {n} {A = A} {L = L} {l = l} {l' = l'} {p = p} {p' = p'}
+  transCl symCl convEqCl compL comppp' dll' accDll' dcoh dcoh' accDcoh' =
+  transCl leftCan (transCl bodyEqP (symCl rightCan))
+  where
+  open ClosedQtrTmEqInv (invertQtrTmEq comppp' evalQtr)
+
+  compQtr : Computable n (isType [] (tyQtr A))
+  compQtr = compTmToCompTy qtrTmEqCompLeft
+
+  compClassLeft : Computable n (hasTy [] (tmClass qtrTmEqLeftRepr) (tyQtr A))
+  compClassLeft = compIQtrClosed qtrTmEqCompLeftRepr
+
+  compClassRight : Computable n (hasTy [] (tmClass qtrTmEqRightRepr) (tyQtr A))
+  compClassRight = compIQtrClosed qtrTmEqCompRightRepr
+
+  compLeftCorr : Computable n
+    (termEq [] p (tmClass qtrTmEqLeftRepr) (tyQtr A))
+  compLeftCorr =
+    compTmEqClosedQtr
+      qtrTmEqLeftCorrClass
+      qtrTmEqCompLeft
+      compClassLeft
+      evalQtr
+      qtrTmEqEvalLeftClass
+      evalClass
+      qtrTmEqCompLeftRepr
+      qtrTmEqCompLeftRepr
+
+  compRightCorr : Computable n
+    (termEq [] p' (tmClass qtrTmEqRightRepr) (tyQtr A))
+  compRightCorr =
+    compTmEqClosedQtr
+      qtrTmEqRightCorrClass
+      qtrTmEqCompRight
+      compClassRight
+      evalQtr
+      qtrTmEqEvalRightClass
+      evalClass
+      qtrTmEqCompRightRepr
+      qtrTmEqCompRightRepr
+
+  dL : Derivable (isType ((tyQtr A) ∷ []) L)
+  dL = hypCompToDerivable compL
+
+  dl : Derivable (hasTy (A ∷ []) l (qtrBranchTy L))
+  dl = assocTmLeft dll'
+
+  dl' : Derivable (hasTy (A ∷ []) l' (qtrBranchTy L))
+  dl' = assocTmRight dll'
+
+  dBranch : Derivable (isType (A ∷ []) (qtrBranchTy L))
+  dBranch = assocTmTy dll'
+
+  da : Derivable (hasTy [] qtrTmEqLeftRepr A)
+  da = compToDerivable qtrTmEqCompLeftRepr
+
+  db : Derivable (hasTy [] qtrTmEqRightRepr A)
+  db = compToDerivable qtrTmEqCompRightRepr
+
+  dHeadTyPath : A ≡ subTy (qtrCompSub qtrTmEqLeftRepr) (wkTyBy 1 A)
+  dHeadTyPath =
+    sym
+      (cong (subTy (qtrCompSub qtrTmEqLeftRepr)) (renTyKeepSubstBy 1 A)
+        ∙ subTyComp (qtrCompSub qtrTmEqLeftRepr) (keepSubstBy 1) A
+        ∙ cong (λ rho -> subTy rho A) (funExt λ n -> refl)
+        ∙ subTyId A)
+
+  dbOnHead : Derivable
+    (hasTy [] qtrTmEqRightRepr (subTy (qtrCompSub qtrTmEqLeftRepr) (wkTyBy 1 A)))
+  dbOnHead = subst (λ T -> Derivable (hasTy [] qtrTmEqRightRepr T)) dHeadTyPath db
+
+  compbOnHead : Computable n
+    (hasTy [] qtrTmEqRightRepr (subTy (qtrCompSub qtrTmEqLeftRepr) (wkTyBy 1 A)))
+  compbOnHead =
+    subst
+      (λ T -> Computable n (hasTy [] qtrTmEqRightRepr T))
+      dHeadTyPath
+      qtrTmEqCompRightRepr
+
+  branchFitsLeft : CompFitsBundle n (A ∷ []) (qtrCompSub qtrTmEqLeftRepr)
+  branchFitsLeft = qtrCompComputableFitsHelper qtrTmEqCompLeftRepr
+
+  branchEqClassA : Computable n
+    (termEq []
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l')
+      (subTy (singleSubst (tmClass qtrTmEqLeftRepr)) L))
+  branchEqClassA =
+    subst
+      (λ T ->
+        Computable n
+          (termEq []
+            (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+            (subTm (qtrCompSub qtrTmEqLeftRepr) l')
+            T))
+      (qtrBranchTyComp qtrTmEqLeftRepr L)
+      (substEqRec dll' (fst branchFitsLeft) (snd branchFitsLeft) accDll')
+
+  cohFitsRight : FitsSubst [] (wkTyBy 1 A ∷ A ∷ [])
+    (consSubst qtrTmEqRightRepr (consSubst qtrTmEqLeftRepr idSubst))
+  cohFitsRight =
+    fitsCons
+      (fst (qtrCompComputableFitsHelper qtrTmEqCompLeftRepr))
+      dbOnHead
+
+  cohFitsRightComp : ComputableFits n cohFitsRight
+  cohFitsRightComp =
+    compFitsCons
+      (snd (qtrCompComputableFitsHelper qtrTmEqCompLeftRepr))
+      compbOnHead
+
+  cohEqClassA : Computable n
+    (termEq []
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l')
+      (subTm (qtrCompSub qtrTmEqRightRepr) l')
+      (subTy (singleSubst (tmClass qtrTmEqLeftRepr)) L))
+  cohEqClassA =
+    subst
+      (λ t ->
+        Computable n
+          (termEq []
+            t
+            (subTm (qtrCompSub qtrTmEqRightRepr) l')
+            (subTy (singleSubst (tmClass qtrTmEqLeftRepr)) L)))
+      (qtrCohLeftTmComp qtrTmEqLeftRepr qtrTmEqRightRepr l')
+      (subst
+        (λ u ->
+          Computable n
+            (termEq []
+              (subTm (consSubst qtrTmEqRightRepr (consSubst qtrTmEqLeftRepr idSubst))
+                (wkTmBy 1 l'))
+              u
+              (subTy (singleSubst (tmClass qtrTmEqLeftRepr)) L)))
+        (qtrCohRightTmComp qtrTmEqLeftRepr qtrTmEqRightRepr l')
+        (subst
+          (λ T ->
+            Computable n
+              (termEq []
+                (subTm (consSubst qtrTmEqRightRepr (consSubst qtrTmEqLeftRepr idSubst))
+                  (wkTmBy 1 l'))
+                (subTm (consSubst qtrTmEqRightRepr (consSubst qtrTmEqLeftRepr idSubst))
+                  (renTm qtrSecondBranchRen l'))
+                T))
+          (qtrCohTyComp qtrTmEqLeftRepr qtrTmEqRightRepr L)
+          (substEqRec dcoh' cohFitsRight cohFitsRightComp accDcoh')))
+
+  bodyEqClassA : Computable n
+    (termEq []
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+      (subTm (qtrCompSub qtrTmEqRightRepr) l')
+      (subTy (singleSubst (tmClass qtrTmEqLeftRepr)) L))
+  bodyEqClassA = transCl branchEqClassA cohEqClassA
+
+  bodyEqP : Computable n
+    (termEq []
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+      (subTm (qtrCompSub qtrTmEqRightRepr) l')
+      (subTy (singleSubst p) L))
+  bodyEqP =
+    convEqCl
+      bodyEqClassA
+      (compSingleEqSubstTyClosed compL (symCl compLeftCorr) (LexLt-wf _))
+
+  bodyLeft : Computable n
+    (hasTy []
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+      (subTy (singleSubst p) L))
+  bodyLeft = compTmEqLeft bodyEqP
+
+  bodyRight : Computable n
+    (hasTy []
+      (subTm (qtrCompSub qtrTmEqRightRepr) l')
+      (subTy (singleSubst p) L))
+  bodyRight = compTmEqRightClosed bodyEqP
+
+  dLeftStep : Derivable
+    (termEq [] (tmElQtr l p) (tmElQtr l (tmClass qtrTmEqLeftRepr)) (subTy (singleSubst p) L))
+  dLeftStep =
+    eQtrEq
+      dL
+      (compToDerivable compLeftCorr)
+      dBranch
+      dl
+      dl
+      (reflTm dl)
+      dcoh
+      dcoh
+
+  dLeftCanon : Derivable
+    (termEq []
+      (tmElQtr l (tmClass qtrTmEqLeftRepr))
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+      (subTy (singleSubst p) L))
+  dLeftCanon =
+    convEq
+      (cQtr dL da dBranch dl dcoh)
+      (symTy
+        (singleEqSubstTyHelper dL (compToDerivable compLeftCorr))
+        (singleSubstTyHelper dL (compToDerivable (compTmEqRightClosed compLeftCorr))))
+
+  dLeftEq : Derivable
+    (termEq []
+      (tmElQtr l p)
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+      (subTy (singleSubst p) L))
+  dLeftEq = transTm dLeftStep dLeftCanon
+
+  dLeftTy : Derivable (hasTy [] (tmElQtr l p) (subTy (singleSubst p) L))
+  dLeftTy = assocTmLeft dLeftEq
+
+  dRightCanon0 : Derivable
+    (termEq []
+      (tmElQtr l' p')
+      (subTm (qtrCompSub qtrTmEqRightRepr) l')
+      (subTy (singleSubst p') L))
+  dRightCanon0 =
+    transTm
+      (eQtrEq dL (compToDerivable compRightCorr) dBranch dl' dl' (reflTm dl') dcoh' dcoh')
+      (convEq
+        (cQtr dL db dBranch dl' dcoh')
+        (symTy
+          (singleEqSubstTyHelper dL (compToDerivable compRightCorr))
+          (singleSubstTyHelper dL (compToDerivable (compTmEqRightClosed compRightCorr)))))
+
+  dRightEq : Derivable
+    (termEq []
+      (tmElQtr l' p')
+      (subTm (qtrCompSub qtrTmEqRightRepr) l')
+      (subTy (singleSubst p) L))
+  dRightEq =
+    convEq
+      dRightCanon0
+      (symTy
+        (singleEqSubstTyHelper dL (compToDerivable comppp'))
+        (singleSubstTyHelper dL (compToDerivable (compTmEqRightClosed comppp'))))
+
+  dRightTy : Derivable (hasTy [] (tmElQtr l' p') (subTy (singleSubst p) L))
+  dRightTy = assocTmLeft dRightEq
+
+  mkLeftCanon : 
+    Derivable
+      (termEq []
+        (tmElQtr l p)
+        (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+        (subTy (singleSubst p) L))
+    -> Derivable (hasTy [] (tmElQtr l p) (subTy (singleSubst p) L))
+    -> p =>e tmClass qtrTmEqLeftRepr
+    -> Computable n
+         (hasTy []
+           (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+           (subTy (singleSubst p) L))
+    -> Computable n
+         (termEq []
+           (tmElQtr l p)
+           (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+           (subTy (singleSubst p) L))
+  mkLeftCanon dEq dLeft evp body@(compTmClosedTop _ compTy evTy evRhs corrRhs) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedTop
+          dLeft
+          compTy
+          evTy
+          (evalElQtr evp evRhs)
+          lhsCorr
+    in
+    compTmEqClosedTop dEq lhsComp body evTy (evalElQtr evp evRhs) evRhs
+  mkLeftCanon dEq dLeft evp body@(compTmClosedSigma _ compTy evTy evRhs corrRhs comp₁ comp₂) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedSigma
+          dLeft
+          compTy
+          evTy
+          (evalElQtr evp evRhs)
+          lhsCorr
+          comp₁
+          comp₂
+    in
+    compTmEqClosedSigma
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElQtr evp evRhs)
+      evRhs
+      (compReflTmClosed comp₁)
+      (compReflTmClosed comp₂)
+  mkLeftCanon dEq dLeft evp body@(compTmClosedEq _ compTy evTy evRhs corrRhs compEq) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedEq
+          dLeft
+          compTy
+          evTy
+          (evalElQtr evp evRhs)
+          lhsCorr
+          compEq
+    in
+    compTmEqClosedEq
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElQtr evp evRhs)
+      evRhs
+      compEq
+  mkLeftCanon dEq dLeft evp body@(compTmClosedQtr _ compTy evTy evRhs corrRhs compx) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedQtr
+          dLeft
+          compTy
+          evTy
+          (evalElQtr evp evRhs)
+          lhsCorr
+          compx
+    in
+    compTmEqClosedQtr
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElQtr evp evRhs)
+      evRhs
+      compx
+      compx
+
+  mkRightCanon : 
+    Derivable
+      (termEq []
+        (tmElQtr l' p')
+        (subTm (qtrCompSub qtrTmEqRightRepr) l')
+        (subTy (singleSubst p) L))
+    -> Derivable (hasTy [] (tmElQtr l' p') (subTy (singleSubst p) L))
+    -> p' =>e tmClass qtrTmEqRightRepr
+    -> Computable n
+         (hasTy []
+           (subTm (qtrCompSub qtrTmEqRightRepr) l')
+           (subTy (singleSubst p) L))
+    -> Computable n
+         (termEq []
+           (tmElQtr l' p')
+           (subTm (qtrCompSub qtrTmEqRightRepr) l')
+           (subTy (singleSubst p) L))
+  mkRightCanon dEq dLeft evp body@(compTmClosedTop _ compTy evTy evRhs corrRhs) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedTop
+          dLeft
+          compTy
+          evTy
+          (evalElQtr evp evRhs)
+          lhsCorr
+    in
+    compTmEqClosedTop dEq lhsComp body evTy (evalElQtr evp evRhs) evRhs
+  mkRightCanon dEq dLeft evp body@(compTmClosedSigma _ compTy evTy evRhs corrRhs comp₁ comp₂) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedSigma
+          dLeft
+          compTy
+          evTy
+          (evalElQtr evp evRhs)
+          lhsCorr
+          comp₁
+          comp₂
+    in
+    compTmEqClosedSigma
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElQtr evp evRhs)
+      evRhs
+      (compReflTmClosed comp₁)
+      (compReflTmClosed comp₂)
+  mkRightCanon dEq dLeft evp body@(compTmClosedEq _ compTy evTy evRhs corrRhs compEq) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedEq
+          dLeft
+          compTy
+          evTy
+          (evalElQtr evp evRhs)
+          lhsCorr
+          compEq
+    in
+    compTmEqClosedEq
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElQtr evp evRhs)
+      evRhs
+      compEq
+  mkRightCanon dEq dLeft evp body@(compTmClosedQtr _ compTy evTy evRhs corrRhs compx) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedQtr
+          dLeft
+          compTy
+          evTy
+          (evalElQtr evp evRhs)
+          lhsCorr
+          compx
+    in
+    compTmEqClosedQtr
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElQtr evp evRhs)
+      evRhs
+      compx
+      compx
+
+  leftCan : Computable n
+    (termEq []
+      (tmElQtr l p)
+      (subTm (qtrCompSub qtrTmEqLeftRepr) l)
+      (subTy (singleSubst p) L))
+  leftCan = mkLeftCanon dLeftEq dLeftTy qtrTmEqEvalLeftClass bodyLeft
+
+  rightCan : Computable n
+    (termEq []
+      (tmElQtr l' p')
+      (subTm (qtrCompSub qtrTmEqRightRepr) l')
+      (subTy (singleSubst p) L))
+  rightCan = mkRightCanon dRightEq dRightTy qtrTmEqEvalRightClass bodyRight
