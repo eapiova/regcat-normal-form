@@ -124,7 +124,8 @@ openHypTm1 substRec eqSubRec composeCompFitsCb fitsEqToCompFitsEqCb
               (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
                 ∙ subTyComp tau (liftSubst sigma) T)))
           (substRec dt composedFits composedCFits
-            (access accD _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+            (access accD _ (lift-lex-eq {d₁ = dt} {d₂ = substTmRule dt (liftFitsOne fits dAσ)}
+              (sym (tyDepth-subTy (consSubst (var zero) (compSub (keepSubstBy 1) sigma)) T))
               (substMeasure-substTmRule< dt (liftFitsOne fits dAσ))))))
       (λ tau₁ tau₂ fitsEq2 _ accD ->
         subst
@@ -141,5 +142,6 @@ openHypTm1 substRec eqSubRec composeCompFitsCb fitsEqToCompFitsEqCb
             dt
             (composeOneBinderEq fits dAσ fitsEq2)
             (fitsEqToCompFitsEqCb (composeOneBinderEq fits dAσ fitsEq2))
-            (access accD _ (lift-lex-eq (sym (tyDepth-subTy _ T))
+            (access accD _ (lift-lex-eq {d₁ = dt} {d₂ = substTmRule dt (liftFitsOne fits dAσ)}
+              (sym (tyDepth-subTy (consSubst (var zero) (compSub (keepSubstBy 1) sigma)) T))
               (substMeasure-substTmRule< dt (liftFitsOne fits dAσ)))))))

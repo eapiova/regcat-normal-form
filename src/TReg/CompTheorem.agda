@@ -32,6 +32,7 @@ open import TReg.TopComp
 open import TReg.EqComp
 open import TReg.MainTheorem
 open import TReg.FitsHelpers
+open import TReg.OpenHyp using (openHypTm1)
 
 {-# TERMINATING #-}
 mutual
@@ -95,82 +96,6 @@ mutual
     -> Derivable (hasTy [] t A)
     -> Computable n (hasTy [] t A)
 
-  openHypTm1 : {n : ℕ} -> {gamma : Ctx} {A T : RawType} {t : RawTerm} {sigma : Subst}
-    -> (fits : FitsSubst [] gamma sigma)
-    -> ComputableFits n fits
-    -> Derivable (isType [] (subTy sigma A))
-    -> HypComputable (suc n) (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) T))
-    -> (dt : Derivable (hasTy (A ∷ gamma) t T))
-    -> Acc LexLt (substTaskLexMeasure dt)
-    -> HypComputable (suc n)
-         (hasTy (subTy sigma A ∷ [])
-           (subTm (liftSubst sigma) t)
-           (subTy (liftSubst sigma) T))
-  openHypTm1 {n} {gamma = gamma} {A = A} {T = T} {t = t} {sigma = sigma}
-    fits cFits dAσ compT dt accDt =
-    subst
-      (λ J -> HypComputable (suc n) J)
-      (cong₂
-        (hasTy (subTy sigma A ∷ []))
-        (cong (λ rho -> subTm rho t) (liftSubstCompKeep sigma))
-        (cong (λ rho -> subTy rho T) (liftSubstCompKeep sigma)))
-      (hypTmOpen
-        nonemptyNeNil
-        (substTmRule dt (liftFitsOne fits dAσ))
-        (subst
-          (λ J -> HypComputable (suc n) J)
-          (sym
-            (cong
-              (λ rho -> isType (subTy sigma A ∷ []) (subTy rho T))
-              (liftSubstCompKeep sigma)))
-          compT)
-        -- Phase F.3: destructure closure Acc, use accRs _ proof< for recursion on dt
-        (λ tau fits2 cFits2 accD ->
-          let
-            composedFits =
-              subst
-                (λ rho -> FitsSubst [] (A ∷ gamma) rho)
-                (cong (compSub tau) (liftSubstCompKeep sigma))
-                (composeFits fits2 (liftFitsOne fits dAσ))
-            composedCFits =
-              substCompFits
-                (cong (compSub tau) (liftSubstCompKeep sigma))
-                (composeCompFits
-                  fits2
-                  cFits2
-                  (liftFitsOne fits dAσ)
-                  (iTop (fitsSubstCtxWF (liftFitsOne fits dAσ)))
-                  (LexLt-wf _))
-          in
-          subst
-            (λ J -> Computable n J)
-            (sym
-              (cong₂ (hasTy [])
-                (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep sigma)
-                  ∙ subTmComp tau (liftSubst sigma) t)
-                (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep sigma)
-                  ∙ subTyComp tau (liftSubst sigma) T)))
-            (substDerivTmCompCF dt composedFits composedCFits
-              (access accD _ (lift-lex-eq (sym (tyDepth-subTy _ T))
-                (substMeasure-substTmRule< dt (liftFitsOne fits dAσ))))))
-        (λ tau₁ tau₂ fitsEq2 _ accD ->
-          subst
-            (λ J -> Computable n J)
-            (sym
-              (cong₃ (termEq [])
-                (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep sigma)
-                  ∙ subTmComp tau₁ (liftSubst sigma) t)
-                (cong (λ rho -> subTm tau₂ (subTm rho t)) (liftSubstCompKeep sigma)
-                  ∙ subTmComp tau₂ (liftSubst sigma) t)
-                (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep sigma)
-                  ∙ subTyComp tau₁ (liftSubst sigma) T)))
-            (eqSubDerivTmCompCF
-              dt
-              (composeOneBinderEq fits dAσ fitsEq2)
-              (fitsEqToCompFitsEq (composeOneBinderEq fits dAσ fitsEq2))
-              (access accD _ (lift-lex-eq (sym (tyDepth-subTy _ T))
-                (substMeasure-substTmRule< dt (liftFitsOne fits dAσ)))))))
-  
   openHypTmEq1 : {n : ℕ} -> {gamma : Ctx} {A T : RawType} {t u : RawTerm} {sigma : Subst}
     -> FitsSubst [] gamma sigma
     -> Derivable (isType [] (subTy sigma A))
@@ -2460,7 +2385,7 @@ mutual
                   (access accD _ (lift-lex-eq (sym (tyDepth-subTy _ (qtrBranchTy L)))
                     (substMeasure-substTyRule< dBranch (liftFitsOne fits dAσ)))))))
       -- Phase F.1e-step2 (Scope A): use rs _ proof< for dlL recursion
-      complAssoc = openHypTm1 fits cFits dAσ compBranchTy dlL
+      complAssoc = openHypTm1 substDerivTmCompCF eqSubDerivTmCompCF composeCompFits fitsEqToCompFitsEq fits cFits dAσ compBranchTy dlL
         (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-dlL< dL dp dBranch dlL dlR dl dcoh dcoh')))
   
       compl =
@@ -2947,7 +2872,7 @@ mutual
                 T))
           (qtrBranchTyLiftComp sigma L)
           -- Phase F.2 (Scope A): use rs _ proof< for dl recursion
-          (openHypTm1
+          (openHypTm1 substDerivTmCompCF eqSubDerivTmCompCF composeCompFits fitsEqToCompFitsEq
             fits
             (fitsToCompFits fits)
             dAσ
@@ -3688,7 +3613,7 @@ mutual
                 (eqSubDerivTyCompCF
                   dBranch
                   (composeOneBinderEq sigmaFits dAσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq sigmaFits dAσ fitsEq2)) (LexLt-wf _))))
-      complAssoc = openHypTm1 sigmaFits (fitsToCompFits sigmaFits) dAσ compBranchTy dl (LexLt-wf _)
+      complAssoc = openHypTm1 substDerivTmCompCF eqSubDerivTmCompCF composeCompFits fitsEqToCompFitsEq sigmaFits (fitsToCompFits sigmaFits) dAσ compBranchTy dl (LexLt-wf _)
   
       branchEq =
         subst
@@ -4545,10 +4470,10 @@ mutual
                   dBranch
                   (composeOneBinderEq sigmaFits dAσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq sigmaFits dAσ fitsEq2)) (access accD _ (lift-lex-eq (sym (tyDepth-subTy _ (qtrBranchTy L))) (substMeasure-substTyRule< dBranch (liftFitsOne sigmaFits dAσ)))))))
       -- Phase F.2 (Scope A): use rs _ proof< for dlL recursion
-      complAssoc = openHypTm1 sigmaFits (fitsToCompFits sigmaFits) dAσ compBranchTy dlL
+      complAssoc = openHypTm1 substDerivTmCompCF eqSubDerivTmCompCF composeCompFits fitsEqToCompFitsEq sigmaFits (fitsToCompFits sigmaFits) dAσ compBranchTy dlL
         (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-dlL< dL dp dBranch dlL dlR dl dcoh dcoh')))
       -- Phase F.2 (Scope A): use rs _ proof< for dlR recursion
-      complAssocRight = openHypTm1 sigmaFits (fitsToCompFits sigmaFits) dAσ compBranchTy dlR
+      complAssocRight = openHypTm1 substDerivTmCompCF eqSubDerivTmCompCF composeCompFits fitsEqToCompFitsEq sigmaFits (fitsToCompFits sigmaFits) dAσ compBranchTy dlR
         (rs _ (lift-lex-eq refl (substMeasure-eQtrEq-dlR< dL dp dBranch dlL dlR dl dcoh dcoh')))
   
       branchEq =
@@ -5044,7 +4969,7 @@ mutual
                 T))
           (qtrBranchTyLiftComp sigma L)
           -- Phase F.2 (Scope A): dl via substMeasure-cQtr-l<
-          (openHypTm1
+          (openHypTm1 substDerivTmCompCF eqSubDerivTmCompCF composeCompFits fitsEqToCompFitsEq
             sigmaFits
             (fitsToCompFits sigmaFits)
             dAσ
@@ -5133,7 +5058,7 @@ mutual
              nonemptyNeNil
              (eqSubTmRule dl liftedEq)
              -- Phase F.2 (Scope A): dl via substMeasure-cQtr-l<
-             (openHypTm1
+             (openHypTm1 substDerivTmCompCF eqSubDerivTmCompCF composeCompFits fitsEqToCompFitsEq
                sigmaFits
                (fitsToCompFits sigmaFits)
                dAσ
