@@ -895,3 +895,506 @@ compEQtrClosed substEqRec {n} {A = A} {L = L} {l = l} {l' = l'} {p = p} {p' = p'
       (subTm (qtrCompSub qtrTmEqRightRepr) l')
       (subTy (singleSubst p) L))
   rightCan = mkRightCanon dRightEq dRightTy qtrTmEqEvalRightClass bodyRight
+compESigmaClosed : (eqSubEqRec : EqSubEqRecTy)
+  -> {n : ℕ} -> {A B M : RawType} {d d' m m' : RawTerm}
+  -> ({t u v : RawTerm} {T : RawType}
+       -> Computable n (termEq [] t u T)
+       -> Computable n (termEq [] u v T)
+       -> Computable n (termEq [] t v T))
+  -> ({t u : RawTerm} {T U : RawType}
+       -> Computable n (termEq [] t u T)
+       -> Computable n (typeEq [] T U)
+       -> Computable n (termEq [] t u U))
+  -> HypComputable (suc n) (isType ((tySigma A B) ∷ []) M)
+  -> Computable n (termEq [] d d' (tySigma A B))
+  -> (dmm' : Derivable (termEq (B ∷ A ∷ []) m m' (sigmaBranchTy M)))
+  -> Acc LexLt (substTaskLexMeasure dmm')
+  -> Computable n
+       (termEq [] (tmElSigma d m) (tmElSigma d' m') (subTy (singleSubst d) M))
+compESigmaClosed eqSubEqRec {n} {A = A} {B = B} {M = M} {d = d} {d' = d'} {m = m} {m' = m'}
+  transCl convEqCl compM compdd' dmm' accDmm' =
+  transCl leftCan (transCl bodyEqD rightCanSym)
+  where
+  open ClosedSigmaTmEqInv (invertSigmaTmEq compdd' evalSigma)
+
+  compSigma : Computable n (isType [] (tySigma A B))
+  compSigma = compTmToCompTy sigmaTmEqCompLeft
+
+  compPairLeft : Computable n (hasTy [] (tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd) (tySigma A B))
+  compPairLeft =
+    compISigmaClosed sigmaTmEqLeftCompFstTy sigmaTmEqLeftCompSndTy compSigma
+
+  compPairRight : Computable n (hasTy [] (tmPair sigmaTmEqRightFst sigmaTmEqRightSnd) (tySigma A B))
+  compPairRight =
+    compISigmaClosed sigmaTmEqRightCompFstTy sigmaTmEqRightCompSndTy compSigma
+
+  compLeftCorr : Computable n
+    (termEq [] d (tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd) (tySigma A B))
+  compLeftCorr =
+    compTmEqClosedSigma
+      sigmaTmEqLeftCorrPair
+      sigmaTmEqCompLeft
+      compPairLeft
+      evalSigma
+      sigmaTmEqEvalLeftPair
+      evalPair
+      (compReflTmClosed sigmaTmEqLeftCompFstTy)
+      (compReflTmClosed sigmaTmEqLeftCompSndTy)
+
+  compLeftCorrSym : Computable n
+    (termEq [] (tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd) d (tySigma A B))
+  compLeftCorrSym =
+    compTmEqClosedSigma
+      (symTm
+        sigmaTmEqLeftCorrPair
+        (compToDerivable compPairLeft)
+        (compToDerivable (compTmToCompTy compPairLeft)))
+      compPairLeft
+      sigmaTmEqCompLeft
+      evalSigma
+      evalPair
+      sigmaTmEqEvalLeftPair
+      (compReflTmClosed sigmaTmEqLeftCompFstTy)
+      (compReflTmClosed sigmaTmEqLeftCompSndTy)
+
+  compRightCorr : Computable n
+    (termEq [] d' (tmPair sigmaTmEqRightFst sigmaTmEqRightSnd) (tySigma A B))
+  compRightCorr =
+    compTmEqClosedSigma
+      sigmaTmEqRightCorrPair
+      sigmaTmEqCompRight
+      compPairRight
+      evalSigma
+      sigmaTmEqEvalRightPair
+      evalPair
+      (compReflTmClosed sigmaTmEqRightCompFstTy)
+      (compReflTmClosed sigmaTmEqRightCompSndTy)
+
+  branchFitsEq : Σ
+    (FitsEqSubst [] (B ∷ A ∷ [])
+      (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd)
+      (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd))
+    (ComputableFitsEq n)
+  branchFitsEq = sigmaCompComputableFitsEqHelper sigmaTmEqCompFst sigmaTmEqCompSnd
+
+  branchEqPair : Computable n
+    (termEq []
+      (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+      (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+      (subTy (singleSubst (tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd)) M))
+  branchEqPair =
+    subst
+      (λ T ->
+        Computable n
+          (termEq []
+            (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+            (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+            T))
+      (sigmaBranchTyComp sigmaTmEqLeftFst sigmaTmEqLeftSnd M)
+      (eqSubEqRec dmm' (fst branchFitsEq) (snd branchFitsEq) accDmm')
+
+  bodyEqD : Computable n
+    (termEq []
+      (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+      (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+      (subTy (singleSubst d) M))
+  bodyEqD =
+    convEqCl
+      branchEqPair
+      (compSingleEqSubstTyClosed compM compLeftCorrSym (LexLt-wf _))
+
+  bodyLeft : Computable n
+    (hasTy []
+      (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+      (subTy (singleSubst d) M))
+  bodyLeft = compTmEqLeft bodyEqD
+
+  bodyRight : Computable n
+    (hasTy []
+      (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+      (subTy (singleSubst d) M))
+  bodyRight = compTmEqRightClosed bodyEqD
+
+  dM : Derivable (isType ((tySigma A B) ∷ []) M)
+  dM = hypCompToDerivable compM
+
+  dm : Derivable (hasTy (B ∷ A ∷ []) m (sigmaBranchTy M))
+  dm = assocTmLeft dmm'
+
+  dm' : Derivable (hasTy (B ∷ A ∷ []) m' (sigmaBranchTy M))
+  dm' = assocTmRight dmm'
+
+  db : Derivable (hasTy [] sigmaTmEqLeftFst A)
+  db = compToDerivable sigmaTmEqLeftCompFstTy
+
+  dc : Derivable (hasTy [] sigmaTmEqLeftSnd (subTy (singleSubst sigmaTmEqLeftFst) B))
+  dc = compToDerivable sigmaTmEqLeftCompSndTy
+
+  de : Derivable (hasTy [] sigmaTmEqRightFst A)
+  de = compToDerivable sigmaTmEqRightCompFstTy
+
+  df : Derivable (hasTy [] sigmaTmEqRightSnd (subTy (singleSubst sigmaTmEqRightFst) B))
+  df = compToDerivable sigmaTmEqRightCompSndTy
+
+  dLeftStep : Derivable
+    (termEq [] (tmElSigma d m) (tmElSigma (tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+      (subTy (singleSubst d) M))
+  dLeftStep = eSigmaEq dM sigmaTmEqLeftCorrPair dm (reflTm dm)
+
+  dLeftCanon : Derivable
+    (termEq []
+      (tmElSigma (tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+      (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+      (subTy (singleSubst d) M))
+  dLeftCanon =
+    convEq
+      (cSigma dM (compToDerivable compSigma) db dc dm)
+      (symTy
+        (singleEqSubstTyHelper dM (compToDerivable compLeftCorr))
+        (singleSubstTyHelper dM (compToDerivable (compTmEqRightClosed compLeftCorr))))
+
+  dLeftEq : Derivable
+    (termEq []
+      (tmElSigma d m)
+      (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+      (subTy (singleSubst d) M))
+  dLeftEq = transTm dLeftStep dLeftCanon
+
+  dLeftTy : Derivable (hasTy [] (tmElSigma d m) (subTy (singleSubst d) M))
+  dLeftTy = assocTmLeft dLeftEq
+
+  dRightCanon0 : Derivable
+    (termEq []
+      (tmElSigma d' m')
+      (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+      (subTy (singleSubst d') M))
+  dRightCanon0 =
+    transTm
+      (eSigmaEq dM sigmaTmEqRightCorrPair dm' (reflTm dm'))
+      (convEq
+        (cSigma dM (compToDerivable compSigma) de df dm')
+        (symTy
+          (singleEqSubstTyHelper dM (compToDerivable compRightCorr))
+          (singleSubstTyHelper dM (compToDerivable (compTmEqRightClosed compRightCorr)))))
+
+  dRightEq : Derivable
+    (termEq []
+      (tmElSigma d' m')
+      (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+      (subTy (singleSubst d) M))
+  dRightEq =
+    convEq
+      dRightCanon0
+      (symTy
+        (singleEqSubstTyHelper dM (compToDerivable compdd'))
+        (singleSubstTyHelper dM (compToDerivable (compTmEqRightClosed compdd'))))
+
+  dRightTy : Derivable (hasTy [] (tmElSigma d' m') (subTy (singleSubst d) M))
+  dRightTy = assocTmLeft dRightEq
+
+  mkLeftCanon : 
+    Derivable
+      (termEq []
+        (tmElSigma d m)
+        (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+        (subTy (singleSubst d) M))
+    -> Derivable (hasTy [] (tmElSigma d m) (subTy (singleSubst d) M))
+    -> d =>e tmPair sigmaTmEqLeftFst sigmaTmEqLeftSnd
+    -> Computable n
+         (hasTy []
+           (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+           (subTy (singleSubst d) M))
+    -> Computable n
+         (termEq []
+           (tmElSigma d m)
+           (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+           (subTy (singleSubst d) M))
+  mkLeftCanon dEq dLeft evd body@(compTmClosedTop _ compTy evTy evRhs corrRhs) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedTop
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+    in
+    compTmEqClosedTop dEq lhsComp body evTy (evalElSigma evd evRhs) evRhs
+  mkLeftCanon dEq dLeft evd body@(compTmClosedSigma _ compTy evTy evRhs corrRhs comp₁ comp₂) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedSigma
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          comp₁
+          comp₂
+    in
+    compTmEqClosedSigma
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElSigma evd evRhs)
+      evRhs
+      (compReflTmClosed comp₁)
+      (compReflTmClosed comp₂)
+  mkLeftCanon dEq dLeft evd body@(compTmClosedEq _ compTy evTy evRhs corrRhs compEq) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedEq
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          compEq
+    in
+    compTmEqClosedEq
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElSigma evd evRhs)
+      evRhs
+      compEq
+  mkLeftCanon dEq dLeft evd body@(compTmClosedQtr _ compTy evTy evRhs corrRhs compa) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedQtr
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          compa
+    in
+    compTmEqClosedQtr
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElSigma evd evRhs)
+      evRhs
+      compa
+      compa
+
+  mkRightCanon : 
+    Derivable
+      (termEq []
+        (tmElSigma d' m')
+        (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+        (subTy (singleSubst d) M))
+    -> Derivable (hasTy [] (tmElSigma d' m') (subTy (singleSubst d) M))
+    -> d' =>e tmPair sigmaTmEqRightFst sigmaTmEqRightSnd
+    -> Computable n
+         (hasTy []
+           (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+           (subTy (singleSubst d) M))
+    -> Computable n
+         (termEq []
+           (tmElSigma d' m')
+           (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+           (subTy (singleSubst d) M))
+  mkRightCanon dEq dLeft evd body@(compTmClosedTop _ compTy evTy evRhs corrRhs) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedTop
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+    in
+    compTmEqClosedTop dEq lhsComp body evTy (evalElSigma evd evRhs) evRhs
+  mkRightCanon dEq dLeft evd body@(compTmClosedSigma _ compTy evTy evRhs corrRhs comp₁ comp₂) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedSigma
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          comp₁
+          comp₂
+    in
+    compTmEqClosedSigma
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElSigma evd evRhs)
+      evRhs
+      (compReflTmClosed comp₁)
+      (compReflTmClosed comp₂)
+  mkRightCanon dEq dLeft evd body@(compTmClosedEq _ compTy evTy evRhs corrRhs compEq) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedEq
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          compEq
+    in
+    compTmEqClosedEq
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElSigma evd evRhs)
+      evRhs
+      compEq
+  mkRightCanon dEq dLeft evd body@(compTmClosedQtr _ compTy evTy evRhs corrRhs compa) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedQtr
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          compa
+    in
+    compTmEqClosedQtr
+      dEq
+      lhsComp
+      body
+      evTy
+      (evalElSigma evd evRhs)
+      evRhs
+      compa
+      compa
+
+  mkRightCanonSym : 
+    Derivable
+      (termEq []
+        (tmElSigma d' m')
+        (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+        (subTy (singleSubst d) M))
+    -> Derivable (hasTy [] (tmElSigma d' m') (subTy (singleSubst d) M))
+    -> d' =>e tmPair sigmaTmEqRightFst sigmaTmEqRightSnd
+    -> Computable n
+         (hasTy []
+           (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+           (subTy (singleSubst d) M))
+    -> Computable n
+         (termEq []
+           (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+           (tmElSigma d' m')
+           (subTy (singleSubst d) M))
+  mkRightCanonSym dEq dLeft evd body@(compTmClosedTop _ compTy evTy evRhs corrRhs) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedTop
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+    in
+    compTmEqClosedTop
+      (symTm dEq (compToDerivable body) (compToDerivable compTy))
+      body
+      lhsComp
+      evTy
+      evRhs
+      (evalElSigma evd evRhs)
+  mkRightCanonSym dEq dLeft evd body@(compTmClosedSigma _ compTy evTy evRhs corrRhs comp₁ comp₂) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedSigma
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          comp₁
+          comp₂
+    in
+    compTmEqClosedSigma
+      (symTm dEq (compToDerivable body) (compToDerivable compTy))
+      body
+      lhsComp
+      evTy
+      evRhs
+      (evalElSigma evd evRhs)
+      (compReflTmClosed comp₁)
+      (compReflTmClosed comp₂)
+  mkRightCanonSym dEq dLeft evd body@(compTmClosedEq _ compTy evTy evRhs corrRhs compEq) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedEq
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          compEq
+    in
+    compTmEqClosedEq
+      (symTm dEq (compToDerivable body) (compToDerivable compTy))
+      body
+      lhsComp
+      evTy
+      evRhs
+      (evalElSigma evd evRhs)
+      compEq
+  mkRightCanonSym dEq dLeft evd body@(compTmClosedQtr _ compTy evTy evRhs corrRhs compa) =
+    let
+      lhsCorr = transTm dEq corrRhs
+      lhsComp =
+        compTmClosedQtr
+          dLeft
+          compTy
+          evTy
+          (evalElSigma evd evRhs)
+          lhsCorr
+          compa
+    in
+    compTmEqClosedQtr
+      (symTm dEq (compToDerivable body) (compToDerivable compTy))
+      body
+      lhsComp
+      evTy
+      evRhs
+      (evalElSigma evd evRhs)
+      compa
+      compa
+
+  leftCan : Computable n
+    (termEq []
+      (tmElSigma d m)
+      (subTm (sigmaCompSub sigmaTmEqLeftFst sigmaTmEqLeftSnd) m)
+      (subTy (singleSubst d) M))
+  leftCan = mkLeftCanon dLeftEq dLeftTy sigmaTmEqEvalLeftPair bodyLeft
+
+  rightCan : Computable n
+    (termEq []
+      (tmElSigma d' m')
+      (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+      (subTy (singleSubst d) M))
+  rightCan = mkRightCanon dRightEq dRightTy sigmaTmEqEvalRightPair bodyRight
+
+  rightCanSym : Computable n
+    (termEq []
+      (subTm (sigmaCompSub sigmaTmEqRightFst sigmaTmEqRightSnd) m')
+      (tmElSigma d' m')
+      (subTy (singleSubst d) M))
+  rightCanSym = mkRightCanonSym dRightEq dRightTy sigmaTmEqEvalRightPair bodyRight
+
