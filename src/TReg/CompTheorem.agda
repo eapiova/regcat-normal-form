@@ -37,7 +37,7 @@ open import TReg.TopComp
 open import TReg.EqComp
 open import TReg.MainTheorem
 open import TReg.FitsHelpers
-open import TReg.OpenHyp using (openHypTm1 ; openHypTmEq1 ; openHypTm2 ; openHypTmEq2 ; compEQtrClosed ; compESigmaClosed ; composeCompFitsExt ; composeCompEqFitsExt ; composeCompFitsEqExt ; composeCompEqFitsEqExt)
+open import TReg.OpenHyp using (openHypTm1 ; openHypTmEq1 ; openHypTm2 ; openHypTmEq2 ; compEQtrClosed ; compESigmaClosed)
 
 {-# TERMINATING #-}
 mutual
@@ -135,13 +135,107 @@ mutual
       (fitsEqToCompFitsEq fitsEq)
       (computableTmEqClosed dtu)
 
-  -- composeCompFits family: aliases over OpenHyp.composeCompFitsExt etc.
-  -- The full definitions live in TReg.OpenHyp parameterized by SCC2 callbacks;
-  -- here we partial-apply them so the call-site syntax in this file is unchanged.
-  composeCompFits = composeCompFitsExt substDerivTmCompCF
-  composeCompEqFits = composeCompEqFitsExt eqSubDerivTmCompCF fitsEqToCompFitsEq
-  composeCompFitsEq = composeCompFitsEqExt substDerivTmEqCompCF fitsToCompFits
-  composeCompEqFitsEq = composeCompEqFitsEqExt eqSubDerivTmEqCompCF fitsEqToCompFitsEq
+  composeCompFits : {n : ℕ} -> {gamma delta : Ctx} {rho sigma : Subst} {t : RawTerm} {T : RawType}
+    -> (outer : FitsSubst [] gamma rho)
+    -> ComputableFits n outer
+    -> (inner : FitsSubst gamma delta sigma)
+    -> (dt : Derivable (hasTy gamma t T))
+    -> Acc LexLt (substTaskLexMeasure dt)
+    -> ComputableFits n (composeFits outer inner)
+  composeCompFits {n} outer cOuter (fitsNil wf) dt accDt = compFitsNil
+  composeCompFits {n} {rho = rho} outer cOuter
+    (fitsCons {sigma = sigmaTail} {A = A} {t = t} inner dtInner) dt accDt =
+    substCompFits
+      (sym (compSubCons rho t sigmaTail))
+      (compFitsCons
+        {dt =
+          subst
+            (λ T -> Derivable (hasTy [] (subTm rho t) T))
+            (subTyComp rho sigmaTail A)
+            (substTmRule dtInner outer)}
+        (composeCompFits outer cOuter inner dt accDt)
+        (subst
+          (λ T -> Computable n (hasTy [] (subTm rho t) T))
+          (subTyComp rho sigmaTail A)
+          (substDerivTmCompCF dtInner outer cOuter (LexLt-wf _))))
+
+  composeCompEqFits : {n : ℕ} -> {gamma delta : Ctx} {rho eta sigma : Subst} {t : RawTerm} {T : RawType}
+    -> (outer : FitsEqSubst [] gamma rho eta)
+    -> ComputableFitsEq n outer
+    -> (inner : FitsSubst gamma delta sigma)
+    -> (dt : Derivable (hasTy gamma t T))
+    -> Acc LexLt (substTaskLexMeasure dt)
+    -> ComputableFitsEq n (composeEqFits outer inner)
+  composeCompEqFits {n} outer cOuter (fitsNil wf) dt accDt = compFitsEqNil
+  composeCompEqFits {n} {rho = rho} {eta = eta} outer cOuter
+    (fitsCons {sigma = sigmaTail} {A = A} {t = t} inner dtInner) dt accDt =
+    substCompFitsEqLeft
+      (sym (compSubCons rho t sigmaTail))
+      (substCompFitsEqRight
+        (sym (compSubCons eta t sigmaTail))
+        (compFitsEqCons
+          {dtu =
+            subst
+              (λ T -> Derivable (termEq [] (subTm rho t) (subTm eta t) T))
+              (subTyComp rho sigmaTail A)
+              (eqSubTmRule dtInner outer)}
+          (composeCompEqFits outer cOuter inner dt accDt)
+          (subst
+            (λ T -> Computable n (termEq [] (subTm rho t) (subTm eta t) T))
+            (subTyComp rho sigmaTail A)
+            (eqSubDerivTmCompCF dtInner outer (fitsEqToCompFitsEq outer) (LexLt-wf _)))))
+
+  composeCompFitsEq : {n : ℕ} -> {gamma delta : Ctx} {rho sigma tau : Subst} {t u : RawTerm} {T : RawType}
+    -> (outer : FitsSubst [] gamma rho)
+    -> ComputableFits n outer
+    -> (inner : FitsEqSubst gamma delta sigma tau)
+    -> (dtu : Derivable (termEq gamma t u T))
+    -> Acc LexLt (substTaskLexMeasure dtu)
+    -> ComputableFitsEq n (composeFitsEq outer inner)
+  composeCompFitsEq {n} outer cOuter (fitsEqNil wf) dtu accDtu = compFitsEqNil
+  composeCompFitsEq {n} {rho = rho} outer cOuter
+    (fitsEqCons {sigma = sigmaTail} {tau = tauTail} {A = A} {t = t} {u = u} inner dtuInner) dtu accDtu =
+    substCompFitsEqLeft
+      (sym (compSubCons rho t sigmaTail))
+      (substCompFitsEqRight
+        (sym (compSubCons rho u tauTail))
+        (compFitsEqCons
+          {dtu =
+            subst
+              (λ T -> Derivable (termEq [] (subTm rho t) (subTm rho u) T))
+              (subTyComp rho sigmaTail A)
+              (substTmEqRule dtuInner outer)}
+          (composeCompFitsEq outer cOuter inner dtu accDtu)
+          (subst
+            (λ T -> Computable n (termEq [] (subTm rho t) (subTm rho u) T))
+            (subTyComp rho sigmaTail A)
+            (substDerivTmEqCompCF dtuInner outer (fitsToCompFits outer) (LexLt-wf _)))))
+
+  composeCompEqFitsEq : {n : ℕ} -> {gamma delta : Ctx} {rho eta sigma tau : Subst} {t u : RawTerm} {T : RawType}
+    -> (outer : FitsEqSubst [] gamma rho eta)
+    -> ComputableFitsEq n outer
+    -> (inner : FitsEqSubst gamma delta sigma tau)
+    -> (dtu : Derivable (termEq gamma t u T))
+    -> Acc LexLt (substTaskLexMeasure dtu)
+    -> ComputableFitsEq n (composeEqFitsEq outer inner)
+  composeCompEqFitsEq {n} outer cOuter (fitsEqNil wf) dtu accDtu = compFitsEqNil
+  composeCompEqFitsEq {n} {rho = rho} {eta = eta} outer cOuter
+    (fitsEqCons {sigma = sigmaTail} {tau = tauTail} {A = A} {t = t} {u = u} inner dtuInner) dtu accDtu =
+    substCompFitsEqLeft
+      (sym (compSubCons rho t sigmaTail))
+      (substCompFitsEqRight
+        (sym (compSubCons eta u tauTail))
+        (compFitsEqCons
+          {dtu =
+            subst
+              (λ T -> Derivable (termEq [] (subTm rho t) (subTm eta u) T))
+              (subTyComp rho sigmaTail A)
+              (eqSubTmEqRule dtuInner outer)}
+          (composeCompEqFitsEq outer cOuter inner dtu accDtu)
+          (subst
+            (λ T -> Computable n (termEq [] (subTm rho t) (subTm eta u) T))
+            (subTyComp rho sigmaTail A)
+            (eqSubDerivTmEqCompCF dtuInner outer (fitsEqToCompFitsEq outer) (LexLt-wf _)))))
 
   substDerivTyCompCF {n} (fTop wf) fits cFits _ = compFTopClosed
   substDerivTyCompCF {n} {gamma = gamma} {sigma = sigma} (fSigma {A = A} {B = B} dA dB) fits cFits (acc rs) =
