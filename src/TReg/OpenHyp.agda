@@ -8,8 +8,11 @@
 -- callbacks, plus composeCompFits and fitsEqToCompFitsEq (also in the
 -- main mutual block).
 --
--- Pilot: openHypTm1 only. If this validates, the other 3 helpers
--- (openHypTmEq1, openHypTm2, openHypTmEq2) follow the same pattern.
+-- Currently extracted: openHypTm1, openHypTmEq1, openHypTm2, openHypTmEq2,
+-- compEQtrClosed, compESigmaClosed. Each is parameterized over the SCC2
+-- recursive callbacks it needs (substDerivTm*CompCF / eqSubDerivTm*CompCF,
+-- plus composeCompFits / fitsToCompFits / fitsEqToCompFitsEq as applicable).
+-- See ~/.claude/plans/sharded-prancing-forest.md.
 
 module TReg.OpenHyp where
 

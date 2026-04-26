@@ -157,46 +157,15 @@ composeOneBinderEqNR {gamma = gamma} {A = A} {sigma = sigma} {tau₁ = tau₁} {
       (cong (compSub tau₂) (liftSubstCompKeepNR sigma))
       (composeEqFits fitsEq (liftFitsOneNR fits dAσ)))
 
--- Phase A+B+C complete: substTaskMeasure = derivSize; per-constructor decrease
--- lemmas added in Measure.agda; ALL direct-recursive SCC 2 case bodies in
--- substDerivT*CompCF and eqSubDerivT*CompCF converted from (LexLt-wf _)
--- to sub-Acc (rs _ <lemma>).
---
--- Two architectural blockers prevent removing TERMINATING:
---   (1) mkHypComputableTy/TyEq/Tm/TmEq closure bodies (≈ line 6533): the
---       closure captures the outer derivation `d` and calls SCC 2 with
---       `(LexLt-wf _)` because no sub-Acc is available at the closure
---       body. Phase D would add an Acc field to hyp*Open in Computability.agda
---       and thread it through the closure — but SCT still sees the closure
---       body as recursing on the SAME d with the same Acc, no strict decrease.
---   (2) sigmaTyFamHypClosed → mkHypComputableTy dB (≈ line 7270): the
---       extracted `dB` is pulled out of a Computable (via invertSigmaTy /
---       direct pattern matching on compTyClosedSigma). SCT cannot relate `dB`
---       to any caller Acc. This is the closure-EXTRACTION problem and can
---       only be solved by storing Acc witnesses inside Computable values at
---       evaluation time (large refactor), or by rethinking how HypComputable
---       closures are built.
---
--- Phase D progress: Acc threading completed through:
---   - HypComputable constructor closures (Computability.agda)
---   - open* helpers (openHypTm1/Eq1/2/Eq2)
---   - compose* helpers (composeCompFits/EqFits/FitsEq/EqFitsEq)
---   - mkHypComputableTy*/Tm*/TyEq*/TmEq* utilities
---   - Direct hyp*Open builders in eQtr case
---   - All extraction-only sigmaTyFamHypClosed sites replaced with ClosedSigmaTyInv
--- Remaining cycle: sigmaTyFamHypClosed → mkHypComputableTy dB →
---   (lambda body: substDerivTyCompCF dB with extracted derivation not
---   structurally smaller than any pattern). TERMINATING remains until
---   sigmaTyFamHypClosed is restructured (e.g. via inversion records with
---   a decrease witness on dB, or by moving to post-mutual with TERMINATING
---   scoped to just those 2 functions via a separate mutual block).
---
--- Phase E status (2026-04-18): Sigma-family cycle BROKEN via lex-fst decrease.
--- Without TERMINATING, Agda now reports Phase D cycles involving
--- composeCompFits/openHypTm1 where lambda-body calls cannot be traced by SCT
--- across closure application boundaries. These require further architectural
--- work (e.g. inlining closures at pattern-match sites) that is out of Phase E's
--- scope. TERMINATING retained for this subset.
+-- Status of TERMINATING removal (post Apr 25 F.5 module split):
+-- See ~/.claude/plans/sharded-prancing-forest.md for full status and the
+-- Tier 1-4 verification roadmap. Leading suspected residual termination
+-- issues are:
+--   - "Scope C" sites at compEQtrClosed / compESigmaClosed invocations
+--     (Acc witnesses for derived derivations rather than pattern subterms);
+--   - sigmaTyFamHypClosed → mkHypComputableTy dB closure-Acc extraction.
+-- This long-form historical narrative was removed because it drifted out
+-- of date through Apr 19 and Apr 25 work.
 nilComputableFits : {n : ℕ} ->    {sigma : Subst}
   -> (fits : FitsSubst [] [] sigma)
   -> ComputableFits n fits

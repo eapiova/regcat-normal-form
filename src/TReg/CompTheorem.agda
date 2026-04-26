@@ -1,10 +1,15 @@
 {-# OPTIONS #-}
--- TERMINATING is still required on the main mutual block. Remaining
--- termination issues are concentrated in 4 functions:
---   substDerivTyCompCF, substDerivTmCompCF, mkHypComputableTy,
---   sigmaTyFamHypClosed
--- These need Acc-witness propagation through mkHypComputable* closures
--- (currently they use fresh <-wellfounded instead of receiving Acc from caller).
+-- TERMINATING is still required on the main mutual block. Apr 19/Apr 25
+-- work (Acc-based restructure + module split into TReg.OpenHyp /
+-- TReg.FitsHelpers) made the file scope-check cleanly without
+-- TERMINATING. Previous full type-checks (with TERMINATING on) OOMed at
+-- >24 GB residency on this 30 GB machine; a post-F.5 full check has not
+-- yet been run, so we do not yet know whether the file split moved the
+-- ceiling. The leading suspected residual termination issues if and when
+-- memory permits a clean full check are the "Scope C" sites at
+-- compEQtrClosed / compESigmaClosed invocations (Acc witnesses for
+-- derived derivations rather than pattern subterms).
+-- See ~/.claude/plans/sharded-prancing-forest.md for full status.
 
 module TReg.CompTheorem where
 
