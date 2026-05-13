@@ -1,4 +1,4 @@
-{-# OPTIONS #-}
+{-# OPTIONS --safe #-}
 -- Helpers extracted from CompTheorem.agda pre-mutual section.
 -- Phase F.5 (Stage 1): file split to enable extracting openHypTm* helpers.
 
