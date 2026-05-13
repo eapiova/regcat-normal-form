@@ -121,6 +121,28 @@ mutual
       (nilComputableFitsEq tail)
       (computableTmEqClosed dtu)
 
+  compSingleSubstTyEqClosedRaw : {n : ℕ} -> {A B C : RawType} -> {t : RawTerm}
+    -> (d : Derivable (typeEq (A ∷ []) B C))
+    -> Computable n (hasTy [] t A)
+    -> Acc LexLt (substTaskLexMeasure d)
+    -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst t) C))
+  compSingleSubstTyEqClosedRaw d compt accD =
+    substDerivTyEqCompCF d
+      (fst (singleComputableFitsSubstHelper compt))
+      (snd (singleComputableFitsSubstHelper compt))
+      accD
+
+  compSingleEqSubstTyClosedRaw : {n : ℕ} -> {A B : RawType} -> {t u : RawTerm}
+    -> (d : Derivable (isType (A ∷ []) B))
+    -> Computable n (termEq [] t u A)
+    -> Acc LexLt (substTaskLexMeasure d)
+    -> Computable n (typeEq [] (subTy (singleSubst t) B) (subTy (singleSubst u) B))
+  compSingleEqSubstTyClosedRaw d comptu accD =
+    eqSubDerivTyCompCF d
+      (fst (singleComputableFitsEqSubstHelper comptu))
+      (snd (singleComputableFitsEqSubstHelper comptu))
+      accD
+
   fitsToCompFits : {n : ℕ} -> {gamma : Ctx} {sigma : Subst}
     -> (fits : FitsSubst [] gamma sigma)
     -> ComputableFits n fits
@@ -386,7 +408,12 @@ mutual
                   dBD
                   (composeOneBinderEq fits dAσ fitsEq2) (fitsEqToCompFitsEq (composeOneBinderEq fits dAσ fitsEq2)) (LexLt-wf _))))
       compSigmaA = compFSigmaClosed compA (hypCompToDerivable (hypTyEqLeft compBD))
-      compSigmaC = compFSigmaClosed compC (hypCompToDerivable (compTransportFamilyTy compAC (hypTyEqRight compBD)))
+      compSigmaC =
+        compFSigmaClosed compC
+          (transportFamilyTy
+            (compToDerivable compAC)
+            (compToDerivable compC)
+            (assocTyRight (hypCompToDerivable compBD)))
     in
     compTyEqClosedSigma
       (fSigmaEq (compToDerivable compAC) (hypCompToDerivable compB) (hypCompToDerivable compBD))
@@ -2155,7 +2182,12 @@ mutual
                 composedFitsEq
                 (fitsEqToCompFitsEq composedFitsEq) (LexLt-wf _)))
       compSigmaA = compFSigmaClosed compA (hypCompToDerivable (hypTyEqLeft compBD))
-      compSigmaA' = compFSigmaClosed compA' (hypCompToDerivable (compTransportFamilyTy compAA' (hypTyEqRight compBD)))
+      compSigmaA' =
+        compFSigmaClosed compA'
+          (transportFamilyTy
+            (compToDerivable compAA')
+            (compToDerivable compA')
+            (assocTyRight (hypCompToDerivable compBD)))
     in
     compTyEqClosedSigma
       (fSigmaEq
@@ -2324,7 +2356,12 @@ mutual
                 dBD
                 composedFitsEq (fitsEqToCompFitsEq composedFitsEq) (LexLt-wf _)))
       compSigmaA = compFSigmaClosed compA (hypCompToDerivable (hypTyEqLeft compBD))
-      compSigmaC = compFSigmaClosed compC (hypCompToDerivable (compTransportFamilyTy compAC (hypTyEqRight compBD)))
+      compSigmaC =
+        compFSigmaClosed compC
+          (transportFamilyTy
+            (compToDerivable compAC)
+            (compToDerivable compC)
+            (assocTyRight (hypCompToDerivable compBD)))
     in
     compTyEqClosedSigma
       (fSigmaEq (compToDerivable compAC) (hypCompToDerivable (hypTyEqLeft compBD)) (hypCompToDerivable compBD))
@@ -2425,7 +2462,7 @@ mutual
       compSigma = substDerivTyCompCF dSigma sigmaFits (fitsToCompFits sigmaFits) (LexLt-wf _)
       tyInv = invertSigmaTy compSigma evalSigma
       compAσ = ClosedSigmaTyInv.sigmaTyCompHead tyInv
-      compBσ = sigmaTyFamHypClosed compSigma
+      dBσ = ClosedSigmaTyInv.sigmaTyFamDeriv tyInv
       compbdRaw = eqSubDerivTmCompCF db fitsEq cFitsEq (LexLt-wf _)
       compbd =
         subst
@@ -2440,7 +2477,7 @@ mutual
       compdA = compTmEqRightClosed compbd
       compd =
         compConvTmClosed compdA
-          (compSingleEqSubstTyClosed compBσ compac
+          (compSingleEqSubstTyClosedRaw dBσ compac
             (rs _ (lex-fst
               (subst (λ m → m < tyDepth (tySigma A B))
                 (sym (tyDepth-subTy (liftSubst sigma) B))
@@ -2450,7 +2487,7 @@ mutual
     in
     compTmEqClosedSigma
       (iSigmaEq (compToDerivable compac) (compToDerivable compbd)
-        (compToDerivable compAσ) (hypCompToDerivable compBσ))
+        (compToDerivable compAσ) dBσ)
       compPairLeft
       compPairRight
       evalSigma
