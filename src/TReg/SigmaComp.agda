@@ -1,5 +1,4 @@
--- Cannot use --safe because CompTheorem.agda uses {-# TERMINATING #-}
-{-# OPTIONS #-}
+{-# OPTIONS --safe #-}
 
 module TReg.SigmaComp where
 

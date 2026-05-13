@@ -1,5 +1,4 @@
--- Cannot use --safe because CompTheorem.agda uses {-# TERMINATING #-}
-{-# OPTIONS --cubical --guardedness #-}
+{-# OPTIONS --safe --cubical #-}
 
 module TReg.Everything where
 

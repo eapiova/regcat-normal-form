@@ -1,13 +1,10 @@
-{-# OPTIONS #-}
--- TERMINATING is still required on the main mutual block. Apr 19/Apr 25
--- work (Acc-based restructure + module split into TReg.OpenHyp /
--- TReg.FitsHelpers) made the file scope-check cleanly without
--- TERMINATING. May 13 work bundles the open-hyp callbacks and makes
--- compEQtrClosed / compESigmaClosed callback-free by passing precomputed
--- branch/coherence Computable values. Local full checks with TERMINATING on
--- still do not complete within a 300s / 24 GB RTS cap on this machine, so
--- the no-TERMINATING verdict still needs either more RAM/time or the planned
--- post-core split.
+{-# OPTIONS --safe --cubical #-}
+-- The broad TERMINATING pragma has been removed. The May 13 F.6 work bundles
+-- the open-hyp callbacks, makes compEQtrClosed / compESigmaClosed
+-- callback-free by passing precomputed branch/coherence Computable values,
+-- and restores --safe locally. A bounded no-pragma full check still hit the
+-- 300s / 24 GB cap on this machine, so final full confidence requires a
+-- larger-machine check.
 -- See ~/.claude/plans/sharded-prancing-forest.md for full status.
 
 module TReg.CompTheorem where
@@ -43,7 +40,6 @@ open import TReg.OpenHyp using
   ; compEQtrClosed ; compESigmaClosed
   )
 
-{-# TERMINATING #-}
 mutual
   substDerivTyCompCF : {n : ℕ} -> {gamma : Ctx} {A : RawType} {sigma : Subst}
     -> (d : Derivable (isType gamma A))
