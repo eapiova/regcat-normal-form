@@ -180,13 +180,14 @@ mutual
        ∙ cong (λ theta -> subTm theta l) (liftComp sigma rho))
       (subTmRen sigma rho p)
 
-renTyKeepSubstBy : (k : ℕ) (A : RawType) -> renTy (addRen k) A ≡ subTy (keepSubstBy k) A
-renTyKeepSubstBy k A =
-  sym (subTyId (renTy (addRen k) A)) ∙ subTyRen idSubst (addRen k) A
+abstract
+  renTyKeepSubstBy : (k : ℕ) (A : RawType) -> renTy (addRen k) A ≡ subTy (keepSubstBy k) A
+  renTyKeepSubstBy k A =
+    sym (subTyId (renTy (addRen k) A)) ∙ subTyRen idSubst (addRen k) A
 
-renTmKeepSubstBy : (k : ℕ) (t : RawTerm) -> renTm (addRen k) t ≡ subTm (keepSubstBy k) t
-renTmKeepSubstBy k t =
-  sym (subTmId (renTm (addRen k) t)) ∙ subTmRen idSubst (addRen k) t
+  renTmKeepSubstBy : (k : ℕ) (t : RawTerm) -> renTm (addRen k) t ≡ subTm (keepSubstBy k) t
+  renTmKeepSubstBy k t =
+    sym (subTmId (renTm (addRen k) t)) ∙ subTmRen idSubst (addRen k) t
 
 compRen : Ren -> Ren -> Ren
 compRen rho tau n = rho (tau n)
@@ -296,69 +297,71 @@ mutual
        ∙ cong (λ theta -> subTm theta l) (sym (liftRenSub rho sigma)))
       (renTmSub rho sigma p)
 
-wkTyLiftSubst : (sigma : Subst) (A : RawType)
-  -> subTy (liftSubst sigma) (wkTyBy 1 A) ≡ wkTyBy 1 (subTy sigma A)
-wkTyLiftSubst sigma A =
-  subTyRen (liftSubst sigma) suc A
-  ∙ cong (λ theta -> subTy theta A) (dropLiftRenSub sigma)
-  ∙ sym (renTySub suc sigma A)
+abstract
+  wkTyLiftSubst : (sigma : Subst) (A : RawType)
+    -> subTy (liftSubst sigma) (wkTyBy 1 A) ≡ wkTyBy 1 (subTy sigma A)
+  wkTyLiftSubst sigma A =
+    subTyRen (liftSubst sigma) suc A
+    ∙ cong (λ theta -> subTy theta A) (dropLiftRenSub sigma)
+    ∙ sym (renTySub suc sigma A)
 
-wkTmLiftSubst : (sigma : Subst) (t : RawTerm)
-  -> subTm (liftSubst sigma) (wkTmBy 1 t) ≡ wkTmBy 1 (subTm sigma t)
-wkTmLiftSubst sigma t =
-  subTmRen (liftSubst sigma) suc t
-  ∙ cong (λ theta -> subTm theta t) (dropLiftRenSub sigma)
-  ∙ sym (renTmSub suc sigma t)
+  wkTmLiftSubst : (sigma : Subst) (t : RawTerm)
+    -> subTm (liftSubst sigma) (wkTmBy 1 t) ≡ wkTmBy 1 (subTm sigma t)
+  wkTmLiftSubst sigma t =
+    subTmRen (liftSubst sigma) suc t
+    ∙ cong (λ theta -> subTm theta t) (dropLiftRenSub sigma)
+    ∙ sym (renTmSub suc sigma t)
 
 compSub : Subst -> Subst -> Subst
 compSub sigma tau n = subTm sigma (tau n)
 
-liftCompSub : (sigma tau : Subst)
-  -> compSub (liftSubst sigma) (liftSubst tau) ≡ liftSubst (compSub sigma tau)
-liftCompSub sigma tau = funExt λ where
-  zero -> refl
-  (suc n) ->
-    subTmRen (liftSubst sigma) suc (tau n)
-    ∙ cong (λ theta -> subTm theta (tau n)) (dropLiftRenSub sigma)
-    ∙ sym (renTmSub suc sigma (tau n))
+abstract
+  liftCompSub : (sigma tau : Subst)
+    -> compSub (liftSubst sigma) (liftSubst tau) ≡ liftSubst (compSub sigma tau)
+  liftCompSub sigma tau = funExt λ where
+    zero -> refl
+    (suc n) ->
+      subTmRen (liftSubst sigma) suc (tau n)
+      ∙ cong (λ theta -> subTm theta (tau n)) (dropLiftRenSub sigma)
+      ∙ sym (renTmSub suc sigma (tau n))
 
-liftCompSub2 : (sigma tau : Subst)
-  -> compSub (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau))
-       ≡ liftSubst (liftSubst (compSub sigma tau))
-liftCompSub2 sigma tau =
-  liftCompSub (liftSubst sigma) (liftSubst tau) ∙ cong liftSubst (liftCompSub sigma tau)
+  liftCompSub2 : (sigma tau : Subst)
+    -> compSub (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau))
+         ≡ liftSubst (liftSubst (compSub sigma tau))
+  liftCompSub2 sigma tau =
+    liftCompSub (liftSubst sigma) (liftSubst tau) ∙ cong liftSubst (liftCompSub sigma tau)
 
-mutual
-  subTyComp : (sigma tau : Subst) (A : RawType)
-    -> subTy sigma (subTy tau A) ≡ subTy (compSub sigma tau) A
-  subTyComp sigma tau tyTop = refl
-  subTyComp sigma tau (tySigma A B) =
-    cong₂ tySigma (subTyComp sigma tau A)
-      (subTyComp (liftSubst sigma) (liftSubst tau) B
-       ∙ cong (λ theta -> subTy theta B) (liftCompSub sigma tau))
-  subTyComp sigma tau (tyEq A a b) =
-    cong₃ tyEq (subTyComp sigma tau A) (subTmComp sigma tau a) (subTmComp sigma tau b)
-  subTyComp sigma tau (tyQtr A) = cong tyQtr (subTyComp sigma tau A)
+  mutual
+    subTyComp : (sigma tau : Subst) (A : RawType)
+      -> subTy sigma (subTy tau A) ≡ subTy (compSub sigma tau) A
+    subTyComp sigma tau tyTop = refl
+    subTyComp sigma tau (tySigma A B) =
+      cong₂ tySigma (subTyComp sigma tau A)
+        (subTyComp (liftSubst sigma) (liftSubst tau) B
+         ∙ cong (λ theta -> subTy theta B) (liftCompSub sigma tau))
+    subTyComp sigma tau (tyEq A a b) =
+      cong₃ tyEq (subTyComp sigma tau A) (subTmComp sigma tau a) (subTmComp sigma tau b)
+    subTyComp sigma tau (tyQtr A) = cong tyQtr (subTyComp sigma tau A)
 
-  subTmComp : (sigma tau : Subst) (t : RawTerm)
-    -> subTm sigma (subTm tau t) ≡ subTm (compSub sigma tau) t
-  subTmComp sigma tau (var n) = refl
-  subTmComp sigma tau tmStar = refl
-  subTmComp sigma tau (tmPair a b) =
-    cong₂ tmPair (subTmComp sigma tau a) (subTmComp sigma tau b)
-  subTmComp sigma tau (tmElSigma d m) =
-    cong₂ tmElSigma (subTmComp sigma tau d)
-      (subTmComp (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau)) m
-       ∙ cong (λ theta -> subTm theta m) (liftCompSub2 sigma tau))
-  subTmComp sigma tau tmR = refl
-  subTmComp sigma tau (tmEq A a) =
-    cong₂ tmEq (subTyComp sigma tau A) (subTmComp sigma tau a)
-  subTmComp sigma tau (tmClass a) = cong tmClass (subTmComp sigma tau a)
-  subTmComp sigma tau (tmElQtr l p) =
-    cong₂ tmElQtr
-      (subTmComp (liftSubst sigma) (liftSubst tau) l
-       ∙ cong (λ theta -> subTm theta l) (liftCompSub sigma tau))
-      (subTmComp sigma tau p)
+    subTmComp : (sigma tau : Subst) (t : RawTerm)
+      -> subTm sigma (subTm tau t) ≡ subTm (compSub sigma tau) t
+    subTmComp sigma tau (var n) = refl
+    subTmComp sigma tau tmStar = refl
+    subTmComp sigma tau (tmPair a b) =
+      cong₂ tmPair (subTmComp sigma tau a) (subTmComp sigma tau b)
+    subTmComp sigma tau (tmElSigma d m) =
+      cong₂ tmElSigma (subTmComp sigma tau d)
+        (subTmComp (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau)) m
+         ∙ cong (λ theta -> subTm theta m) (liftCompSub2 sigma tau))
+    subTmComp sigma tau tmR = refl
+    subTmComp sigma tau (tmEq A a) =
+      cong₂ tmEq (subTyComp sigma tau A) (subTmComp sigma tau a)
+    subTmComp sigma tau (tmClass a) = cong tmClass (subTmComp sigma tau a)
+    subTmComp sigma tau (tmElQtr l p) =
+      cong₂ tmElQtr
+        (subTmComp (liftSubst sigma) (liftSubst tau) l
+         ∙ cong (λ theta -> subTm theta l) (liftCompSub sigma tau))
+        (subTmComp sigma tau p)
 
 sigmaCompSubSingle : (b c : RawTerm)
   -> compSub (consSubst c (consSubst b idSubst)) (replace0By 2 (tmPair (var (suc zero)) (var zero)))
