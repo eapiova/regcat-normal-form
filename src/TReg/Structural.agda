@@ -50,7 +50,7 @@ mutual
     (acc rs) =
     let
       acHead =
-        rs _ (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath ev)
+        rs (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath ev)
           (smallerClosedTask<ClosedTask {A = B} {B = tySigma B C}
             (tyDepth-fst<Sigma B C)))
     in
@@ -67,7 +67,7 @@ mutual
     (acc rs) =
     let
       acBase =
-        rs _ (rewriteClosedUpper {H = tyEq B a b} (evalEqPath ev)
+        rs (rewriteClosedUpper {H = tyEq B a b} (evalEqPath ev)
           (smallerClosedTask<ClosedTask {A = B} {B = tyEq B a b}
             (tyDepth-base<Eq B a b)))
     in
@@ -83,7 +83,7 @@ mutual
   compReflTyClosedAcc comp@(compTyClosedQtr {B = B} d ev corr compA) (acc rs) =
     let
       acBase =
-        rs _ (rewriteClosedUpper {H = tyQtr B} (evalQtrPath ev)
+        rs (rewriteClosedUpper {H = tyQtr B} (evalQtrPath ev)
           (smallerClosedTask<ClosedTask {A = B} {B = tyQtr B}
             (tyDepth-base<Qtr B)))
     in
@@ -106,11 +106,11 @@ mutual
     (acc rs) =
     let
       acFst =
-        rs _ (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
+        rs (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
           (smallerClosedTask<ClosedTask {A = B} {B = tySigma B C}
             (tyDepth-fst<Sigma B C)))
       acSnd =
-        rs _ (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
+        rs (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
           (smallerClosedTask<ClosedTask {A = subTy (singleSubst a) C} {B = tySigma B C}
             (subTySigmaFamilyDepth< (singleSubst a) B C)))
     in

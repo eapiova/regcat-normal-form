@@ -2,11 +2,15 @@
 
 module TReg.QtrComp where
 
-open import TReg.CompTheorem public
+open import TReg.FitsHelpers public
   using
     ( compFQtrClosed
     ; compIQtrClosed
     ; compIQtrEqClosed
     ; compCQtrClosed
-    ; compEQtrClosed
+    )
+
+open import TReg.OpenHyp public
+  using
+    ( compEQtrClosed
     )

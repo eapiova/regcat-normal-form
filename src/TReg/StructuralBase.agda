@@ -10,6 +10,7 @@ open import Data.Nat.Base using (_<_ ; _≤_) renaming (z≤n to zero-≤ ; s≤
 open import Data.Nat.Properties using ()
   renaming
     ( m≤n⇒m≤1+n to ≤-suc
+    ; <⇒≤ to <to≤
     ; ≤-pred to pred-≤-pred
     ; n<1+n to <-suc
     ; 1+n≢0 to ¬-<-zero
@@ -51,6 +52,10 @@ eqSubJInto gamma sigma tau (hasTy delta t A) =
 eqSubJInto gamma sigma tau (termEq delta t u A) =
   termEq gamma (subTm sigma t) (subTm tau u) (subTy sigma A)
 
+doubleℕ : ℕ -> ℕ
+doubleℕ zero = zero
+doubleℕ (suc n) = suc (suc (doubleℕ n))
+
 closedTaskMeasure : RawType -> ℕ
 closedTaskMeasure A = doubleℕ (tyDepth A)
 
@@ -59,12 +64,12 @@ openTaskMeasure A = suc (closedTaskMeasure A)
 
 doubleℕ-≤ : {m n : ℕ} -> m ≤ n -> doubleℕ m ≤ doubleℕ n
 doubleℕ-≤ {m = zero} _ = zero-≤
-doubleℕ-≤ {m = suc m} {n = zero} p = Empty.rec (¬-<-zero p)
+doubleℕ-≤ {m = suc m} {n = zero} ()
 doubleℕ-≤ {m = suc m} {n = suc n} p =
   suc-≤-suc (suc-≤-suc (doubleℕ-≤ (pred-≤-pred p)))
 
 closedTask<openTask : (A : RawType) -> closedTaskMeasure A < openTaskMeasure A
-closedTask<openTask A = <-suc
+closedTask<openTask A = <-suc (closedTaskMeasure A)
 
 smallerOpenTask<ClosedTask : {A B : RawType}
   -> tyDepth A < tyDepth B
@@ -74,7 +79,7 @@ smallerOpenTask<ClosedTask p = doubleℕ-≤ p
 smallerClosedTask<ClosedTask : {A B : RawType}
   -> tyDepth A < tyDepth B
   -> closedTaskMeasure A < closedTaskMeasure B
-smallerClosedTask<ClosedTask p = suc-< (smallerOpenTask<ClosedTask p)
+smallerClosedTask<ClosedTask p = <to≤ (smallerOpenTask<ClosedTask p)
 
 smallerClosedTask<OpenTask : {A B : RawType}
   -> tyDepth A < tyDepth B
@@ -118,9 +123,7 @@ subTySigmaFamilyDepth< sigma A B =
 
 compSubCons : (rho : Subst) (t : RawTerm) (sigma : Subst)
   -> compSub rho (consSubst t sigma) ≡ consSubst (subTm rho t) (compSub rho sigma)
-compSubCons rho t sigma = funExt λ where
-  zero -> refl
-  (suc n) -> refl
+compSubCons rho t sigma = refl
 
 composeFits : {theta gamma delta : Ctx} {rho sigma : Subst}
   -> FitsSubst theta gamma rho
