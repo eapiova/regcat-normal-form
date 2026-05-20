@@ -4,15 +4,16 @@
 
 module TReg.FitsHelpers where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (⊥ ; rec)
-open import Cubical.Data.Sigma using (Σ ; Σ-syntax ; _×_ ; _,_ ; fst ; snd)
-open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_ ; length)
-open import Cubical.Data.Nat using (ℕ ; zero ; suc)
-open import Cubical.Data.Nat.Order using (_<_ ; <-wellfounded)
-open import Cubical.Data.Nat.Properties using (snotz)
-open import Cubical.Data.Unit.Base using (Unit ; tt)
-open import Cubical.Induction.WellFounded using (Acc ; acc ; access)
+open import TReg.Prelude
+open import Data.Empty as Empty using (⊥) renaming (⊥-elim to rec)
+open import Data.Product using (Σ ; Σ-syntax ; _×_ ; _,_) renaming (proj₁ to fst ; proj₂ to snd)
+open import Data.List.Base using ([] ; _∷_ ; _++_ ; length)
+open import Data.Nat using (ℕ ; zero ; suc)
+open import Data.Nat.Base using (_<_)
+open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
+open import Data.Nat.Properties using () renaming (1+n≢0 to snotz)
+open import Data.Unit using (tt) renaming (⊤ to Unit)
+open import Induction.WellFounded using (Acc ; acc) renaming (acc-inverse to access)
 
 open import TReg.Syntax
 open import TReg.Context

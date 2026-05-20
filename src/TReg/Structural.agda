@@ -1,13 +1,14 @@
-{-# OPTIONS --safe --cubical #-}
+{-# OPTIONS --safe #-}
 
 module TReg.Structural where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (rec)
-open import Cubical.Data.List.Base using ([] ; _∷_)
-open import Cubical.Data.Nat.Order using (_<_ ; <-wellfounded)
-open import Cubical.Data.Sigma using (Σ ; _,_ ; fst ; snd)
-open import Cubical.Induction.WellFounded using (Acc ; acc)
+open import TReg.Prelude
+open import Data.Empty as Empty using () renaming (⊥-elim to rec)
+open import Data.List.Base using ([] ; _∷_)
+open import Data.Nat.Base using (_<_)
+open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
+open import Data.Product using (Σ ; _,_) renaming (proj₁ to fst ; proj₂ to snd)
+open import Induction.WellFounded using (Acc ; acc)
 
 open import TReg.Syntax
 open import TReg.Context
@@ -15,7 +16,7 @@ open import TReg.Substitution
 open import TReg.Measure
 open import TReg.Evaluation
 open import TReg.Derivability
-open import Cubical.Data.Nat using (ℕ ; suc)
+open import Data.Nat using (ℕ ; suc)
 open import TReg.Computability
 open import TReg.Inversion
 open import TReg.Presupposition

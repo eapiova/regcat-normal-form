@@ -15,11 +15,11 @@
 
 module TReg.OpenHyp where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (⊥ ; rec)
-open import Cubical.Data.Nat using (ℕ ; zero ; suc)
-open import Cubical.Data.List.Base using ([] ; _∷_ ; length)
-open import Cubical.Induction.WellFounded using (Acc ; acc ; access)
+open import TReg.Prelude
+open import Data.Empty as Empty using (⊥) renaming (⊥-elim to rec)
+open import Data.Nat using (ℕ ; zero ; suc)
+open import Data.List.Base using ([] ; _∷_ ; length)
+open import Induction.WellFounded using (Acc ; acc) renaming (acc-inverse to access)
 
 open import TReg.Syntax
 open import TReg.Context

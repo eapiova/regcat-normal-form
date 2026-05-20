@@ -2,11 +2,14 @@
 
 module TReg.Evaluation where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (rec)
-open import Cubical.Data.Nat using (ℕ ; zero ; suc ; _+_)
-open import Cubical.Data.Nat.Order using (_<_ ; suc-≤-suc ; ≤SumLeft ; ≤SumRight ; <-wellfounded)
-open import Cubical.Induction.WellFounded using (Acc ; acc)
+open import TReg.Prelude
+open import Data.Empty as Empty using () renaming (⊥-elim to rec)
+open import Data.Nat using (ℕ ; zero ; suc ; _+_)
+open import Data.Nat.Base using (_<_) renaming (s≤s to suc-≤-suc)
+open import Data.Nat.Properties using ()
+  renaming (m≤m+n to ≤SumLeft ; m≤n+m to ≤SumRight)
+open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
+open import Induction.WellFounded using (Acc ; acc)
 
 open import TReg.Syntax
 open import TReg.Substitution

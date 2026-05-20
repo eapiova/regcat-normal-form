@@ -3,12 +3,12 @@
 
 module TReg.Presupposition where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Sigma using (Σ ; _,_)
-open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_ ; length)
-open import Cubical.Data.Nat using (ℕ ; zero ; suc)
-open import Cubical.Data.List.Properties using (++-assoc ; length++)
-open import Cubical.Data.Nat.Properties using (+-zero ; +-suc)
+open import TReg.Prelude
+open import Data.Product using (Σ ; _,_)
+open import Data.List.Base using ([] ; _∷_ ; _++_ ; length)
+open import Data.Nat using (ℕ ; zero ; suc)
+open import Data.List.Properties using (++-assoc) renaming (length-++ to length++)
+open import Data.Nat.Properties using (+-suc) renaming (+-identityʳ to +-zero)
 open import TReg.Syntax
 open import TReg.Context
 open import TReg.Substitution

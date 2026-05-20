@@ -2,8 +2,8 @@
 
 module TReg.Context where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.List.Base using (List ; [] ; _∷_ ; _++_ ; length)
+open import TReg.Prelude
+open import Data.List.Base using (List ; [] ; _∷_ ; _++_ ; length)
 
 open import TReg.Syntax
 

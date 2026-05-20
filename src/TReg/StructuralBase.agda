@@ -1,13 +1,20 @@
-{-# OPTIONS --safe --cubical #-}
+{-# OPTIONS --safe #-}
 
 module TReg.StructuralBase where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (⊥ ; rec)
-open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_ ; length)
-open import Cubical.Data.Nat using (ℕ ; zero ; suc ; doubleℕ)
-open import Cubical.Data.Nat.Order using
-  (_<_ ; _≤_ ; zero-≤ ; suc-≤-suc ; ≤-suc ; pred-≤-pred ; <-suc ; suc-< ; ¬-<-zero)
+open import TReg.Prelude
+open import Data.Empty as Empty using (⊥) renaming (⊥-elim to rec)
+open import Data.List.Base using ([] ; _∷_ ; _++_ ; length)
+open import Data.Nat using (ℕ ; zero ; suc)
+open import Data.Nat.Base using (_<_ ; _≤_) renaming (z≤n to zero-≤ ; s≤s to suc-≤-suc)
+open import Data.Nat.Properties using ()
+  renaming
+    ( m≤n⇒m≤1+n to ≤-suc
+    ; ≤-pred to pred-≤-pred
+    ; n<1+n to <-suc
+    ; 1+n≢0 to ¬-<-zero
+    )
+open import Data.Nat.Properties using () renaming (≤-pred to suc-<)
 
 open import TReg.Syntax
 open import TReg.Context

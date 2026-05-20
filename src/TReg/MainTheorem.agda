@@ -3,15 +3,15 @@
 
 module TReg.MainTheorem where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Sigma using (Σ-syntax ; _×_ ; _,_)
-open import Cubical.Data.List.Base using ([] ; _∷_)
+open import TReg.Prelude
+open import Data.Product using (Σ-syntax ; _×_ ; _,_)
+open import Data.List.Base using ([] ; _∷_)
 
 open import TReg.Syntax
 open import TReg.Context
 open import TReg.Evaluation
 open import TReg.Derivability
-open import Cubical.Data.Nat using (ℕ)
+open import Data.Nat using (ℕ)
 open import TReg.Computability
 open import TReg.Inversion
 

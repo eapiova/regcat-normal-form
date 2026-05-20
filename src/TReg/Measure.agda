@@ -2,14 +2,23 @@
 
 module TReg.Measure where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Nat using (ℕ ; zero ; suc ; _+_)
-open import Cubical.Data.Nat.Properties using (max ; maxSuc)
-open import Cubical.Data.Nat.Order using (_<_ ; _≤_ ; ≤-refl ; ≤-suc ; suc-≤-suc ; ≤SumLeft ; ≤SumRight ; <-wellfounded ; maxLUB ; <-k+ ; ≤-split)
-open import Cubical.Induction.WellFounded using (Acc ; acc ; WellFounded)
-open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_)
-open import Cubical.Data.Sigma using (_×_ ; _,_ ; fst ; snd)
-open import Cubical.Data.Sum using (_⊎_ ; inl ; inr)
+open import TReg.Prelude
+open import Data.Nat using (ℕ ; zero ; suc ; _+_)
+open import Data.Nat.Base using (_<_ ; _≤_) renaming (_⊔_ to max ; s≤s to suc-≤-suc)
+open import Data.Nat.Properties using (≤-refl)
+  renaming
+    ( m≤n⇒m≤1+n to ≤-suc
+    ; m≤m+n to ≤SumLeft
+    ; m≤n+m to ≤SumRight
+    ; ⊔-lub to maxLUB
+    ; +-monoʳ-< to <-k+
+    ; m≤n⇒m<n∨m≡n to ≤-split
+    )
+open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
+open import Induction.WellFounded using (Acc ; acc ; WellFounded)
+open import Data.List.Base using ([] ; _∷_ ; _++_)
+open import Data.Product using (_×_ ; _,_) renaming (proj₁ to fst ; proj₂ to snd)
+open import Data.Sum using (_⊎_) renaming (inj₁ to inl ; inj₂ to inr)
 
 open import TReg.Syntax
 open import TReg.Context
@@ -148,7 +157,12 @@ substTaskMeasure d = derivSize d
 -- Decrease lemmas for substTaskMeasure
 -- ═══════════════════════════════════════════════════════════════════
 
-open import Cubical.Data.Nat.Order using (≤-trans ; <-+k ; ≤-+k ; ≤-k+)
+open import Data.Nat.Properties using (≤-trans)
+  renaming
+    ( +-monoˡ-< to <-+k
+    ; +-monoˡ-≤ to ≤-+k
+    ; +-monoʳ-≤ to ≤-k+
+    )
 
 -- Helper: a < b → a + k < b + k  (already available as <-+k)
 -- Helper: a ≤ b → k + a ≤ k + b  (already available as ≤-k+)

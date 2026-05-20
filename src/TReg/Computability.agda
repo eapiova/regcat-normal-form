@@ -2,13 +2,13 @@
 
 module TReg.Computability where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base using (⊥)
-open import Cubical.Data.Nat using (ℕ ; zero ; suc)
-open import Cubical.Data.Nat.Order using (_<_)
-open import Cubical.Induction.WellFounded using (Acc)
-open import Cubical.Data.Sigma using (Σ-syntax)
-open import Cubical.Data.List.Base using ([] ; _∷_)
+open import TReg.Prelude
+open import Data.Empty using (⊥)
+open import Data.Nat using (ℕ ; zero ; suc)
+open import Data.Nat.Base using (_<_)
+open import Induction.WellFounded using (Acc)
+open import Data.Product using (Σ-syntax)
+open import Data.List.Base using ([] ; _∷_)
 
 open import TReg.Syntax
 open import TReg.Context

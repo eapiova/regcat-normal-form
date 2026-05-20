@@ -3,12 +3,13 @@
 
 module TReg.Inversion where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (⊥ ; rec)
-open import Cubical.Data.Sigma using (Σ ; _,_)
-open import Cubical.Data.List.Base using ([] ; _∷_)
-open import Cubical.Data.Nat using (ℕ ; zero ; suc)
-open import Cubical.Data.Nat.Properties using (znots ; snotz ; injSuc)
+open import TReg.Prelude
+open import Data.Empty as Empty using (⊥) renaming (⊥-elim to rec)
+open import Data.Product using (Σ ; _,_)
+open import Data.List.Base using ([] ; _∷_)
+open import Data.Nat using (ℕ ; zero ; suc)
+open import Data.Nat.Properties using ()
+  renaming (0≢1+n to znots ; 1+n≢0 to snotz ; suc-injective to injSuc)
 
 open import TReg.Syntax
 open import TReg.Context

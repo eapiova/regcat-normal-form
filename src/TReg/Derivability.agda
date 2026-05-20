@@ -3,9 +3,9 @@
 
 module TReg.Derivability where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.List.Base using (List ; [] ; _∷_ ; _++_ ; length)
-open import Cubical.Data.Nat using (zero ; suc)
+open import TReg.Prelude
+open import Data.List.Base using (List ; [] ; _∷_ ; _++_ ; length)
+open import Data.Nat using (zero ; suc)
 
 open import TReg.Syntax
 open import TReg.Context
