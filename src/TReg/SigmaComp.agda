@@ -2,10 +2,14 @@
 
 module TReg.SigmaComp where
 
-open import TReg.CompTheorem public
+open import TReg.FitsHelpers public
   using
     ( compFSigmaClosed
     ; compISigmaClosed
     ; compCSigmaClosed
-    ; compESigmaClosed
+    )
+
+open import TReg.OpenHyp public
+  using
+    ( compESigmaClosed
     )

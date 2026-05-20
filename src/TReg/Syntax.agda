@@ -2,8 +2,8 @@
 
 module TReg.Syntax where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Nat using (ℕ ; zero ; suc)
+open import TReg.Prelude
+open import Data.Nat using (ℕ ; zero ; suc)
 
 mutual
   data RawType : Type where

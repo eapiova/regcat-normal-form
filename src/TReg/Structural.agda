@@ -1,13 +1,14 @@
-{-# OPTIONS --safe --cubical #-}
+{-# OPTIONS --safe #-}
 
 module TReg.Structural where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (rec)
-open import Cubical.Data.List.Base using ([] ; _∷_)
-open import Cubical.Data.Nat.Order using (_<_ ; <-wellfounded)
-open import Cubical.Data.Sigma using (Σ ; _,_ ; fst ; snd)
-open import Cubical.Induction.WellFounded using (Acc ; acc)
+open import TReg.Prelude
+open import Data.Empty as Empty using () renaming (⊥-elim to rec)
+open import Data.List.Base using ([] ; _∷_)
+open import Data.Nat.Base using (_<_)
+open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
+open import Data.Product using (Σ ; _,_) renaming (proj₁ to fst ; proj₂ to snd)
+open import Induction.WellFounded using (Acc ; acc)
 
 open import TReg.Syntax
 open import TReg.Context
@@ -15,7 +16,7 @@ open import TReg.Substitution
 open import TReg.Measure
 open import TReg.Evaluation
 open import TReg.Derivability
-open import Cubical.Data.Nat using (ℕ ; suc)
+open import Data.Nat using (ℕ ; suc)
 open import TReg.Computability
 open import TReg.Inversion
 open import TReg.Presupposition
@@ -49,7 +50,7 @@ mutual
     (acc rs) =
     let
       acHead =
-        rs _ (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath ev)
+        rs (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath ev)
           (smallerClosedTask<ClosedTask {A = B} {B = tySigma B C}
             (tyDepth-fst<Sigma B C)))
     in
@@ -66,7 +67,7 @@ mutual
     (acc rs) =
     let
       acBase =
-        rs _ (rewriteClosedUpper {H = tyEq B a b} (evalEqPath ev)
+        rs (rewriteClosedUpper {H = tyEq B a b} (evalEqPath ev)
           (smallerClosedTask<ClosedTask {A = B} {B = tyEq B a b}
             (tyDepth-base<Eq B a b)))
     in
@@ -82,7 +83,7 @@ mutual
   compReflTyClosedAcc comp@(compTyClosedQtr {B = B} d ev corr compA) (acc rs) =
     let
       acBase =
-        rs _ (rewriteClosedUpper {H = tyQtr B} (evalQtrPath ev)
+        rs (rewriteClosedUpper {H = tyQtr B} (evalQtrPath ev)
           (smallerClosedTask<ClosedTask {A = B} {B = tyQtr B}
             (tyDepth-base<Qtr B)))
     in
@@ -105,11 +106,11 @@ mutual
     (acc rs) =
     let
       acFst =
-        rs _ (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
+        rs (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
           (smallerClosedTask<ClosedTask {A = B} {B = tySigma B C}
             (tyDepth-fst<Sigma B C)))
       acSnd =
-        rs _ (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
+        rs (rewriteClosedUpper {H = tySigma B C} (evalSigmaPath evA)
           (smallerClosedTask<ClosedTask {A = subTy (singleSubst a) C} {B = tySigma B C}
             (subTySigmaFamilyDepth< (singleSubst a) B C)))
     in

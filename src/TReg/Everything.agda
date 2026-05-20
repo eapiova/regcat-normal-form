@@ -1,4 +1,4 @@
-{-# OPTIONS --safe --cubical #-}
+{-# OPTIONS --without-K #-}
 
 module TReg.Everything where
 

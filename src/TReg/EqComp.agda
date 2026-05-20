@@ -3,9 +3,9 @@
 
 module TReg.EqComp where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Nat using (ℕ)
-open import Cubical.Data.List.Base using ([])
+open import TReg.Prelude
+open import Data.Nat using (ℕ)
+open import Data.List.Base using ([])
 
 open import TReg.Syntax
 open import TReg.Context

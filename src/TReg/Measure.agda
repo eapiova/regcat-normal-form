@@ -2,18 +2,32 @@
 
 module TReg.Measure where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Nat using (ℕ ; zero ; suc ; _+_)
-open import Cubical.Data.Nat.Properties using (max ; maxSuc)
-open import Cubical.Data.Nat.Order using (_<_ ; _≤_ ; ≤-refl ; ≤-suc ; suc-≤-suc ; ≤SumLeft ; ≤SumRight ; <-wellfounded ; maxLUB ; <-k+ ; ≤-split)
-open import Cubical.Induction.WellFounded using (Acc ; acc ; WellFounded)
-open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_)
-open import Cubical.Data.Sigma using (_×_ ; _,_ ; fst ; snd)
-open import Cubical.Data.Sum using (_⊎_ ; inl ; inr)
+open import TReg.Prelude
+open import Data.Nat using (ℕ ; zero ; suc ; _+_)
+open import Data.Nat.Base using (_<_ ; _≤_) renaming (_⊔_ to max ; s≤s to suc-≤-suc)
+open import Data.Nat.Properties using (≤-refl ; m≤m⊔n ; m≤n⊔m)
+  renaming
+    ( m≤n⇒m≤1+n to ≤-suc
+    ; ⊔-lub to maxLUB
+    ; +-monoʳ-< to <-k+
+    ; m≤n⇒m<n∨m≡n to ≤-split
+    )
+import Data.Nat.Properties as NatProps
+open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
+open import Induction.WellFounded using (Acc ; acc ; WellFounded)
+open import Data.List.Base using ([] ; _∷_ ; _++_)
+open import Data.Product using (_×_ ; _,_) renaming (proj₁ to fst ; proj₂ to snd)
+open import Data.Sum using (_⊎_) renaming (inj₁ to inl ; inj₂ to inr)
 
 open import TReg.Syntax
 open import TReg.Context
 open import TReg.Substitution using (Subst ; subTy ; subTm ; liftSubst ; singleSubst)
+
+≤SumLeft : {m n : ℕ} -> m ≤ m + n
+≤SumLeft {m} {n} = NatProps.m≤m+n m n
+
+≤SumRight : {m n : ℕ} -> m ≤ n + m
+≤SumRight {m} {n} = NatProps.m≤n+m m n
 
 -- Type depth: measures the nesting of type constructors
 tyDepth : RawType -> ℕ
@@ -49,7 +63,7 @@ max3 a b c = max a (max b c)
 
 max-< : {a b n : ℕ} -> a < n -> b < n -> max a b < n
 max-< {a = a} {b = b} a<n b<n =
-  subst (_≤ _) (maxSuc {n = a} {m = b}) (maxLUB a<n b<n)
+  maxLUB a<n b<n
 
 max3-< : {a b c n : ℕ} -> a < n -> b < n -> c < n -> max3 a b c < n
 max3-< a<n b<n c<n = max-< a<n (max-< b<n c<n)
@@ -148,7 +162,12 @@ substTaskMeasure d = derivSize d
 -- Decrease lemmas for substTaskMeasure
 -- ═══════════════════════════════════════════════════════════════════
 
-open import Cubical.Data.Nat.Order using (≤-trans ; <-+k ; ≤-+k ; ≤-k+)
+open import Data.Nat.Properties using (≤-trans)
+  renaming
+    ( +-monoˡ-< to <-+k
+    ; +-monoˡ-≤ to ≤-+k
+    ; +-monoʳ-≤ to ≤-k+
+    )
 
 -- Helper: a < b → a + k < b + k  (already available as <-+k)
 -- Helper: a ≤ b → k + a ≤ k + b  (already available as ≤-k+)
@@ -1079,14 +1098,14 @@ data LexLt : ℕ × ℕ → ℕ × ℕ → Type where
 
 -- Well-foundedness of LexLt
 LexLt-wf : WellFounded LexLt
-LexLt-wf (a , b) = acc (aux a b (<-wellfounded a) (<-wellfounded b))
+LexLt-wf (a , b) = acc (λ {y} → aux a b (<-wellfounded a) (<-wellfounded b) y)
   where
     aux : (a b : ℕ) → Acc _<_ a → Acc _<_ b
         → (y : ℕ × ℕ) → LexLt y (a , b) → Acc LexLt y
     aux a b (acc rsA) _ (a' , b') (lex-fst a'<a) =
-      acc (aux a' b' (rsA a' a'<a) (<-wellfounded b'))
+      acc (λ {y} → aux a' b' (rsA a'<a) (<-wellfounded b') y)
     aux a b accA (acc rsB) (_ , b') (lex-snd b'<b) =
-      acc (aux a b' accA (rsB b' b'<b))
+      acc (λ {y} → aux a b' accA (rsB b'<b) y)
 
 -- Convenience: combine a ≤ a' with b < b' to get LexLt (a,b) (a',b')
 -- Useful when tyDepth stays OR decreases, and derivSize strictly decreases
@@ -1105,6 +1124,36 @@ subjectTyDepth (termEq _ _ _ A)   = tyDepth A
 
 substTaskLexMeasure : {J : JForm} → Derivable J → ℕ × ℕ
 substTaskLexMeasure {J = J} d = (subjectTyDepth J , derivSize d)
+
+fitsSubstDepth : {gamma delta : Ctx} {sigma : Subst}
+  → FitsSubst gamma delta sigma → ℕ
+fitsSubstDepth (fitsNil wf) = 0
+fitsSubstDepth (fitsCons {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt) =
+  max (fitsSubstDepth fits) (subjectTyDepth (hasTy gamma t (subTy sigma A)))
+
+fitsSubstLexMeasure : {gamma delta : Ctx} {sigma : Subst}
+  → FitsSubst gamma delta sigma → ℕ × ℕ
+fitsSubstLexMeasure fits = (fitsSubstDepth fits , fitsSize fits)
+
+fitsSubstLexMeasure-tail< :
+  {gamma delta : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
+  → (fits : FitsSubst gamma delta sigma)
+  → (dt : Derivable (hasTy gamma t (subTy sigma A)))
+  → LexLt (fitsSubstLexMeasure fits) (fitsSubstLexMeasure (fitsCons fits dt))
+fitsSubstLexMeasure-tail< {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt =
+  lex-≤-<-snd
+    (m≤m⊔n (fitsSubstDepth fits) (subjectTyDepth (hasTy gamma t (subTy sigma A))))
+    (derivSize-sub-suc< {fitsSize fits} {derivSize dt})
+
+fitsSubstLexMeasure-entry< :
+  {gamma delta : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
+  → (fits : FitsSubst gamma delta sigma)
+  → (dt : Derivable (hasTy gamma t (subTy sigma A)))
+  → LexLt (substTaskLexMeasure dt) (fitsSubstLexMeasure (fitsCons fits dt))
+fitsSubstLexMeasure-entry< {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt =
+  lex-≤-<-snd
+    (m≤n⊔m (fitsSubstDepth fits) (subjectTyDepth (hasTy gamma t (subTy sigma A))))
+    (derivSize-fitsEntry< fits dt)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Phase E.2: Lifting helpers to convert derivSize-based lemmas into lex

@@ -4,15 +4,16 @@
 
 module TReg.FitsHelpers where
 
-open import Cubical.Foundations.Prelude
-open import Cubical.Data.Empty.Base as Empty using (⊥ ; rec)
-open import Cubical.Data.Sigma using (Σ ; Σ-syntax ; _×_ ; _,_ ; fst ; snd)
-open import Cubical.Data.List.Base using ([] ; _∷_ ; _++_ ; length)
-open import Cubical.Data.Nat using (ℕ ; zero ; suc)
-open import Cubical.Data.Nat.Order using (_<_ ; <-wellfounded)
-open import Cubical.Data.Nat.Properties using (snotz)
-open import Cubical.Data.Unit.Base using (Unit ; tt)
-open import Cubical.Induction.WellFounded using (Acc ; acc ; access)
+open import TReg.Prelude
+open import Data.Empty as Empty using (⊥) renaming (⊥-elim to rec)
+open import Data.Product using (Σ ; Σ-syntax ; _×_ ; _,_) renaming (proj₁ to fst ; proj₂ to snd)
+open import Data.List.Base using ([] ; _∷_ ; _++_ ; length)
+open import Data.Nat using (ℕ ; zero ; suc)
+open import Data.Nat.Base using (_<_)
+open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
+open import Data.Nat.Properties using () renaming (1+n≢0 to snotz)
+open import Data.Unit using (tt) renaming (⊤ to Unit)
+open import Induction.WellFounded using (Acc ; acc) renaming (acc-inverse to access)
 
 open import TReg.Syntax
 open import TReg.Context
@@ -30,7 +31,7 @@ open import TReg.EqComp
 nonemptyNeNil : {A : RawType} {gamma : Ctx} -> (A ∷ gamma ≡ []) -> ⊥
 nonemptyNeNil {gamma = gamma} p = snotz (cong length p)
 
-case_of_ : ∀ {ℓ ℓ'} {A : Type ℓ} {B : Type ℓ'} -> A -> (A -> B) -> B
+case_of_ : {A B : Type} -> A -> (A -> B) -> B
 case x of f = f x
 
 compReflTy : {n : ℕ} -> {A : RawType}
@@ -51,14 +52,14 @@ liftFitsNR : {theta gamma : Ctx} {A : RawType} {sigma : Subst}
   -> FitsSubst theta gamma sigma
   -> Derivable (isType theta (subTy sigma A))
   -> FitsSubst (subTy sigma A ∷ theta) (A ∷ gamma)
-       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+       (consSubst (var zero) (compSub (keepSubstCtx 1 theta) sigma))
 liftFitsNR {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} fits dAσ =
   fitsCons tail headVar
   where
   wfAσ : CtxWF (subTy sigma A ∷ theta)
   wfAσ = wfCons (fitsSubstCtxWF fits) dAσ
 
-  tail : FitsSubst (subTy sigma A ∷ theta) gamma (compSub (keepSubstBy 1) sigma)
+  tail : FitsSubst (subTy sigma A ∷ theta) gamma (compSub (keepSubstCtx 1 theta) sigma)
   tail =
     composeFits
       (fitsKeep {delta = subTy sigma A ∷ []} {gamma = theta} wfAσ)
@@ -69,11 +70,13 @@ liftFitsNR {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} fits dAσ =
   headVar0 = varStar {gamma = theta} {delta = []} {A = subTy sigma A} wfAσ dAσ
 
   headVar : Derivable
-    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstBy 1) sigma) A))
+    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstCtx 1 theta) sigma) A))
   headVar =
     subst
       (λ T -> Derivable (hasTy (subTy sigma A ∷ theta) (var zero) T))
-      (renTyKeepSubstBy 1 (subTy sigma A) ∙ subTyComp (keepSubstBy 1) sigma A)
+      (renTyKeepSubstBy 1 (subTy sigma A)
+        ∙ sym (keepSubstCtx-subTy 1 theta (subTy sigma A))
+        ∙ subTyComp (keepSubstCtx 1 theta) sigma A)
       headVar0
 
 liftFitsOneNR : {gamma : Ctx} {A : RawType} {sigma : Subst}
@@ -87,8 +90,8 @@ liftFitsEqNR : {theta gamma : Ctx} {A : RawType} {sigma tau : Subst}
   -> FitsEqSubst theta gamma sigma tau
   -> Derivable (isType theta (subTy sigma A))
   -> FitsEqSubst (subTy sigma A ∷ theta) (A ∷ gamma)
-       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-       (consSubst (var zero) (compSub (keepSubstBy 1) tau))
+       (consSubst (var zero) (compSub (keepSubstCtx 1 theta) sigma))
+       (consSubst (var zero) (compSub (keepSubstCtx 1 theta) tau))
 liftFitsEqNR {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} {tau = tau} fitsEq dAσ =
   fitsEqCons tail (reflTm headVar)
   where
@@ -96,8 +99,8 @@ liftFitsEqNR {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} {tau = tau}
   wfAσ = wfCons (fitsEqSubstCtxWF fitsEq) dAσ
 
   tail : FitsEqSubst (subTy sigma A ∷ theta) gamma
-    (compSub (keepSubstBy 1) sigma)
-    (compSub (keepSubstBy 1) tau)
+    (compSub (keepSubstCtx 1 theta) sigma)
+    (compSub (keepSubstCtx 1 theta) tau)
   tail =
     composeFitsEq
       (fitsKeep {delta = subTy sigma A ∷ []} {gamma = theta} wfAσ)
@@ -108,11 +111,13 @@ liftFitsEqNR {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} {tau = tau}
   headVar0 = varStar {gamma = theta} {delta = []} {A = subTy sigma A} wfAσ dAσ
 
   headVar : Derivable
-    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstBy 1) sigma) A))
+    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstCtx 1 theta) sigma) A))
   headVar =
     subst
       (λ T -> Derivable (hasTy (subTy sigma A ∷ theta) (var zero) T))
-      (renTyKeepSubstBy 1 (subTy sigma A) ∙ subTyComp (keepSubstBy 1) sigma A)
+      (renTyKeepSubstBy 1 (subTy sigma A)
+        ∙ sym (keepSubstCtx-subTy 1 theta (subTy sigma A))
+        ∙ subTyComp (keepSubstCtx 1 theta) sigma A)
       headVar0
 
 liftFitsEqOneNR : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
@@ -123,12 +128,17 @@ liftFitsEqOneNR : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
        (consSubst (var zero) (compSub (keepSubstBy 1) tau))
 liftFitsEqOneNR = liftFitsEqNR
 
+compSubKeep1RenSub : (sigma : Subst)
+  -> compSub (keepSubstBy 1) sigma ≡ renSub sucRen sigma
+compSubKeep1RenSub (shiftSub zero) = refl
+compSubKeep1RenSub (shiftSub (suc k)) = refl
+compSubKeep1RenSub (consSub t sigma) =
+  cong₂ consSubst (sym (renTmKeepSubstBy 1 t)) (compSubKeep1RenSub sigma)
+
 abstract
   liftSubstCompKeepNR : (sigma : Subst)
     -> consSubst (var zero) (compSub (keepSubstBy 1) sigma) ≡ liftSubst sigma
-  liftSubstCompKeepNR sigma = funExt λ where
-    zero -> refl
-    (suc n) -> sym (renTmKeepSubstBy 1 (sigma n))
+  liftSubstCompKeepNR sigma = cong (consSubst (var zero)) (compSubKeep1RenSub sigma)
 
 composeOneBinderNR : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
   -> FitsSubst [] gamma sigma
@@ -158,7 +168,7 @@ composeOneBinderEqNR {gamma = gamma} {A = A} {sigma = sigma} {tau₁ = tau₁} {
       (cong (compSub tau₂) (liftSubstCompKeepNR sigma))
       (composeEqFits fitsEq (liftFitsOneNR fits dAσ)))
 
--- Status of TERMINATING removal (post Apr 25 F.5 module split):
+-- Status of termination-pragma removal (post Apr 25 F.5 module split):
 -- See ~/.claude/plans/sharded-prancing-forest.md for full status and the
 -- Tier 1-4 verification roadmap. Leading suspected residual termination
 -- issues are:
@@ -498,7 +508,7 @@ compCQtrClosed {n} {a = a} {l = l} {A = A} {L = L}
 
 compSubKeepBy : (sigma : Subst) (k : ℕ)
   -> compSub sigma (keepSubstBy k) ≡ dropSubstBy k sigma
-compSubKeepBy sigma k = funExt λ n -> refl
+compSubKeepBy sigma k = refl
 
 subTyWkBy : (sigma : Subst) (k : ℕ) (A : RawType)
   -> subTy sigma (wkTyBy k A) ≡ subTy (dropSubstBy k sigma) A
@@ -522,7 +532,7 @@ wkTyBy0 A =
 
 dropCons : (t : RawTerm) (sigma : Subst) (k : ℕ)
   -> dropSubstBy (suc k) (consSubst t sigma) ≡ dropSubstBy k sigma
-dropCons t sigma k = funExt λ n -> refl
+dropCons t sigma k = refl
 
 subTyWkStep : (t : RawTerm) (sigma : Subst) (k : ℕ) (A : RawType)
   -> subTy (consSubst t sigma) (wkTyBy (suc k) A)
@@ -583,57 +593,21 @@ substCompFits : {n : ℕ} -> {delta : Ctx} {sigma tau : Subst}
   -> {fits : FitsSubst [] delta sigma}
   -> ComputableFits n fits
   -> ComputableFits n (subst (λ rho -> FitsSubst [] delta rho) p fits)
-substCompFits {n} {delta = delta} {sigma = sigma} p {fits = fits} compFits =
-  J
-    (λ tau p ->
-      {fits : FitsSubst [] delta sigma}
-      -> ComputableFits n fits
-      -> ComputableFits n (subst (λ rho -> FitsSubst [] delta rho) p fits))
-    (λ {fits} compFits ->
-      subst
-        (λ zeta -> ComputableFits n zeta)
-        (sym (transportRefl fits))
-        compFits)
-    p
-    compFits
+substCompFits refl compFits = compFits
 
 substCompFitsEqLeft : {n : ℕ} -> {delta : Ctx} {sigma sigma' tau : Subst}
   -> (p : sigma ≡ sigma')
   -> {fitsEq : FitsEqSubst [] delta sigma tau}
   -> ComputableFitsEq n fitsEq
   -> ComputableFitsEq n (subst (λ rho -> FitsEqSubst [] delta rho tau) p fitsEq)
-substCompFitsEqLeft {n} {delta = delta} {sigma = sigma} {tau = tau} p {fitsEq = fitsEq} compFitsEq =
-  J
-    (λ sigma' p ->
-      {fitsEq : FitsEqSubst [] delta sigma tau}
-      -> ComputableFitsEq n fitsEq
-      -> ComputableFitsEq n (subst (λ rho -> FitsEqSubst [] delta rho tau) p fitsEq))
-    (λ {fitsEq} compFitsEq ->
-      subst
-        (λ zeta -> ComputableFitsEq n zeta)
-        (sym (transportRefl fitsEq))
-        compFitsEq)
-    p
-    compFitsEq
+substCompFitsEqLeft refl compFitsEq = compFitsEq
 
 substCompFitsEqRight : {n : ℕ} -> {delta : Ctx} {sigma tau tau' : Subst}
   -> (p : tau ≡ tau')
   -> {fitsEq : FitsEqSubst [] delta sigma tau}
   -> ComputableFitsEq n fitsEq
   -> ComputableFitsEq n (subst (λ rho -> FitsEqSubst [] delta sigma rho) p fitsEq)
-substCompFitsEqRight {n} {delta = delta} {sigma = sigma} {tau = tau} p {fitsEq = fitsEq} compFitsEq =
-  J
-    (λ tau' p ->
-      {fitsEq : FitsEqSubst [] delta sigma tau}
-      -> ComputableFitsEq n fitsEq
-      -> ComputableFitsEq n (subst (λ rho -> FitsEqSubst [] delta sigma rho) p fitsEq))
-    (λ {fitsEq} compFitsEq ->
-      subst
-        (λ zeta -> ComputableFitsEq n zeta)
-        (sym (transportRefl fitsEq))
-        compFitsEq)
-    p
-    compFitsEq
+substCompFitsEqRight refl compFitsEq = compFitsEq
 
 dropFits : {delta : Ctx} {sigma : Subst}
   -> (drop : Ctx)
@@ -701,14 +675,14 @@ liftFits : {theta gamma : Ctx} {A : RawType} {sigma : Subst}
   -> FitsSubst theta gamma sigma
   -> Derivable (isType theta (subTy sigma A))
   -> FitsSubst (subTy sigma A ∷ theta) (A ∷ gamma)
-       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
+       (consSubst (var zero) (compSub (keepSubstCtx 1 theta) sigma))
 liftFits {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} fits dAσ =
   fitsCons tail headVar
   where
   wfAσ : CtxWF (subTy sigma A ∷ theta)
   wfAσ = wfCons (fitsSubstCtxWF fits) dAσ
 
-  tail : FitsSubst (subTy sigma A ∷ theta) gamma (compSub (keepSubstBy 1) sigma)
+  tail : FitsSubst (subTy sigma A ∷ theta) gamma (compSub (keepSubstCtx 1 theta) sigma)
   tail =
     composeFits
       (fitsKeep {delta = subTy sigma A ∷ []} {gamma = theta} wfAσ)
@@ -719,11 +693,13 @@ liftFits {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} fits dAσ =
   headVar0 = varStar {gamma = theta} {delta = []} {A = subTy sigma A} wfAσ dAσ
 
   headVar : Derivable
-    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstBy 1) sigma) A))
+    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstCtx 1 theta) sigma) A))
   headVar =
     subst
       (λ T -> Derivable (hasTy (subTy sigma A ∷ theta) (var zero) T))
-      (renTyKeepSubstBy 1 (subTy sigma A) ∙ subTyComp (keepSubstBy 1) sigma A)
+      (renTyKeepSubstBy 1 (subTy sigma A)
+        ∙ sym (keepSubstCtx-subTy 1 theta (subTy sigma A))
+        ∙ subTyComp (keepSubstCtx 1 theta) sigma A)
       headVar0
 
 liftFitsOne : {gamma : Ctx} {A : RawType} {sigma : Subst}
@@ -737,8 +713,8 @@ liftFitsEq : {theta gamma : Ctx} {A : RawType} {sigma tau : Subst}
   -> FitsEqSubst theta gamma sigma tau
   -> Derivable (isType theta (subTy sigma A))
   -> FitsEqSubst (subTy sigma A ∷ theta) (A ∷ gamma)
-       (consSubst (var zero) (compSub (keepSubstBy 1) sigma))
-       (consSubst (var zero) (compSub (keepSubstBy 1) tau))
+       (consSubst (var zero) (compSub (keepSubstCtx 1 theta) sigma))
+       (consSubst (var zero) (compSub (keepSubstCtx 1 theta) tau))
 liftFitsEq {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} {tau = tau} fitsEq dAσ =
   fitsEqCons tail (reflTm headVar)
   where
@@ -746,8 +722,8 @@ liftFitsEq {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} {tau = tau} f
   wfAσ = wfCons (fitsEqSubstCtxWF fitsEq) dAσ
 
   tail : FitsEqSubst (subTy sigma A ∷ theta) gamma
-    (compSub (keepSubstBy 1) sigma)
-    (compSub (keepSubstBy 1) tau)
+    (compSub (keepSubstCtx 1 theta) sigma)
+    (compSub (keepSubstCtx 1 theta) tau)
   tail =
     composeFitsEq
       (fitsKeep {delta = subTy sigma A ∷ []} {gamma = theta} wfAσ)
@@ -758,11 +734,13 @@ liftFitsEq {theta = theta} {gamma = gamma} {A = A} {sigma = sigma} {tau = tau} f
   headVar0 = varStar {gamma = theta} {delta = []} {A = subTy sigma A} wfAσ dAσ
 
   headVar : Derivable
-    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstBy 1) sigma) A))
+    (hasTy (subTy sigma A ∷ theta) (var zero) (subTy (compSub (keepSubstCtx 1 theta) sigma) A))
   headVar =
     subst
       (λ T -> Derivable (hasTy (subTy sigma A ∷ theta) (var zero) T))
-      (renTyKeepSubstBy 1 (subTy sigma A) ∙ subTyComp (keepSubstBy 1) sigma A)
+      (renTyKeepSubstBy 1 (subTy sigma A)
+        ∙ sym (keepSubstCtx-subTy 1 theta (subTy sigma A))
+        ∙ subTyComp (keepSubstCtx 1 theta) sigma A)
       headVar0
 
 liftFitsEqOne : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
@@ -776,18 +754,54 @@ liftFitsEqOne = liftFitsEq
 abstract
   liftSubstCompKeep : (sigma : Subst)
     -> consSubst (var zero) (compSub (keepSubstBy 1) sigma) ≡ liftSubst sigma
-  liftSubstCompKeep sigma = funExt λ where
-    zero -> refl
-    (suc n) -> sym (renTmKeepSubstBy 1 (sigma n))
+  liftSubstCompKeep sigma = cong (consSubst (var zero)) (compSubKeep1RenSub sigma)
 
   compSubIdLeft : (sigma : Subst) -> compSub idSubst sigma ≡ sigma
-  compSubIdLeft sigma = funExt λ n -> subTmId (sigma n)
+  compSubIdLeft (shiftSub zero) = refl
+  compSubIdLeft (shiftSub (suc k)) = refl
+  compSubIdLeft (consSub t sigma) =
+    cong₂ consSubst (subTmId t) (compSubIdLeft sigma)
+
+  dropSub1-compose : (tau : Subst) (k : ℕ)
+    -> dropSubstBy (suc k) (dropSubstBy 1 tau) ≡ dropSubstBy (suc (suc k)) tau
+  dropSub1-compose (shiftSub j) k = cong shiftSub (+-assoc j 1 (suc k))
+  dropSub1-compose (consSub t tau) k = refl
+
+  compSubDrop1RenSub : (tau sigma : Subst)
+    -> compSub (dropSubstBy 1 tau) sigma ≡ compSub tau (renSub sucRen sigma)
+  compSubDrop1RenSub tau (shiftSub zero) = refl
+  compSubDrop1RenSub tau (shiftSub (suc k)) = dropSub1-compose tau k
+  compSubDrop1RenSub tau (consSub t sigma) =
+    cong₂ consSubst (sym (subTmRen tau sucRen t)) (compSubDrop1RenSub tau sigma)
 
   oneBinderCompSub : (tau sigma : Subst)
-    -> consSubst (tau zero) (compSub (dropSubstBy 1 tau) sigma) ≡ compSub tau (liftSubst sigma)
-  oneBinderCompSub tau sigma = funExt λ where
-    zero -> refl
-    (suc n) -> sym (subTmRen tau suc (sigma n))
+    -> consSubst (applySubst tau zero) (compSub (dropSubstBy 1 tau) sigma) ≡ compSub tau (liftSubst sigma)
+  oneBinderCompSub tau sigma =
+    cong (consSubst (applySubst tau zero)) (compSubDrop1RenSub tau sigma)
+
+  keepSubstCtx1 : Subst
+  keepSubstCtx1 = consSubst (var (suc zero)) (keepSubstBy 2)
+
+  keepSubstCtx1RenSubComp : (sigma : Subst)
+    -> compSub keepSubstCtx1 (renSub sucRen sigma)
+       ≡ compSub (keepSubstBy 1) (renSub sucRen sigma)
+  keepSubstCtx1RenSubComp (shiftSub zero) = refl
+  keepSubstCtx1RenSubComp (shiftSub (suc k)) = refl
+  keepSubstCtx1RenSubComp (consSub t sigma) =
+    cong₂ consSubst
+      (subTmRen keepSubstCtx1 sucRen t ∙ sym (subTmRen (keepSubstBy 1) sucRen t))
+      (keepSubstCtx1RenSubComp sigma)
+
+  keepSubstCtx1LiftComp : (sigma : Subst)
+    -> compSub keepSubstCtx1 (liftSubst sigma)
+       ≡ compSub (keepSubstBy 1) (liftSubst sigma)
+  keepSubstCtx1LiftComp sigma =
+    cong (consSubst (var (suc zero))) (keepSubstCtx1RenSubComp sigma)
+
+  keepSubstCtx1LiftCompFor : (X : RawType) (sigma : Subst)
+    -> compSub (keepSubstCtx 1 (X ∷ [])) (liftSubst sigma)
+       ≡ compSub (keepSubstBy 1) (liftSubst sigma)
+  keepSubstCtx1LiftCompFor X sigma = keepSubstCtx1LiftComp sigma
 
 composeOneBinder : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
   -> FitsSubst [] gamma sigma
@@ -835,7 +849,10 @@ composeTwoBinders {gamma = gamma} {A = A} {B = B} {sigma = sigma} {tau = tau} fi
   subst
     (λ rho -> FitsSubst [] (B ∷ A ∷ gamma) rho)
     (cong (compSub tau) (liftSubstCompKeep (liftSubst sigma)))
-    (composeFits fits2 (liftFits lifted1 dBσ))
+    (subst
+      (λ rho -> FitsSubst [] (B ∷ A ∷ gamma) (compSub tau rho))
+      (cong (consSubst (var zero)) (keepSubstCtx1LiftCompFor (subTy sigma A) sigma))
+      (composeFits fits2 (liftFits lifted1 dBσ)))
 
 composeTwoBindersEq : {gamma : Ctx} {A B : RawType} {sigma tau₁ tau₂ : Subst}
   -> FitsSubst [] gamma sigma
@@ -853,73 +870,97 @@ composeTwoBindersEq {gamma = gamma} {A = A} {B = B} {sigma = sigma} {tau₁ = ta
         (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
         (liftSubstCompKeep sigma)
         (liftFitsOne fits dAσ)
+    lifted2ctx : Subst
+    lifted2ctx =
+      consSubst (var zero)
+        (compSub (keepSubstCtx 1 (subTy sigma A ∷ [])) (liftSubst sigma))
+    lifted2Path : lifted2ctx ≡ liftSubst (liftSubst sigma)
+    lifted2Path =
+      cong (consSubst (var zero)) (keepSubstCtx1LiftCompFor (subTy sigma A) sigma)
+      ∙ liftSubstCompKeep (liftSubst sigma)
   in
   subst
     (λ rho ->
       FitsEqSubst [] (B ∷ A ∷ gamma) rho (compSub tau₂ (liftSubst (liftSubst sigma))))
-    (cong (compSub tau₁) (liftSubstCompKeep (liftSubst sigma)))
+    (cong (compSub tau₁) lifted2Path)
     (subst
       (λ rho ->
         FitsEqSubst [] (B ∷ A ∷ gamma)
-          (compSub tau₁ (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma))))
+          (compSub tau₁ lifted2ctx)
           rho)
-      (cong (compSub tau₂) (liftSubstCompKeep (liftSubst sigma)))
+      (cong (compSub tau₂) lifted2Path)
       (composeEqFits fitsEq (liftFits lifted1 dBσ)))
+
+singleSubstLiftTailFor : (sigma : Subst) (v : RawTerm)
+  -> compSub (singleSubst v) (renSub sucRen sigma) ≡ sigma
+singleSubstLiftTailFor (shiftSub zero) v = refl
+singleSubstLiftTailFor (shiftSub (suc k)) v = refl
+singleSubstLiftTailFor (consSub u sigma) v =
+  cong₂ consSubst
+    (subTmRen (singleSubst v) sucRen u ∙ subTmId u)
+    (singleSubstLiftTailFor sigma v)
+
+singleSubstLiftTail : (sigma : Subst) (t : RawTerm)
+  -> compSub (singleSubst (subTm sigma t)) (renSub sucRen sigma) ≡ sigma
+singleSubstLiftTail sigma t = singleSubstLiftTailFor sigma (subTm sigma t)
 
 singleSubstCompLift : (sigma : Subst) (t : RawTerm)
   -> compSub (singleSubst (subTm sigma t)) (liftSubst sigma) ≡ compSub sigma (singleSubst t)
-singleSubstCompLift sigma t = funExt λ where
-  zero -> refl
-  (suc n) ->
-    subTmRen (singleSubst (subTm sigma t)) suc (sigma n)
-    ∙ cong (λ rho -> subTm rho (sigma n)) (funExt λ k -> refl)
-    ∙ subTmId (sigma n)
+singleSubstCompLift sigma t =
+  cong (consSubst (subTm sigma t)) (singleSubstLiftTail sigma t)
+
+qtrBranchSubLiftTail : (sigma : Subst)
+  -> compSub qtrBranchSub (renSub sucRen sigma) ≡ renSub sucRen sigma
+qtrBranchSubLiftTail (shiftSub zero) = refl
+qtrBranchSubLiftTail (shiftSub (suc k)) = refl
+qtrBranchSubLiftTail (consSub t sigma) =
+  cong₂ consSubst
+    (subTmRen qtrBranchSub sucRen t ∙ sym (renTmKeepSubstBy 1 t))
+    (qtrBranchSubLiftTail sigma)
 
 qtrBranchSubLiftComp : (sigma : Subst)
   -> compSub (liftSubst sigma) qtrBranchSub ≡ compSub qtrBranchSub (liftSubst sigma)
-qtrBranchSubLiftComp sigma = funExt λ where
-  zero -> refl
-  (suc n) ->
-    sym (subTmId (renTm suc (sigma n)))
-    ∙ subTmRen idSubst suc (sigma n)
-    ∙ cong (λ rho -> subTm rho (sigma n)) (sym (funExt λ k -> refl))
-    ∙ sym (subTmRen qtrBranchSub suc (sigma n))
+qtrBranchSubLiftComp sigma =
+  cong (consSubst (tmClass (var zero))) (sym (qtrBranchSubLiftTail sigma))
 
 sigmaCompSubLiftComp : (sigma : Subst) (b c : RawTerm)
   -> compSub sigma (sigmaCompSub b c)
    ≡ compSub (sigmaCompSub (subTm sigma b) (subTm sigma c)) (liftSubst (liftSubst sigma))
-sigmaCompSubLiftComp sigma b c = funExt λ where
-  zero -> refl
-  (suc zero) -> refl
-  (suc (suc n)) ->
-    sym (subTmId (sigma n))
-    ∙ cong
-        (λ rho -> subTm rho (sigma n))
-        (sym (funExt λ k -> refl))
-    ∙ sym (subTmRen (sigmaCompSub (subTm sigma b) (subTm sigma c)) (compRen suc suc) (sigma n))
-    ∙ cong
-        (λ t -> subTm (sigmaCompSub (subTm sigma b) (subTm sigma c)) t)
-        (sym (renTmComp suc suc (sigma n)))
+sigmaCompSubLiftComp sigma b c =
+  cong (consSubst (subTm sigma c)) (sym (singleSubstCompLift sigma b))
+  ∙ oneBinderCompSub (sigmaCompSub (subTm sigma b) (subTm sigma c)) (liftSubst sigma)
+
+sigmaMotSubLiftTail : (sigma : Subst)
+  -> compSub sigmaMotSub (renSub sucRen sigma) ≡ dropSubstBy 2 (liftSubst (liftSubst sigma))
+sigmaMotSubLiftTail (shiftSub zero) = refl
+sigmaMotSubLiftTail (shiftSub (suc k)) = refl
+sigmaMotSubLiftTail (consSub t sigma) =
+  cong₂ consSubst
+    (subTmRen sigmaMotSub sucRen t
+      ∙ sym (renTmKeepSubstBy 2 t)
+      ∙ sym (renTmComp sucRen sucRen t))
+    (sigmaMotSubLiftTail sigma)
 
 sigmaMotSubLiftComp : (sigma : Subst)
   -> compSub (liftSubst (liftSubst sigma)) sigmaMotSub ≡ compSub sigmaMotSub (liftSubst sigma)
-sigmaMotSubLiftComp sigma = funExt λ where
-  zero -> refl
-  (suc n) ->
-    renTmComp suc suc (sigma n)
-    ∙ sym (subTmId (renTm (addRen 2) (sigma n)))
-    ∙ subTmRen idSubst (addRen 2) (sigma n)
-    ∙ sym (subTmRen sigmaMotSub suc (sigma n))
+sigmaMotSubLiftComp sigma =
+  cong (consSubst (tmPair (var (suc zero)) (var zero))) (sym (sigmaMotSubLiftTail sigma))
+
+qtrCohSubLiftTail : (sigma : Subst)
+  -> compSub qtrCohSub (renSub sucRen sigma) ≡ dropSubstBy 2 (liftSubst (liftSubst sigma))
+qtrCohSubLiftTail (shiftSub zero) = refl
+qtrCohSubLiftTail (shiftSub (suc k)) = refl
+qtrCohSubLiftTail (consSub t sigma) =
+  cong₂ consSubst
+    (subTmRen qtrCohSub sucRen t
+      ∙ sym (renTmKeepSubstBy 2 t)
+      ∙ sym (renTmComp sucRen sucRen t))
+    (qtrCohSubLiftTail sigma)
 
 qtrCohSubLiftComp : (sigma : Subst)
   -> compSub (liftSubst (liftSubst sigma)) qtrCohSub ≡ compSub qtrCohSub (liftSubst sigma)
-qtrCohSubLiftComp sigma = funExt λ where
-  zero -> refl
-  (suc n) ->
-    renTmComp suc suc (sigma n)
-    ∙ sym (subTmId (renTm (addRen 2) (sigma n)))
-    ∙ subTmRen idSubst (addRen 2) (sigma n)
-    ∙ sym (subTmRen qtrCohSub suc (sigma n))
+qtrCohSubLiftComp sigma =
+  cong (consSubst (tmClass (var (suc zero)))) (sym (qtrCohSubLiftTail sigma))
 
 sigmaBranchTyLiftComp : (sigma : Subst) (M : RawType)
   -> subTy (liftSubst (liftSubst sigma)) (sigmaBranchTy M)
@@ -945,19 +986,20 @@ qtrCohTyLiftComp sigma L =
   ∙ cong (λ rho -> subTy rho L) (qtrCohSubLiftComp sigma)
   ∙ sym (subTyComp qtrCohSub (liftSubst sigma) L)
 
+qtrSecondBranchSubLiftTail : (sigma : Subst)
+  -> renSub qtrSecondBranchRen (renSub sucRen sigma) ≡ dropSubstBy 2 (liftSubst (liftSubst sigma))
+qtrSecondBranchSubLiftTail (shiftSub zero) = refl
+qtrSecondBranchSubLiftTail (shiftSub (suc k)) = refl
+qtrSecondBranchSubLiftTail (consSub t sigma) =
+  cong₂ consSubst
+    (renTmComp qtrSecondBranchRen sucRen t ∙ sym (renTmComp sucRen sucRen t))
+    (qtrSecondBranchSubLiftTail sigma)
+
 qtrSecondBranchSubLiftComp : (sigma : Subst)
-  -> (λ n -> liftSubst (liftSubst sigma) (qtrSecondBranchRen n))
+  -> compSubRen (liftSubst (liftSubst sigma)) qtrSecondBranchRen
        ≡ renSub qtrSecondBranchRen (liftSubst sigma)
-qtrSecondBranchSubLiftComp sigma = funExt λ where
-  zero -> refl
-  (suc n) ->
-    renTmComp suc suc (sigma n)
-    ∙ cong
-        (λ rho -> renTm rho (sigma n))
-        (funExt λ where
-          zero -> refl
-          (suc k) -> refl)
-    ∙ sym (renTmComp qtrSecondBranchRen suc (sigma n))
+qtrSecondBranchSubLiftComp sigma =
+  cong (consSubst (var zero)) (sym (qtrSecondBranchSubLiftTail sigma))
 
 qtrSecondBranchTmLiftComp : (sigma : Subst) (l : RawTerm)
   -> subTm (liftSubst (liftSubst sigma)) (renTm qtrSecondBranchRen l)
@@ -985,12 +1027,7 @@ qtrCompSubLiftComp sigma a =
 qtrBranchTyWk : (L : RawType)
   -> wkTyBy 1 (qtrBranchTy L) ≡ qtrCohTy L
 qtrBranchTyWk L =
-  renTySub suc qtrBranchSub L
-  ∙ cong
-      (λ rho -> subTy rho L)
-      (funExt λ where
-        zero -> refl
-        (suc n) -> refl)
+  renTySub sucRen qtrBranchSub L
 
 mutual
   leftTyWitnessEq : {gamma : Ctx} {A B : RawType}
@@ -1050,9 +1087,7 @@ hypTmEqLeft {n} (hypTmEqOpen _ _ compt _ _) = compt
 sigmaMotSubTailComp : (sigma : Subst) (b c : RawTerm)
   -> compSub (consSubst c (consSubst b sigma)) sigmaMotSub
      ≡ consSubst (tmPair b c) sigma
-sigmaMotSubTailComp sigma b c = funExt λ where
-  zero -> refl
-  (suc n) -> refl
+sigmaMotSubTailComp sigma b c = refl
 
 abstract
   sigmaBranchTyCompTail : (sigma : Subst) (b c : RawTerm) (M : RawType)
