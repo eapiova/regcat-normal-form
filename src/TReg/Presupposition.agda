@@ -42,103 +42,162 @@ ctxSuffixTy {delta = _ ∷ delta} (wfCons wf _) = ctxSuffixTy {delta = delta} wf
 lengthSnoc : (delta : Ctx) (A : RawType)
   -> length (delta ++ (A ∷ [])) ≡ suc (length delta)
 lengthSnoc delta A =
-  length++ delta (A ∷ []) ∙ +-suc (length delta) zero ∙ cong suc (+-zero (length delta))
-
-consKeepSubstBy : (k : ℕ)
-  -> consSubst (var k) (keepSubstBy (suc k)) ≡ keepSubstBy k
-consKeepSubstBy k = funExt λ where
-  zero -> cong var (sym (+-zero k))
-  (suc n) -> cong var (sym (+-suc k n))
+  length++ delta {ys = A ∷ []} ∙ +-suc (length delta) zero ∙ cong suc (+-zero (length delta))
 
 singleSubstConsKeep : (t : RawTerm)
   -> singleSubst t ≡ consSubst t (keepSubstBy 0)
-singleSubstConsKeep t = funExt λ where
-  zero -> refl
-  (suc n) -> refl
+singleSubstConsKeep t = refl
 
 keepSubstBy0Id : keepSubstBy 0 ≡ idSubst
-keepSubstBy0Id = funExt λ where
-  zero -> refl
-  (suc n) -> refl
+keepSubstBy0Id = refl
+
+keepSubstCtx : ℕ -> Ctx -> Subst
+keepSubstCtx k [] = keepSubstBy k
+keepSubstCtx k (_ ∷ gamma) = consSubst (var k) (keepSubstCtx (suc k) gamma)
+
+keepSubstCtx-apply : (k : ℕ) (gamma : Ctx) (n : ℕ)
+  -> applySubst (keepSubstCtx k gamma) n ≡ applySubst (keepSubstBy k) n
+keepSubstCtx-apply k [] n = refl
+keepSubstCtx-apply k (_ ∷ gamma) zero = cong var (sym (+-zero k))
+keepSubstCtx-apply k (_ ∷ gamma) (suc n) =
+  keepSubstCtx-apply (suc k) gamma n ∙ cong var (sym (+-suc k n))
+
+keepSubstCtx-subTy : (k : ℕ) (gamma : Ctx) (A : RawType)
+  -> subTy (keepSubstCtx k gamma) A ≡ subTy (keepSubstBy k) A
+keepSubstCtx-subTy k gamma = subTyEq (keepSubstCtx-apply k gamma)
+
+keepSubstCtx-subTm : (k : ℕ) (gamma : Ctx) (t : RawTerm)
+  -> subTm (keepSubstCtx k gamma) t ≡ subTm (keepSubstBy k) t
+keepSubstCtx-subTm k gamma = subTmEq (keepSubstCtx-apply k gamma)
+
+singleSubstCtx : RawTerm -> Ctx -> Subst
+singleSubstCtx t gamma = consSubst t (keepSubstCtx 0 gamma)
+
+singleSubstCtx-apply : (t : RawTerm) (gamma : Ctx) (n : ℕ)
+  -> applySubst (singleSubstCtx t gamma) n ≡ applySubst (singleSubst t) n
+singleSubstCtx-apply t gamma zero = refl
+singleSubstCtx-apply t gamma (suc n) = keepSubstCtx-apply 0 gamma n
+
+singleSubstCtx-subTy : (t : RawTerm) (gamma : Ctx) (A : RawType)
+  -> subTy (singleSubstCtx t gamma) A ≡ subTy (singleSubst t) A
+singleSubstCtx-subTy t gamma = subTyEq (singleSubstCtx-apply t gamma)
+
+singleSubstCtx-subTm : (t : RawTerm) (gamma : Ctx) (m : RawTerm)
+  -> subTm (singleSubstCtx t gamma) m ≡ subTm (singleSubst t) m
+singleSubstCtx-subTm t gamma = subTmEq (singleSubstCtx-apply t gamma)
+
+sigmaCompSubCtx : RawTerm -> RawTerm -> Ctx -> Subst
+sigmaCompSubCtx b c gamma = consSubst c (consSubst b (keepSubstCtx 0 gamma))
+
+sigmaCompSubCtx-apply : (b c : RawTerm) (gamma : Ctx) (n : ℕ)
+  -> applySubst (sigmaCompSubCtx b c gamma) n ≡ applySubst (sigmaCompSub b c) n
+sigmaCompSubCtx-apply b c gamma zero = refl
+sigmaCompSubCtx-apply b c gamma (suc zero) = refl
+sigmaCompSubCtx-apply b c gamma (suc (suc n)) = keepSubstCtx-apply 0 gamma n
+
+sigmaCompSubCtx-subTy : (b c : RawTerm) (gamma : Ctx) (A : RawType)
+  -> subTy (sigmaCompSubCtx b c gamma) A ≡ subTy (sigmaCompSub b c) A
+sigmaCompSubCtx-subTy b c gamma = subTyEq (sigmaCompSubCtx-apply b c gamma)
+
+sigmaCompSubCtx-subTm : (b c : RawTerm) (gamma : Ctx) (t : RawTerm)
+  -> subTm (sigmaCompSubCtx b c gamma) t ≡ subTm (sigmaCompSub b c) t
+sigmaCompSubCtx-subTm b c gamma = subTmEq (sigmaCompSubCtx-apply b c gamma)
+
+headSubstCtx : Ctx -> Subst
+headSubstCtx gamma = consSubst (var zero) (keepSubstCtx 1 gamma)
+
+headSubstCtx-apply : (gamma : Ctx) (n : ℕ)
+  -> applySubst (headSubstCtx gamma) n ≡ applySubst idSubst n
+headSubstCtx-apply gamma zero = refl
+headSubstCtx-apply gamma (suc n) = keepSubstCtx-apply 1 gamma n
+
+headSubstCtx-subTy : (gamma : Ctx) (A : RawType)
+  -> subTy (headSubstCtx gamma) A ≡ subTy idSubst A
+headSubstCtx-subTy gamma = subTyEq (headSubstCtx-apply gamma)
+
+headSubstCtx-subTm : (gamma : Ctx) (t : RawTerm)
+  -> subTm (headSubstCtx gamma) t ≡ subTm idSubst t
+headSubstCtx-subTm gamma = subTmEq (headSubstCtx-apply gamma)
 
 fitsKeep : {delta gamma : Ctx}
   -> CtxWF (delta ++ gamma)
-  -> FitsSubst (delta ++ gamma) gamma (keepSubstBy (length delta))
+  -> FitsSubst (delta ++ gamma) gamma (keepSubstCtx (length delta) gamma)
 fitsKeep {delta = delta} {gamma = []} wf =
   fitsNil {gamma = delta ++ []} {delta = []} {sigma = keepSubstBy (length delta)} wf
 fitsKeep {delta = delta} {gamma = A ∷ gamma} wf =
-  subst (λ sigma -> FitsSubst (delta ++ (A ∷ gamma)) (A ∷ gamma) sigma)
-    (consKeepSubstBy (length delta))
-    (fitsCons liftedTail headVar)
+  fitsCons liftedTail headVar
   where
   wfTail : CtxWF (((delta ++ (A ∷ [])) ++ gamma))
   wfTail = subst CtxWF (sym (++-assoc delta (A ∷ []) gamma)) wf
 
   tail0 : FitsSubst (((delta ++ (A ∷ [])) ++ gamma)) gamma
-    (keepSubstBy (length (delta ++ (A ∷ []))))
+    (keepSubstCtx (length (delta ++ (A ∷ []))) gamma)
   tail0 = fitsKeep {delta = delta ++ (A ∷ [])} {gamma = gamma} wfTail
 
   tail1 : FitsSubst (delta ++ (A ∷ gamma)) gamma
-    (keepSubstBy (length (delta ++ (A ∷ []))))
+    (keepSubstCtx (length (delta ++ (A ∷ []))) gamma)
   tail1 =
-    subst (λ src -> FitsSubst src gamma (keepSubstBy (length (delta ++ (A ∷ [])))))
+    subst (λ src -> FitsSubst src gamma (keepSubstCtx (length (delta ++ (A ∷ []))) gamma))
       (++-assoc delta (A ∷ []) gamma) tail0
 
   liftedTail : FitsSubst (delta ++ (A ∷ gamma)) gamma
-    (keepSubstBy (suc (length delta)))
+    (keepSubstCtx (suc (length delta)) gamma)
   liftedTail =
-    subst (λ sigma -> FitsSubst (delta ++ (A ∷ gamma)) gamma sigma)
-      (cong keepSubstBy (lengthSnoc delta A)) tail1
+    subst (λ k -> FitsSubst (delta ++ (A ∷ gamma)) gamma (keepSubstCtx k gamma))
+      (lengthSnoc delta A) tail1
 
   headVar : Derivable
     (hasTy (delta ++ (A ∷ gamma)) (var (length delta))
-      (subTy (keepSubstBy (suc (length delta))) A))
+      (subTy (keepSubstCtx (suc (length delta)) gamma) A))
   headVar =
     subst (λ T -> Derivable (hasTy (delta ++ (A ∷ gamma)) (var (length delta)) T))
-      (renTyKeepSubstBy (suc (length delta)) A)
+      (renTyKeepSubstBy (suc (length delta)) A
+        ∙ sym (keepSubstCtx-subTy (suc (length delta)) gamma A))
       (varStar wf (ctxSuffixTy {delta = delta} {gamma = gamma} {A = A} wf))
 
 fitsEqKeep : {delta gamma : Ctx}
   -> CtxWF (delta ++ gamma)
-  -> FitsEqSubst (delta ++ gamma) gamma (keepSubstBy (length delta)) (keepSubstBy (length delta))
+  -> FitsEqSubst (delta ++ gamma) gamma
+       (keepSubstCtx (length delta) gamma)
+       (keepSubstCtx (length delta) gamma)
 fitsEqKeep {delta = delta} {gamma = []} wf =
   fitsEqNil {gamma = delta ++ []} {delta = []}
     {sigma = keepSubstBy (length delta)} {tau = keepSubstBy (length delta)} wf
 fitsEqKeep {delta = delta} {gamma = A ∷ gamma} wf =
-  subst (λ sigma -> FitsEqSubst (delta ++ (A ∷ gamma)) (A ∷ gamma) sigma sigma)
-    (consKeepSubstBy (length delta))
-    (fitsEqCons liftedTail (reflTm headVar))
+  fitsEqCons liftedTail (reflTm headVar)
   where
   wfTail : CtxWF (((delta ++ (A ∷ [])) ++ gamma))
   wfTail = subst CtxWF (sym (++-assoc delta (A ∷ []) gamma)) wf
 
   tail0 : FitsEqSubst (((delta ++ (A ∷ [])) ++ gamma)) gamma
-    (keepSubstBy (length (delta ++ (A ∷ []))))
-    (keepSubstBy (length (delta ++ (A ∷ []))))
+    (keepSubstCtx (length (delta ++ (A ∷ []))) gamma)
+    (keepSubstCtx (length (delta ++ (A ∷ []))) gamma)
   tail0 = fitsEqKeep {delta = delta ++ (A ∷ [])} {gamma = gamma} wfTail
 
   tail1 : FitsEqSubst (delta ++ (A ∷ gamma)) gamma
-    (keepSubstBy (length (delta ++ (A ∷ []))))
-    (keepSubstBy (length (delta ++ (A ∷ []))))
+    (keepSubstCtx (length (delta ++ (A ∷ []))) gamma)
+    (keepSubstCtx (length (delta ++ (A ∷ []))) gamma)
   tail1 =
     subst (λ src -> FitsEqSubst src gamma
-      (keepSubstBy (length (delta ++ (A ∷ []))))
-      (keepSubstBy (length (delta ++ (A ∷ [])))))
+      (keepSubstCtx (length (delta ++ (A ∷ []))) gamma)
+      (keepSubstCtx (length (delta ++ (A ∷ []))) gamma))
       (++-assoc delta (A ∷ []) gamma) tail0
 
   liftedTail : FitsEqSubst (delta ++ (A ∷ gamma)) gamma
-    (keepSubstBy (suc (length delta)))
-    (keepSubstBy (suc (length delta)))
+    (keepSubstCtx (suc (length delta)) gamma)
+    (keepSubstCtx (suc (length delta)) gamma)
   liftedTail =
-    subst (λ sigma -> FitsEqSubst (delta ++ (A ∷ gamma)) gamma sigma sigma)
-      (cong keepSubstBy (lengthSnoc delta A)) tail1
+    subst (λ k -> FitsEqSubst (delta ++ (A ∷ gamma)) gamma
+      (keepSubstCtx k gamma) (keepSubstCtx k gamma))
+      (lengthSnoc delta A) tail1
 
   headVar : Derivable
     (hasTy (delta ++ (A ∷ gamma)) (var (length delta))
-      (subTy (keepSubstBy (suc (length delta))) A))
+      (subTy (keepSubstCtx (suc (length delta)) gamma) A))
   headVar =
     subst (λ T -> Derivable (hasTy (delta ++ (A ∷ gamma)) (var (length delta)) T))
-      (renTyKeepSubstBy (suc (length delta)) A)
+      (renTyKeepSubstBy (suc (length delta)) A
+        ∙ sym (keepSubstCtx-subTy (suc (length delta)) gamma A))
       (varStar wf (ctxSuffixTy {delta = delta} {gamma = gamma} {A = A} wf))
 
 derivToCtxWF : {J : JForm}
@@ -191,70 +250,56 @@ derivToCtxWF (cQtr _ d _ _ _) = derivToCtxWF d
 
 singleFitsSubstHelper : {gamma : Ctx} {A : RawType} {t : RawTerm}
   -> Derivable (hasTy gamma t A)
-  -> FitsSubst gamma (A ∷ gamma) (singleSubst t)
+  -> FitsSubst gamma (A ∷ gamma) (singleSubstCtx t gamma)
 singleFitsSubstHelper {gamma = gamma} {A = A} {t = t} d =
-  subst (λ sigma -> FitsSubst gamma (A ∷ gamma) sigma)
-    (sym (singleSubstConsKeep t))
-    (fitsCons
-      (fitsKeep {delta = []} {gamma = gamma} (derivToCtxWF d))
-      (subst (λ T -> Derivable (hasTy gamma t T))
-        (sym (subTyId A) ∙ sym (cong (λ sigma -> subTy sigma A) keepSubstBy0Id))
-        d))
+  fitsCons
+    (fitsKeep {delta = []} {gamma = gamma} (derivToCtxWF d))
+    (subst (λ T -> Derivable (hasTy gamma t T))
+      (sym (keepSubstCtx-subTy 0 gamma A ∙ subTyId A))
+      d)
 
 singleFitsEqSubstHelper : {gamma : Ctx} {A : RawType} {t u : RawTerm}
   -> Derivable (termEq gamma t u A)
-  -> FitsEqSubst gamma (A ∷ gamma) (singleSubst t) (singleSubst u)
+  -> FitsEqSubst gamma (A ∷ gamma) (singleSubstCtx t gamma) (singleSubstCtx u gamma)
 singleFitsEqSubstHelper {gamma = gamma} {A = A} {t = t} {u = u} d =
-  subst (λ sigma -> FitsEqSubst gamma (A ∷ gamma) sigma (singleSubst u))
-    (sym (singleSubstConsKeep t))
-    (subst (λ tau -> FitsEqSubst gamma (A ∷ gamma) (consSubst t (keepSubstBy 0)) tau)
-      (sym (singleSubstConsKeep u))
-      (fitsEqCons
-        (fitsEqKeep {delta = []} {gamma = gamma} (derivToCtxWF d))
-        (subst (λ T -> Derivable (termEq gamma t u T))
-          (sym (subTyId A) ∙ sym (cong (λ sigma -> subTy sigma A) keepSubstBy0Id))
-          d)))
+  fitsEqCons
+    (fitsEqKeep {delta = []} {gamma = gamma} (derivToCtxWF d))
+    (subst (λ T -> Derivable (termEq gamma t u T))
+      (sym (keepSubstCtx-subTy 0 gamma A ∙ subTyId A))
+      d)
 
 qtrCompFitsHelper : {gamma : Ctx} {A : RawType} {a : RawTerm}
   -> Derivable (hasTy gamma a A)
-  -> FitsSubst gamma (A ∷ gamma) (qtrCompSub a)
-qtrCompFitsHelper {gamma = gamma} {A = A} {a = a} d =
-  subst (λ sigma -> FitsSubst gamma (A ∷ gamma) sigma)
-    (singleSubstConsKeep a ∙ cong (consSubst a) keepSubstBy0Id)
-    (singleFitsSubstHelper d)
+  -> FitsSubst gamma (A ∷ gamma) (singleSubstCtx a gamma)
+qtrCompFitsHelper d = singleFitsSubstHelper d
 
 sigmaCompFitsHelper : {gamma : Ctx} {A B : RawType} {b c : RawTerm}
   -> Derivable (hasTy gamma b A)
   -> Derivable (hasTy gamma c (subTy (singleSubst b) B))
-  -> FitsSubst gamma (B ∷ A ∷ gamma) (sigmaCompSub b c)
+  -> FitsSubst gamma (B ∷ A ∷ gamma) (sigmaCompSubCtx b c gamma)
 sigmaCompFitsHelper {gamma = gamma} {A = A} {B = B} {b = b} {c = c} db dc =
-  subst (λ sigma -> FitsSubst gamma (B ∷ A ∷ gamma) sigma)
-    finalPath
-    (fitsCons firstStep cTyped)
+  fitsCons firstStep cTyped
   where
   gammaWF : CtxWF gamma
   gammaWF = derivToCtxWF db
 
-  base : FitsSubst gamma gamma (keepSubstBy 0)
+  base : FitsSubst gamma gamma (keepSubstCtx 0 gamma)
   base = fitsKeep {delta = []} {gamma = gamma} gammaWF
 
-  bTyped : Derivable (hasTy gamma b (subTy (keepSubstBy 0) A))
+  bTyped : Derivable (hasTy gamma b (subTy (keepSubstCtx 0 gamma) A))
   bTyped =
     subst (λ T -> Derivable (hasTy gamma b T))
-      (sym (subTyId A) ∙ sym (cong (λ sigma -> subTy sigma A) keepSubstBy0Id))
+      (sym (keepSubstCtx-subTy 0 gamma A ∙ subTyId A))
       db
 
-  firstStep : FitsSubst gamma (A ∷ gamma) (consSubst b (keepSubstBy 0))
+  firstStep : FitsSubst gamma (A ∷ gamma) (consSubst b (keepSubstCtx 0 gamma))
   firstStep = fitsCons base bTyped
 
-  cTyped : Derivable (hasTy gamma c (subTy (consSubst b (keepSubstBy 0)) B))
+  cTyped : Derivable (hasTy gamma c (subTy (consSubst b (keepSubstCtx 0 gamma)) B))
   cTyped =
     subst (λ T -> Derivable (hasTy gamma c T))
-      (cong (λ sigma -> subTy sigma B) (singleSubstConsKeep b))
+      (sym (subTyEq (singleSubstCtx-apply b gamma) B))
       dc
-
-  finalPath : consSubst c (consSubst b (keepSubstBy 0)) ≡ sigmaCompSub b c
-  finalPath = cong (consSubst c) (cong (consSubst b) keepSubstBy0Id)
 
 varStarTy : {gamma delta : Ctx} {A : RawType}
   -> CtxWF (delta ++ (A ∷ gamma))
@@ -274,23 +319,31 @@ singleSubstTyHelper : {gamma : Ctx} {A B : RawType} {t : RawTerm}
   -> Derivable (isType (A ∷ gamma) B)
   -> Derivable (hasTy gamma t A)
   -> Derivable (isType gamma (subTy (singleSubst t) B))
-singleSubstTyHelper dB dt =
-  substTyRule dB (singleFitsSubstHelper dt)
+singleSubstTyHelper {gamma = gamma} {B = B} {t = t} dB dt =
+  subst (λ T -> Derivable (isType gamma T))
+    (singleSubstCtx-subTy t gamma B)
+    (substTyRule dB (singleFitsSubstHelper dt))
 
 singleEqSubstTyHelper : {gamma : Ctx} {A B : RawType} {t u : RawTerm}
   -> Derivable (isType (A ∷ gamma) B)
   -> Derivable (termEq gamma t u A)
   -> Derivable (typeEq gamma (subTy (singleSubst t) B) (subTy (singleSubst u) B))
-singleEqSubstTyHelper dB dtu =
-  eqSubTyRule dB (singleFitsEqSubstHelper dtu)
+singleEqSubstTyHelper {gamma = gamma} {B = B} {t = t} {u = u} dB dtu =
+  subst (λ T -> Derivable (typeEq gamma T (subTy (singleSubst u) B)))
+    (singleSubstCtx-subTy t gamma B)
+    (subst (λ T -> Derivable (typeEq gamma (subTy (singleSubstCtx t gamma) B) T))
+      (singleSubstCtx-subTy u gamma B)
+      (eqSubTyRule dB (singleFitsEqSubstHelper dtu)))
 
 sigmaCompTyHelper : {gamma : Ctx} {A B M : RawType} {b c : RawTerm}
   -> Derivable (isType ((tySigma A B) ∷ gamma) M)
   -> Derivable (hasTy gamma b A)
   -> Derivable (hasTy gamma c (subTy (singleSubst b) B))
   -> Derivable (isType gamma (subTy (singleSubst (tmPair b c)) M))
-sigmaCompTyHelper {gamma = gamma} {A = A} {B = B} {b = b} {c = c} dM db dc =
-  substTyRule dM singlePairFits
+sigmaCompTyHelper {gamma = gamma} {A = A} {B = B} {M = M} {b = b} {c = c} dM db dc =
+  subst (λ T -> Derivable (isType gamma T))
+    (singleSubstCtx-subTy (tmPair b c) gamma M)
+    (substTyRule dM singlePairFits)
   where
   sigmaTy : Derivable (isType gamma (tySigma A B))
   sigmaTy = ctxSuffixTy {delta = []} {gamma = gamma} {A = tySigma A B} (derivToCtxWF dM)
@@ -298,24 +351,24 @@ sigmaCompTyHelper {gamma = gamma} {A = A} {B = B} {b = b} {c = c} dM db dc =
   pairTy : Derivable (hasTy gamma (tmPair b c) (tySigma A B))
   pairTy = iSigma db dc sigmaTy
 
-  singlePairFits : FitsSubst gamma ((tySigma A B) ∷ gamma) (singleSubst (tmPair b c))
+  singlePairFits : FitsSubst gamma ((tySigma A B) ∷ gamma) (singleSubstCtx (tmPair b c) gamma)
   singlePairFits = singleFitsSubstHelper pairTy
 
 qtrCompTyHelper : {gamma : Ctx} {A L : RawType} {a : RawTerm}
   -> Derivable (isType ((tyQtr A) ∷ gamma) L)
   -> Derivable (hasTy gamma a A)
   -> Derivable (isType gamma (subTy (singleSubst (tmClass a)) L))
-qtrCompTyHelper dL da =
-  substTyRule dL (singleFitsSubstHelper (iQtr da))
+qtrCompTyHelper {gamma = gamma} {L = L} {a = a} dL da =
+  subst (λ T -> Derivable (isType gamma T))
+    (singleSubstCtx-subTy (tmClass a) gamma L)
+    (substTyRule dL (singleFitsSubstHelper (iQtr da)))
 
 headTypeTransportFits : {gamma : Ctx} {A C : RawType}
   -> Derivable (typeEq gamma A C)
   -> Derivable (isType gamma C)
-  -> FitsSubst (C ∷ gamma) (A ∷ gamma) idSubst
+  -> FitsSubst (C ∷ gamma) (A ∷ gamma) (headSubstCtx gamma)
 headTypeTransportFits {gamma = gamma} {A = A} {C = C} dAC dC =
-  subst (λ sigma -> FitsSubst (C ∷ gamma) (A ∷ gamma) sigma)
-    (consKeepSubstBy 0 ∙ keepSubstBy0Id)
-    (fitsCons tail headVarA)
+  fitsCons tail headVarA
   where
   wfGamma : CtxWF gamma
   wfGamma = derivToCtxWF dC
@@ -323,7 +376,7 @@ headTypeTransportFits {gamma = gamma} {A = A} {C = C} dAC dC =
   wfC : CtxWF (C ∷ gamma)
   wfC = wfCons wfGamma dC
 
-  tail : FitsSubst (C ∷ gamma) gamma (keepSubstBy 1)
+  tail : FitsSubst (C ∷ gamma) gamma (keepSubstCtx 1 gamma)
   tail = fitsKeep {delta = C ∷ []} {gamma = gamma} wfC
 
   headVarC : Derivable (hasTy (C ∷ gamma) (var zero) (wkTyBy 1 C))
@@ -336,10 +389,10 @@ headTypeTransportFits {gamma = gamma} {A = A} {C = C} dAC dC =
         (weakenTyEq {delta = C ∷ []} dAC wfC)
         (weakenTy dC wfC))
 
-  headVarA : Derivable (hasTy (C ∷ gamma) (var zero) (subTy (keepSubstBy 1) A))
+  headVarA : Derivable (hasTy (C ∷ gamma) (var zero) (subTy (keepSubstCtx 1 gamma) A))
   headVarA =
     subst (λ T -> Derivable (hasTy (C ∷ gamma) (var zero) T))
-      (renTyKeepSubstBy 1 A)
+      (renTyKeepSubstBy 1 A ∙ sym (keepSubstCtx-subTy 1 gamma A))
       headVarA0
 
 transportFamilyTy : {gamma : Ctx} {A C D : RawType}
@@ -350,7 +403,9 @@ transportFamilyTy : {gamma : Ctx} {A C D : RawType}
 transportFamilyTy {gamma = gamma} {C = C} {D = D} dAC dC dD =
   subst (λ T -> Derivable (isType (C ∷ gamma) T))
     (subTyId D)
-    (substTyRule dD (headTypeTransportFits dAC dC))
+    (subst (λ T -> Derivable (isType (C ∷ gamma) T))
+      (headSubstCtx-subTy gamma D)
+      (substTyRule dD (headTypeTransportFits dAC dC)))
 
 transportFamilyTyEq : {gamma : Ctx} {A C D F : RawType}
   -> Derivable (typeEq gamma A C)
@@ -364,7 +419,13 @@ transportFamilyTyEq {gamma = gamma} {C = C} {D = D} {F = F} dAC dC dDF =
     (subst
       (λ T -> Derivable (typeEq (C ∷ gamma) (subTy idSubst D) T))
       (subTyId F)
-      (substTyEqRule dDF (headTypeTransportFits dAC dC)))
+      (subst
+        (λ T -> Derivable (typeEq (C ∷ gamma) T (subTy idSubst F)))
+        (headSubstCtx-subTy gamma D)
+        (subst
+          (λ T -> Derivable (typeEq (C ∷ gamma) (subTy (headSubstCtx gamma) D) T))
+          (headSubstCtx-subTy gamma F)
+          (substTyEqRule dDF (headTypeTransportFits dAC dC)))))
 
 normalizeClosedFitsEq : {sigma : Subst}
   -> FitsSubst [] [] sigma
@@ -632,7 +693,13 @@ mutual
     subst
       (λ T -> Derivable (hasTy gamma (subTm (sigmaCompSub b c) m) T))
       (sigmaBranchTyComp b c M)
-      (substTmRule dm (sigmaCompFitsHelper db dc))
+      (subst
+        (λ T -> Derivable (hasTy gamma (subTm (sigmaCompSub b c) m) T))
+        (sigmaCompSubCtx-subTy b c gamma (sigmaBranchTy M))
+        (subst
+          (λ u -> Derivable (hasTy gamma u (subTy (sigmaCompSubCtx b c gamma) (sigmaBranchTy M))))
+          (sigmaCompSubCtx-subTm b c gamma m)
+          (substTmRule dm (sigmaCompFitsHelper db dc))))
   assocTmRight (iEqEq d) =
     conv
       (iEq (assocTmRight d))
@@ -654,7 +721,13 @@ mutual
     subst
       (λ T -> Derivable (hasTy gamma (subTm (qtrCompSub a) l) T))
       (qtrBranchTyComp a L)
-      (substTmRule dl (qtrCompFitsHelper da))
+      (subst
+        (λ T -> Derivable (hasTy gamma (subTm (qtrCompSub a) l) T))
+        (singleSubstCtx-subTy a gamma (qtrBranchTy L))
+        (subst
+          (λ u -> Derivable (hasTy gamma u (subTy (singleSubstCtx a gamma) (qtrBranchTy L))))
+          (singleSubstCtx-subTm a gamma l)
+          (substTmRule dl (qtrCompFitsHelper da))))
 
   assocTmTy : {gamma : Ctx} {t u : RawTerm} {A : RawType}
     -> Derivable (termEq gamma t u A)

@@ -8,12 +8,11 @@ open import Data.Nat.Base using (_<_ ; _≤_) renaming (_⊔_ to max ; s≤s to 
 open import Data.Nat.Properties using (≤-refl)
   renaming
     ( m≤n⇒m≤1+n to ≤-suc
-    ; m≤m+n to ≤SumLeft
-    ; m≤n+m to ≤SumRight
     ; ⊔-lub to maxLUB
     ; +-monoʳ-< to <-k+
     ; m≤n⇒m<n∨m≡n to ≤-split
     )
+import Data.Nat.Properties as NatProps
 open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
 open import Induction.WellFounded using (Acc ; acc ; WellFounded)
 open import Data.List.Base using ([] ; _∷_ ; _++_)
@@ -23,6 +22,12 @@ open import Data.Sum using (_⊎_) renaming (inj₁ to inl ; inj₂ to inr)
 open import TReg.Syntax
 open import TReg.Context
 open import TReg.Substitution using (Subst ; subTy ; subTm ; liftSubst ; singleSubst)
+
+≤SumLeft : {m n : ℕ} -> m ≤ m + n
+≤SumLeft {m} {n} = NatProps.m≤m+n m n
+
+≤SumRight : {m n : ℕ} -> m ≤ n + m
+≤SumRight {m} {n} = NatProps.m≤n+m m n
 
 -- Type depth: measures the nesting of type constructors
 tyDepth : RawType -> ℕ
@@ -58,7 +63,7 @@ max3 a b c = max a (max b c)
 
 max-< : {a b n : ℕ} -> a < n -> b < n -> max a b < n
 max-< {a = a} {b = b} a<n b<n =
-  subst (_≤ _) (maxSuc {n = a} {m = b}) (maxLUB a<n b<n)
+  maxLUB a<n b<n
 
 max3-< : {a b c n : ℕ} -> a < n -> b < n -> c < n -> max3 a b c < n
 max3-< a<n b<n c<n = max-< a<n (max-< b<n c<n)
@@ -1093,14 +1098,14 @@ data LexLt : ℕ × ℕ → ℕ × ℕ → Type where
 
 -- Well-foundedness of LexLt
 LexLt-wf : WellFounded LexLt
-LexLt-wf (a , b) = acc (aux a b (<-wellfounded a) (<-wellfounded b))
+LexLt-wf (a , b) = acc (λ {y} → aux a b (<-wellfounded a) (<-wellfounded b) y)
   where
     aux : (a b : ℕ) → Acc _<_ a → Acc _<_ b
         → (y : ℕ × ℕ) → LexLt y (a , b) → Acc LexLt y
     aux a b (acc rsA) _ (a' , b') (lex-fst a'<a) =
-      acc (aux a' b' (rsA a' a'<a) (<-wellfounded b'))
+      acc (λ {y} → aux a' b' (rsA a'<a) (<-wellfounded b') y)
     aux a b accA (acc rsB) (_ , b') (lex-snd b'<b) =
-      acc (aux a b' accA (rsB b' b'<b))
+      acc (λ {y} → aux a b' accA (rsB b'<b) y)
 
 -- Convenience: combine a ≤ a' with b < b' to get LexLt (a,b) (a',b')
 -- Useful when tyDepth stays OR decreases, and derivSize strictly decreases

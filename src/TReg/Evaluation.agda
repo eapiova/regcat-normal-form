@@ -88,13 +88,13 @@ private
     (evalElSigma {b = b'} {c = c'} evd₂ evm₂) =
     let
       acD : Acc _<_ (evalSize evd₁)
-      acD = step (evalSize evd₁) (suc-≤-suc (≤SumLeft {evalSize evd₁} {evalSize evm₁}))
+      acD = step (suc-≤-suc (≤SumLeft (evalSize evd₁) (evalSize evm₁)))
       pairEq = evalDetTmAcc evd₁ acD evd₂
       bEq = tmPairInj₁ pairEq
       cEq = tmPairInj₂ pairEq
       srcEq = cong₂ (λ x y -> subTm (sigmaCompSub x y) m) bEq cEq
       acM : Acc _<_ (evalSize evm₁)
-      acM = step (evalSize evm₁) (suc-≤-suc (≤SumRight {evalSize evm₁} {evalSize evd₁}))
+      acM = step (suc-≤-suc (≤SumRight (evalSize evm₁) (evalSize evd₁)))
     in
     evalDetTmAcc evm₁ acM (subst (λ x -> x =>e g') (sym srcEq) evm₂)
   evalDetTmAcc
@@ -103,12 +103,12 @@ private
     (evalElQtr {a = a'} evp₂ evl₂) =
     let
       acP : Acc _<_ (evalSize evp₁)
-      acP = step (evalSize evp₁) (suc-≤-suc (≤SumLeft {evalSize evp₁} {evalSize evl₁}))
+      acP = step (suc-≤-suc (≤SumLeft (evalSize evp₁) (evalSize evl₁)))
       classEq = evalDetTmAcc evp₁ acP evp₂
       aEq = tmClassInj classEq
       srcEq = cong (λ x -> subTm (qtrCompSub x) l) aEq
       acL : Acc _<_ (evalSize evl₁)
-      acL = step (evalSize evl₁) (suc-≤-suc (≤SumRight {evalSize evl₁} {evalSize evp₁}))
+      acL = step (suc-≤-suc (≤SumRight (evalSize evl₁) (evalSize evp₁)))
     in
     evalDetTmAcc evl₁ acL (subst (λ x -> x =>e g') (sym srcEq) evl₂)
 
