@@ -52,12 +52,11 @@ EqSubRecTy = ∀ {n} {gamma : Ctx} {t : RawTerm} {A : RawType} {sigma tau : Subs
   -> Computable n (termEq [] (subTm sigma t) (subTm tau t) (subTy sigma A))
 
 ComposeCompFitsTy : Type
-ComposeCompFitsTy = ∀ {n} {gamma delta : Ctx} {rho sigma : Subst} {t : RawTerm} {T : RawType}
+ComposeCompFitsTy = ∀ {n} {gamma delta : Ctx} {rho sigma : Subst}
   -> (outer : FitsSubst [] gamma rho)
   -> ComputableFits n outer
   -> (inner : FitsSubst gamma delta sigma)
-  -> (dt : Derivable (hasTy gamma t T))
-  -> Acc LexLt (substTaskLexMeasure dt)
+  -> Acc LexLt (fitsSubstLexMeasure inner)
   -> ComputableFits n (composeFits outer inner)
 
 FitsEqToCompFitsEqTy : Type
@@ -186,7 +185,6 @@ openHypTm1 cb
                 fits2
                 cFits2
                 (liftFitsOne fits dAσ)
-                (iTop (fitsSubstCtxWF (liftFitsOne fits dAσ)))
                 (LexLt-wf _))
         in
         subst
@@ -371,7 +369,6 @@ openHypTm2 cb
                 fits2
                 cFits2
                 lifted2Keep
-                (iTop (fitsSubstCtxWF lifted2Keep))
                 (LexLt-wf _))
         in
         subst

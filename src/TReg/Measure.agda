@@ -5,7 +5,7 @@ module TReg.Measure where
 open import TReg.Prelude
 open import Data.Nat using (ℕ ; zero ; suc ; _+_)
 open import Data.Nat.Base using (_<_ ; _≤_) renaming (_⊔_ to max ; s≤s to suc-≤-suc)
-open import Data.Nat.Properties using (≤-refl)
+open import Data.Nat.Properties using (≤-refl ; m≤m⊔n ; m≤n⊔m)
   renaming
     ( m≤n⇒m≤1+n to ≤-suc
     ; ⊔-lub to maxLUB
@@ -1124,6 +1124,36 @@ subjectTyDepth (termEq _ _ _ A)   = tyDepth A
 
 substTaskLexMeasure : {J : JForm} → Derivable J → ℕ × ℕ
 substTaskLexMeasure {J = J} d = (subjectTyDepth J , derivSize d)
+
+fitsSubstDepth : {gamma delta : Ctx} {sigma : Subst}
+  → FitsSubst gamma delta sigma → ℕ
+fitsSubstDepth (fitsNil wf) = 0
+fitsSubstDepth (fitsCons {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt) =
+  max (fitsSubstDepth fits) (subjectTyDepth (hasTy gamma t (subTy sigma A)))
+
+fitsSubstLexMeasure : {gamma delta : Ctx} {sigma : Subst}
+  → FitsSubst gamma delta sigma → ℕ × ℕ
+fitsSubstLexMeasure fits = (fitsSubstDepth fits , fitsSize fits)
+
+fitsSubstLexMeasure-tail< :
+  {gamma delta : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
+  → (fits : FitsSubst gamma delta sigma)
+  → (dt : Derivable (hasTy gamma t (subTy sigma A)))
+  → LexLt (fitsSubstLexMeasure fits) (fitsSubstLexMeasure (fitsCons fits dt))
+fitsSubstLexMeasure-tail< {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt =
+  lex-≤-<-snd
+    (m≤m⊔n (fitsSubstDepth fits) (subjectTyDepth (hasTy gamma t (subTy sigma A))))
+    (derivSize-sub-suc< {fitsSize fits} {derivSize dt})
+
+fitsSubstLexMeasure-entry< :
+  {gamma delta : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
+  → (fits : FitsSubst gamma delta sigma)
+  → (dt : Derivable (hasTy gamma t (subTy sigma A)))
+  → LexLt (substTaskLexMeasure dt) (fitsSubstLexMeasure (fitsCons fits dt))
+fitsSubstLexMeasure-entry< {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt =
+  lex-≤-<-snd
+    (m≤n⊔m (fitsSubstDepth fits) (subjectTyDepth (hasTy gamma t (subTy sigma A))))
+    (derivSize-fitsEntry< fits dt)
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Phase E.2: Lifting helpers to convert derivSize-based lemmas into lex
