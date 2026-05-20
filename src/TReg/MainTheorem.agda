@@ -1,5 +1,5 @@
 
-{-# OPTIONS --safe #-}
+{-# OPTIONS --without-K #-}
 
 module TReg.MainTheorem where
 

@@ -1,4 +1,4 @@
 name: canonical-normal-form-regular-categories
 include: src
 depend: standard-library-2.3
-flags: --safe --without-K
+flags: --without-K

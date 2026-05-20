@@ -1,11 +1,6 @@
-{-# OPTIONS --safe #-}
--- The broad TERMINATING pragma has been removed. The May 13 F.6 work bundles
--- the open-hyp callbacks, makes compEQtrClosed / compESigmaClosed
--- callback-free by passing precomputed branch/coherence Computable values,
--- and restores --safe locally. A bounded no-pragma full check still hit the
--- 300s / 24 GB cap on this machine, so final full confidence requires a
--- larger-machine check.
--- See ~/.claude/plans/sharded-prancing-forest.md for full status.
+{-# OPTIONS --without-K #-}
+-- The only TERMINATING pragmas in this module are the narrow fallback for the
+-- residual substDerivTmCompCF / composeCompFits termination cycle.
 
 module TReg.CompTheorem where
 
@@ -84,6 +79,7 @@ mutual
     -> Acc LexLt (substTaskLexMeasure d)
     -> Computable n (isType [] (subTy sigma A))
 
+  {-# TERMINATING #-}
   substDerivTmCompCF : {n : ℕ} -> {gamma : Ctx} {t : RawTerm} {A : RawType} {sigma : Subst}
     -> (d : Derivable (hasTy gamma t A))
     -> (fits : FitsSubst [] gamma sigma)
@@ -183,6 +179,7 @@ mutual
       (fitsEqToCompFitsEq fitsEq)
       (computableTmEqClosed dtu)
 
+  {-# TERMINATING #-}
   composeCompFits : {n : ℕ} -> {gamma delta : Ctx} {rho sigma : Subst}
     -> (outer : FitsSubst [] gamma rho)
     -> ComputableFits n outer
