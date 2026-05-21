@@ -691,11 +691,11 @@ mutual
                 composedCFits =
                   substCompFits
                     (cong (compSub rho) (liftSubstCompKeep sigma))
-                    (composeCompFits
+                    (composeCompFitsOpen
                       fits2
                       cFits2
                       liftedFits
-                      (LexLt-wf _))
+                      (liftFitsOneOpen fits dQtrσ cFits (fitsScopedClosed fits)))
               in
               subst
                 (λ T -> Computable n (isType [] T))
@@ -746,11 +746,11 @@ mutual
                 composedCFits =
                   substCompFits
                     (cong (compSub rho) (liftSubstCompKeep sigma))
-                    (composeCompFits
+                    (composeCompFitsOpen
                       fits2
                       cFits2
                       liftedFits
-                      (LexLt-wf _))
+                      (liftFitsOneOpen fits dAσ cFits (fitsScopedClosed fits)))
               in
               subst
                 (λ T -> Computable n (isType [] T))
@@ -821,11 +821,11 @@ mutual
                   composedCFits =
                     substCompFits
                       (cong (compSub tau) (liftSubstCompKeep sigma))
-                      (composeCompFits
+                      (composeCompFitsOpen
                         fits2
                         cFits2
                         liftedFits
-                        (LexLt-wf _))
+                        (liftFitsOneOpen fits dAσ cFits (fitsScopedClosed fits)))
                 in
                 subst
                   (λ J -> Computable n J)
