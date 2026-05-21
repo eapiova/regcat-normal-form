@@ -825,6 +825,30 @@ substMeasure-eQtr-p< dL dp dBranchTy dl dcoh =
         (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy} {derivSize dl}))
       (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
 
+substMeasure-eQtr-dcoh< : {gamma : Ctx} {A L : RawType} {l p : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (dp : Derivable (hasTy gamma p (tyQtr A)))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> substTaskMeasure dcoh < substTaskMeasure (eQtr dL dp dBranchTy dl dcoh)
+substMeasure-eQtr-dcoh< dL dp dBranchTy dl dcoh =
+  suc-≤-suc
+    (≤SumRight {derivSize dcoh} {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl})
+
+substMeasure-eQtr-l< : {gamma : Ctx} {A L : RawType} {l p : RawTerm}
+  -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
+  -> (dp : Derivable (hasTy gamma p (tyQtr A)))
+  -> (dBranchTy : Derivable (isType (A ∷ gamma) (qtrBranchTy L)))
+  -> (dl : Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L)))
+  -> (dcoh : Derivable (termEq (wkTyBy 1 A ∷ A ∷ gamma) (wkTmBy 1 l) (renTm qtrSecondBranchRen l) (qtrCohTy L)))
+  -> substTaskMeasure dl < substTaskMeasure (eQtr dL dp dBranchTy dl dcoh)
+substMeasure-eQtr-l< dL dp dBranchTy dl dcoh =
+  suc-≤-suc
+    (≤-trans
+      (≤SumRight {derivSize dl} {derivSize dL + derivSize dp + derivSize dBranchTy})
+      (≤SumLeft {derivSize dL + derivSize dp + derivSize dBranchTy + derivSize dl} {derivSize dcoh}))
+
 substMeasure-eQtrEq-p< : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
   -> (dL : Derivable (isType (tyQtr A ∷ gamma) L))
   -> (dp : Derivable (termEq gamma p p' (tyQtr A)))
@@ -1150,6 +1174,32 @@ fitsSubstLexMeasure-entry< :
   → LexLt (substTaskLexMeasure dt) (fitsSubstLexMeasure (fitsCons fits dt))
 fitsSubstLexMeasure-entry< {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt =
   lex-fst (derivSize-fitsEntry< fits dt)
+
+fitsEqSubstDepth : {gamma delta : Ctx} {sigma tau : Subst}
+  → FitsEqSubst gamma delta sigma tau → ℕ
+fitsEqSubstDepth (fitsEqNil wf) = 0
+fitsEqSubstDepth (fitsEqCons {gamma = gamma} {sigma = sigma} {A = A} {t = t} {u = u} fitsEq dtu) =
+  max (fitsEqSubstDepth fitsEq) (subjectTyDepth (termEq gamma t u (subTy sigma A)))
+
+fitsEqSubstLexMeasure : {gamma delta : Ctx} {sigma tau : Subst}
+  → FitsEqSubst gamma delta sigma tau → ℕ × ℕ
+fitsEqSubstLexMeasure fitsEq = (fitsEqSize fitsEq , fitsEqSubstDepth fitsEq)
+
+fitsEqSubstLexMeasure-tail< :
+  {gamma delta : Ctx} {sigma tau : Subst} {A : RawType} {t u : RawTerm}
+  → (fitsEq : FitsEqSubst gamma delta sigma tau)
+  → (dtu : Derivable (termEq gamma t u (subTy sigma A)))
+  → LexLt (fitsEqSubstLexMeasure fitsEq) (fitsEqSubstLexMeasure (fitsEqCons fitsEq dtu))
+fitsEqSubstLexMeasure-tail< {gamma = gamma} {sigma = sigma} {A = A} {t = t} {u = u} fitsEq dtu =
+  lex-fst (derivSize-sub-suc< {fitsEqSize fitsEq} {derivSize dtu})
+
+fitsEqSubstLexMeasure-entry< :
+  {gamma delta : Ctx} {sigma tau : Subst} {A : RawType} {t u : RawTerm}
+  → (fitsEq : FitsEqSubst gamma delta sigma tau)
+  → (dtu : Derivable (termEq gamma t u (subTy sigma A)))
+  → LexLt (substTaskLexMeasure dtu) (fitsEqSubstLexMeasure (fitsEqCons fitsEq dtu))
+fitsEqSubstLexMeasure-entry< {gamma = gamma} {sigma = sigma} {A = A} {t = t} {u = u} fitsEq dtu =
+  lex-fst (suc-≤-suc (≤SumRight {derivSize dtu} {fitsEqSize fitsEq}))
 
 fitsSubstLexMeasure-substTyRule< :
   {gamma delta : Ctx} {sigma : Subst} {A : RawType}
