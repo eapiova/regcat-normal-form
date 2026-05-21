@@ -1382,6 +1382,78 @@ liftFitsOneHeadOpen {n} {A = A} {sigma = sigma}
       ∙ sym (subTyComp (consSubst t rhoTail) (compSub (keepSubstBy 1) sigma) A))
     compt
 
+liftFitsHeadOpen : {n : ℕ} -> {theta : Ctx} {A : RawType} {sigma rho : Subst}
+  -> (outer : FitsSubst [] (subTy sigma A ∷ theta) rho)
+  -> ComputableFits n outer
+  -> Computable n
+       (hasTy []
+         (subTm rho (var zero))
+         (subTy rho (subTy (compSub (keepSubstCtx 1 theta) sigma) A)))
+liftFitsHeadOpen {n} {theta = theta} {A = A} {sigma = sigma} {rho = rho}
+  outer cOuter =
+  subst
+    (λ T -> Computable n (hasTy [] (subTm rho (var zero)) (subTy rho T)))
+    (renTyKeepSubstBy 1 (subTy sigma A)
+      ∙ sym (keepSubstCtx-subTy 1 theta (subTy sigma A))
+      ∙ subTyComp (keepSubstCtx 1 theta) sigma A)
+    (lookupCompFits {delta = []} {A = subTy sigma A} {fits = outer} cOuter)
+
+weakenCompFitsOpen : {n : ℕ} -> {theta delta : Ctx} {sigma : Subst} {X : RawType}
+  -> (wfX : CtxWF (X ∷ theta))
+  -> (fits : FitsSubst theta delta sigma)
+  -> ComputableFitsOpen n fits
+  -> ComputableFitsOpen n
+       (composeFits
+         (fitsKeep {delta = X ∷ []} {gamma = theta} wfX)
+         fits)
+weakenCompFitsOpen wfX (fitsNil wf) compFitsOpenNil =
+  compFitsOpenNil
+weakenCompFitsOpen {n} {theta = theta} {X = X} wfX
+  (fitsCons {sigma = sigmaTail} {A = A} {t = t} fits dt)
+  (compFitsOpenCons cFitsOpen cEntryOpen) =
+  substCompFitsOpen
+    (sym (compSubCons (keepSubstCtx 1 theta) t sigmaTail))
+    (compFitsOpenCons
+      (weakenCompFitsOpen wfX fits cFitsOpen)
+      (λ rho outer cOuter ->
+        let
+          termPath :
+            subTm rho (subTm (keepSubstCtx 1 theta) t)
+              ≡ subTm (dropSubstBy 1 rho) t
+          termPath =
+            cong (subTm rho)
+              (keepSubstCtx-subTm 1 theta t ∙ sym (renTmKeepSubstBy 1 t))
+            ∙ subTmWkBy rho 1 t
+
+          typePath :
+            subTy rho (subTy (compSub (keepSubstCtx 1 theta) sigmaTail) A)
+              ≡ subTy (dropSubstBy 1 rho) (subTy sigmaTail A)
+          typePath =
+            cong (subTy rho) (sym (subTyComp (keepSubstCtx 1 theta) sigmaTail A))
+            ∙ cong (subTy rho)
+                (keepSubstCtx-subTy 1 theta (subTy sigmaTail A)
+                  ∙ sym (renTyKeepSubstBy 1 (subTy sigmaTail A)))
+            ∙ subTyWkBy rho 1 (subTy sigmaTail A)
+        in
+        subst
+          (λ J -> Computable n J)
+          (sym (cong₂ (hasTy []) termPath typePath))
+          (cEntryOpen
+            (dropSubstBy 1 rho)
+            (dropFits (X ∷ []) outer)
+            (dropCompFits (X ∷ []) cOuter))))
+
+liftFitsOpen :
+  {n : ℕ} {theta gamma : Ctx} {A : RawType} {sigma : Subst}
+  -> (fits : FitsSubst theta gamma sigma)
+  -> (dAσ : Derivable (isType theta (subTy sigma A)))
+  -> ComputableFitsOpen n fits
+  -> ComputableFitsOpen n (liftFits fits dAσ)
+liftFitsOpen {n} {theta = theta} {A = A} {sigma = sigma} fits dAσ cFitsOpen =
+  compFitsOpenCons
+    (weakenCompFitsOpen (wfCons (fitsSubstCtxWF fits) dAσ) fits cFitsOpen)
+    (λ rho outer cOuter -> liftFitsHeadOpen outer cOuter)
+
 liftFitsOneOpen :
   {n : ℕ} {gamma : Ctx} {A : RawType} {sigma : Subst}
   -> (fits : FitsSubst [] gamma sigma)
@@ -1393,6 +1465,47 @@ liftFitsOneOpen fits dAσ cFits scFits =
   compFitsOpenCons
     (weakenClosedCompFitsOpen (fitsSubstCtxWF fits) dAσ fits cFits scFits)
     (λ rho outer cOuter -> liftFitsOneHeadOpen outer cOuter)
+
+liftFitsTwoOpen :
+  {n : ℕ} {gamma : Ctx} {A B : RawType} {sigma : Subst}
+  -> (fits : FitsSubst [] gamma sigma)
+  -> (dAσ : Derivable (isType [] (subTy sigma A)))
+  -> (dBσ : Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B)))
+  -> ComputableFits n fits
+  -> ScopedFitsClosed fits
+  -> ComputableFitsOpen n
+       (subst
+         (λ rho ->
+           FitsSubst
+             (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+             (B ∷ A ∷ gamma)
+             rho)
+         (cong (consSubst (var zero)) (keepSubstCtx1LiftCompFor (subTy sigma A) sigma))
+         (liftFits
+           (subst
+             (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+             (liftSubstCompKeep sigma)
+             (liftFitsOne fits dAσ))
+           dBσ))
+liftFitsTwoOpen {n} {gamma = gamma} {A = A} {B = B} {sigma = sigma}
+  fits dAσ dBσ cFits scFits =
+  let
+    lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+    lifted1 =
+      subst
+        (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+        (liftSubstCompKeep sigma)
+        (liftFitsOne fits dAσ)
+
+    lifted1Open : ComputableFitsOpen n lifted1
+    lifted1Open =
+      substCompFitsOpen
+        (liftSubstCompKeep sigma)
+        (liftFitsOneOpen fits dAσ cFits scFits)
+  in
+  substCompFitsOpen
+    (cong (consSubst (var zero)) (keepSubstCtx1LiftCompFor (subTy sigma A) sigma))
+    (liftFitsOpen lifted1 dBσ lifted1Open)
 
 composeOneBinder : {gamma : Ctx} {A : RawType} {sigma tau : Subst}
   -> FitsSubst [] gamma sigma

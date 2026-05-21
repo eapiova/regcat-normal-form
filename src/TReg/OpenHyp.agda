@@ -402,6 +402,113 @@ openHypTm2 cb
               (sym (tyDepth-subTy (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma))) T))
               (substMeasure-substTmRule< dt lifted2Keep))))))
 
+openHypTm2SubOpen
+  : SubRecTy
+  -> EqSubRecTy
+  -> FitsEqToCompFitsEqTy
+  -> {n : ℕ} -> {gamma : Ctx} {A B T : RawType} {t : RawTerm} {sigma : Subst}
+  -> (fits : FitsSubst [] gamma sigma)
+  -> ComputableFits n fits
+  -> Derivable (isType [] (subTy sigma A))
+  -> Derivable (isType (subTy sigma A ∷ []) (subTy (liftSubst sigma) B))
+  -> HypComputable (suc n)
+       (isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+         (subTy (liftSubst (liftSubst sigma)) T))
+  -> (dt : Derivable (hasTy (B ∷ A ∷ gamma) t T))
+  -> Acc LexLt (substTaskLexMeasure dt)
+  -> HypComputable (suc n)
+       (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+         (subTm (liftSubst (liftSubst sigma)) t)
+         (subTy (liftSubst (liftSubst sigma)) T))
+openHypTm2SubOpen subTmRec eqSubTmRec fitsEqToCompFitsEq'
+  {n} {gamma = gamma} {A = A} {B = B} {T = T} {t = t} {sigma = sigma}
+  fits cFits dAσ dBσ compT dt accDt =
+  let
+    lifted1 : FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) (liftSubst sigma)
+    lifted1 =
+      subst
+        (λ rho -> FitsSubst (subTy sigma A ∷ []) (A ∷ gamma) rho)
+        (liftSubstCompKeep sigma)
+        (liftFitsOne fits dAσ)
+
+    lifted2Keep : FitsSubst
+      (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+      (B ∷ A ∷ gamma)
+      (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+    lifted2Keep =
+      subst
+        (λ rho ->
+          FitsSubst
+            (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+            (B ∷ A ∷ gamma)
+            rho)
+        (cong (consSubst (var zero)) (keepSubstCtx1LiftCompFor (subTy sigma A) sigma))
+        (liftFits lifted1 dBσ)
+
+    lifted2Open : ComputableFitsOpen n lifted2Keep
+    lifted2Open = liftFitsTwoOpen fits dAσ dBσ cFits (fitsScopedClosed fits)
+  in
+  subst
+    (λ J -> HypComputable (suc n) J)
+    (cong₂
+      (hasTy (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ []))
+      (cong (λ rho -> subTm rho t) (liftSubstCompKeep (liftSubst sigma)))
+      (cong (λ rho -> subTy rho T) (liftSubstCompKeep (liftSubst sigma))))
+    (hypTmOpen
+      nonemptyNeNil
+      (substTmRule dt lifted2Keep)
+      (subst
+        (λ J -> HypComputable (suc n) J)
+        (sym
+          (cong
+            (λ rho ->
+              isType (subTy (liftSubst sigma) B ∷ subTy sigma A ∷ [])
+                (subTy rho T))
+            (liftSubstCompKeep (liftSubst sigma))))
+        compT)
+      (λ tau fits2 cFits2 accD ->
+        let
+          composedFits =
+            subst
+              (λ rho -> FitsSubst [] (B ∷ A ∷ gamma) rho)
+              (cong (compSub tau) (liftSubstCompKeep (liftSubst sigma)))
+              (composeFits fits2 lifted2Keep)
+          composedCFits =
+            substCompFits
+              (cong (compSub tau) (liftSubstCompKeep (liftSubst sigma)))
+              (composeCompFitsOpen fits2 cFits2 lifted2Keep lifted2Open)
+        in
+        subst
+          (λ J -> Computable n J)
+          (sym
+            (cong₂ (hasTy [])
+              (cong (λ rho -> subTm tau (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
+                ∙ subTmComp tau (liftSubst (liftSubst sigma)) t)
+              (cong (λ rho -> subTy tau (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                ∙ subTyComp tau (liftSubst (liftSubst sigma)) T)))
+          (subTmRec dt composedFits composedCFits
+            (access accD (lift-lex-eq {d₁ = dt} {d₂ = substTmRule dt lifted2Keep}
+              (sym (tyDepth-subTy (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma))) T))
+              (substMeasure-substTmRule< dt lifted2Keep)))))
+      (λ tau₁ tau₂ fitsEq2 _ accD ->
+        subst
+          (λ J -> Computable n J)
+          (sym
+            (cong₃ (termEq [])
+              (cong (λ rho -> subTm tau₁ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
+                ∙ subTmComp tau₁ (liftSubst (liftSubst sigma)) t)
+              (cong (λ rho -> subTm tau₂ (subTm rho t)) (liftSubstCompKeep (liftSubst sigma))
+                ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) t)
+              (cong (λ rho -> subTy tau₁ (subTy rho T)) (liftSubstCompKeep (liftSubst sigma))
+                ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) T)))
+          (eqSubTmRec
+            dt
+            (composeTwoBindersEq fits dAσ dBσ fitsEq2)
+            (fitsEqToCompFitsEq' (composeTwoBindersEq fits dAσ dBσ fitsEq2))
+            (access accD (lift-lex-eq {d₁ = dt} {d₂ = substTmRule dt lifted2Keep}
+              (sym (tyDepth-subTy (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma))) T))
+              (substMeasure-substTmRule< dt lifted2Keep))))))
+
 -- openHypTmEq2: 2-binder version of openHypTmEq1. Same callbacks.
 openHypTmEq2
   : SCC2Callbacks
