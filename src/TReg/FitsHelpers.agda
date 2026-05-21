@@ -9,7 +9,7 @@ open import Data.Empty as Empty using (⊥) renaming (⊥-elim to rec)
 open import Data.Product using (Σ ; Σ-syntax ; _×_ ; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 open import Data.List.Base using ([] ; _∷_ ; _++_ ; length)
 open import Data.Nat using (ℕ ; zero ; suc)
-open import Data.Nat.Base using (_<_)
+open import Data.Nat.Base using (_<_ ; s≤s)
 open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
 open import Data.Nat.Properties using () renaming (1+n≢0 to snotz)
 open import Data.Unit using (tt) renaming (⊤ to Unit)
@@ -33,6 +33,110 @@ nonemptyNeNil {gamma = gamma} p = snotz (cong length p)
 
 case_of_ : {A B : Type} -> A -> (A -> B) -> B
 case x of f = f x
+
+mutual
+  ScopedTy : ℕ -> RawType -> Type
+  ScopedTy n tyTop = Unit
+  ScopedTy n (tySigma A B) = ScopedTy n A × ScopedTy (suc n) B
+  ScopedTy n (tyEq A a b) = ScopedTy n A × ScopedTm n a × ScopedTm n b
+  ScopedTy n (tyQtr A) = ScopedTy n A
+
+  ScopedTm : ℕ -> RawTerm -> Type
+  ScopedTm n (var k) = k < n
+  ScopedTm n tmStar = Unit
+  ScopedTm n (tmPair a b) = ScopedTm n a × ScopedTm n b
+  ScopedTm n (tmElSigma d m) = ScopedTm n d × ScopedTm (suc (suc n)) m
+  ScopedTm n tmR = Unit
+  ScopedTm n (tmEq A a) = ScopedTy n A × ScopedTm n a
+  ScopedTm n (tmClass a) = ScopedTm n a
+  ScopedTm n (tmElQtr l p) = ScopedTm (suc n) l × ScopedTm n p
+
+SubstKeeps : ℕ -> Subst -> Type
+SubstKeeps n sigma = (k : ℕ) -> k < n -> applySubst sigma k ≡ var k
+
+liftSubstKeeps : {n : ℕ} {sigma : Subst}
+  -> SubstKeeps n sigma
+  -> SubstKeeps (suc n) (liftSubst sigma)
+liftSubstKeeps {sigma = sigma} keep zero _ = refl
+liftSubstKeeps {sigma = sigma} keep (suc k) (s≤s k<n) =
+  liftSubst-apply-suc sigma k
+  ∙ cong (renTm sucRen) (keep k k<n)
+
+mutual
+  scopedSubTyId : {n : ℕ} {sigma : Subst}
+    -> SubstKeeps n sigma
+    -> (A : RawType)
+    -> ScopedTy n A
+    -> subTy sigma A ≡ A
+  scopedSubTyId {sigma = sigma} keep tyTop _ = refl
+  scopedSubTyId {sigma = sigma} keep (tySigma A B) (scA , scB) =
+    cong₂ tySigma
+      (scopedSubTyId {sigma = sigma} keep A scA)
+      (scopedSubTyId {sigma = liftSubst sigma}
+        (liftSubstKeeps {sigma = sigma} keep) B scB)
+  scopedSubTyId {sigma = sigma} keep (tyEq A a b) (scA , sca , scb) =
+    cong₃ tyEq
+      (scopedSubTyId {sigma = sigma} keep A scA)
+      (scopedSubTmId {sigma = sigma} keep a sca)
+      (scopedSubTmId {sigma = sigma} keep b scb)
+  scopedSubTyId {sigma = sigma} keep (tyQtr A) scA =
+    cong tyQtr (scopedSubTyId {sigma = sigma} keep A scA)
+
+  scopedSubTmId : {n : ℕ} {sigma : Subst}
+    -> SubstKeeps n sigma
+    -> (t : RawTerm)
+    -> ScopedTm n t
+    -> subTm sigma t ≡ t
+  scopedSubTmId {sigma = sigma} keep (var k) sc = keep k sc
+  scopedSubTmId {sigma = sigma} keep tmStar _ = refl
+  scopedSubTmId {sigma = sigma} keep (tmPair a b) (sca , scb) =
+    cong₂ tmPair
+      (scopedSubTmId {sigma = sigma} keep a sca)
+      (scopedSubTmId {sigma = sigma} keep b scb)
+  scopedSubTmId {sigma = sigma} keep (tmElSigma d m) (scd , scm) =
+    cong₂ tmElSigma
+      (scopedSubTmId {sigma = sigma} keep d scd)
+      (scopedSubTmId {sigma = liftSubst (liftSubst sigma)}
+        (liftSubstKeeps {sigma = liftSubst sigma}
+          (liftSubstKeeps {sigma = sigma} keep)) m scm)
+  scopedSubTmId {sigma = sigma} keep tmR _ = refl
+  scopedSubTmId {sigma = sigma} keep (tmEq A a) (scA , sca) =
+    cong₂ tmEq
+      (scopedSubTyId {sigma = sigma} keep A scA)
+      (scopedSubTmId {sigma = sigma} keep a sca)
+  scopedSubTmId {sigma = sigma} keep (tmClass a) sca =
+    cong tmClass (scopedSubTmId {sigma = sigma} keep a sca)
+  scopedSubTmId {sigma = sigma} keep (tmElQtr l p) (scl , scp) =
+    cong₂ tmElQtr
+      (scopedSubTmId {sigma = liftSubst sigma}
+        (liftSubstKeeps {sigma = sigma} keep) l scl)
+      (scopedSubTmId {sigma = sigma} keep p scp)
+
+closedTySubstId : {sigma : Subst}
+  -> (A : RawType)
+  -> ScopedTy 0 A
+  -> subTy sigma A ≡ A
+closedTySubstId A sc = scopedSubTyId (λ k ()) A sc
+
+closedTmSubstId : {sigma : Subst}
+  -> (t : RawTerm)
+  -> ScopedTm 0 t
+  -> subTm sigma t ≡ t
+closedTmSubstId t sc = scopedSubTmId (λ k ()) t sc
+
+closedWkTyBy : (k : ℕ) (A : RawType)
+  -> ScopedTy 0 A
+  -> wkTyBy k A ≡ A
+closedWkTyBy k A sc =
+  renTyKeepSubstBy k A
+  ∙ closedTySubstId A sc
+
+closedWkTmBy : (k : ℕ) (t : RawTerm)
+  -> ScopedTm 0 t
+  -> wkTmBy k t ≡ t
+closedWkTmBy k t sc =
+  renTmKeepSubstBy k t
+  ∙ closedTmSubstId t sc
 
 compReflTy : {n : ℕ} -> {A : RawType}
   -> Computable n (isType [] A)
@@ -594,6 +698,87 @@ substCompFits : {n : ℕ} -> {delta : Ctx} {sigma tau : Subst}
   -> ComputableFits n fits
   -> ComputableFits n (subst (λ rho -> FitsSubst [] delta rho) p fits)
 substCompFits refl compFits = compFits
+
+data ComputableFitsOpen (n : ℕ) : {gamma delta : Ctx} {sigma : Subst}
+  -> FitsSubst gamma delta sigma -> Type where
+  compFitsOpenNil : {gamma : Ctx} {sigma : Subst} {wf : CtxWF gamma}
+    -> ComputableFitsOpen n (fitsNil {gamma = gamma} {delta = []} {sigma = sigma} wf)
+  compFitsOpenCons :
+    {gamma delta : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
+    {fits : FitsSubst gamma delta sigma}
+    {dt : Derivable (hasTy gamma t (subTy sigma A))}
+    -> ComputableFitsOpen n fits
+    -> ((rho : Subst)
+        -> (outer : FitsSubst [] gamma rho)
+        -> ComputableFits n outer
+        -> Computable n (hasTy [] (subTm rho t) (subTy rho (subTy sigma A))))
+    -> ComputableFitsOpen n (fitsCons fits dt)
+
+composeCompFitsOpen : {n : ℕ} -> {gamma delta : Ctx} {rho sigma : Subst}
+  -> (outer : FitsSubst [] gamma rho)
+  -> ComputableFits n outer
+  -> (inner : FitsSubst gamma delta sigma)
+  -> ComputableFitsOpen n inner
+    -> ComputableFits n (composeFits outer inner)
+composeCompFitsOpen outer cOuter (fitsNil wf) compFitsOpenNil = compFitsNil
+composeCompFitsOpen {n} {rho = rho} outer cOuter
+  (fitsCons {sigma = sigmaTail} {A = A} {t = t} inner dtInner)
+  (compFitsOpenCons cInnerOpen cEntryOpen) =
+  substCompFits
+    (sym (compSubCons rho t sigmaTail))
+    (compFitsCons
+      {dt =
+        subst
+          (λ T -> Derivable (hasTy [] (subTm rho t) T))
+          (subTyComp rho sigmaTail A)
+          (substTmRule dtInner outer)}
+      (composeCompFitsOpen outer cOuter inner cInnerOpen)
+      (subst
+        (λ T -> Computable n (hasTy [] (subTm rho t) T))
+        (subTyComp rho sigmaTail A)
+        (cEntryOpen rho outer cOuter)))
+
+substCompFitsOpen : {n : ℕ} -> {gamma delta : Ctx} {sigma tau : Subst}
+  -> (p : sigma ≡ tau)
+  -> {fits : FitsSubst gamma delta sigma}
+  -> ComputableFitsOpen n fits
+  -> ComputableFitsOpen n (subst (λ rho -> FitsSubst gamma delta rho) p fits)
+substCompFitsOpen refl cFitsOpen = cFitsOpen
+
+data ScopedFitsClosed : {delta : Ctx} {sigma : Subst}
+  -> FitsSubst [] delta sigma -> Type where
+  scopedFitsClosedNil : {sigma : Subst} {wf : CtxWF []}
+    -> ScopedFitsClosed (fitsNil {gamma = []} {delta = []} {sigma = sigma} wf)
+  scopedFitsClosedCons :
+    {delta : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
+    {fits : FitsSubst [] delta sigma}
+    {dt : Derivable (hasTy [] t (subTy sigma A))}
+    -> ScopedFitsClosed fits
+    -> ScopedTm 0 t
+    -> ScopedTy 0 (subTy sigma A)
+    -> ScopedFitsClosed (fitsCons fits dt)
+
+closedCompFitsOpen : {n : ℕ} -> {delta : Ctx} {sigma : Subst}
+  -> (fits : FitsSubst [] delta sigma)
+  -> ComputableFits n fits
+  -> ScopedFitsClosed fits
+  -> ComputableFitsOpen n fits
+closedCompFitsOpen (fitsNil wf) compFitsNil scopedFitsClosedNil =
+  compFitsOpenNil
+closedCompFitsOpen {n} (fitsCons {sigma = sigmaTail} {A = A} {t = t} fits dt)
+  (compFitsCons cFits compt)
+  (scopedFitsClosedCons scFits sct scT) =
+  compFitsOpenCons
+    (closedCompFitsOpen fits cFits scFits)
+    (λ rho outer cOuter ->
+      subst
+        (λ J -> Computable n J)
+        (sym
+          (cong₂
+            (hasTy [])
+            (closedTmSubstId {sigma = rho} t sct)
+            (closedTySubstId {sigma = rho} (subTy sigmaTail A) scT)))
+        compt)
 
 substCompFitsEqLeft : {n : ℕ} -> {delta : Ctx} {sigma sigma' tau : Subst}
   -> (p : sigma ≡ sigma')
