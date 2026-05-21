@@ -3628,7 +3628,25 @@ mutual
                      (cong (λ rho -> subTm rho (wkTmBy 1 l)) (liftSubstCompKeep (liftSubst sigma)))
                      (cong (λ rho -> subTy rho (qtrCohTy L)) (liftSubstCompKeep (liftSubst sigma)))))
                  compcohAssoc)
-               (λ tau fits2 _ accDcoh ->
+               (λ tau fits2 cFits2 accDcoh ->
+                 case accDcoh of λ { (acc rsDcoh) ->
+                 let
+                   composedFits =
+                     subst
+                       (λ rho -> FitsSubst [] (wkTyBy 1 A ∷ A ∷ gamma) rho)
+                       (cong (compSub tau) (liftSubstCompKeep (liftSubst sigma)))
+                       (composeFits fits2 lifted2-coh)
+                   composedCFits =
+                     substCompFits
+                       (cong (compSub tau) (liftSubstCompKeep (liftSubst sigma)))
+                       (composeCompFitsOpen
+                         fits2
+                         cFits2
+                         lifted2-coh
+                         (liftFitsTwoOpen sigmaFits dAσ dWkAσ
+                           (compFitsEqLeft cFitsEq)
+                           (fitsScopedClosed sigmaFits)))
+                 in
                  subst
                    (λ J -> Computable n J)
                    (sym
@@ -3641,9 +3659,11 @@ mutual
                          ∙ subTyComp tau (liftSubst (liftSubst sigma)) (qtrCohTy L))))
                    (substDerivTmEqCompCF
                      dcoh
-                     (composeTwoBinders sigmaFits dAσ dWkAσ fits2)
-                     (fitsToCompFits (composeTwoBinders sigmaFits dAσ dWkAσ fits2) (LexLt-wf _))
-                     (LexLt-wf _)))
+                     composedFits
+                     composedCFits
+                     (rsDcoh (lift-lex-eq {d₁ = dcoh} {d₂ = substTmEqRule dcoh lifted2-coh}
+                       (sym (tyDepth-subTy (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma))) (qtrCohTy L)))
+                       (substMeasure-substTmEqRule< dcoh lifted2-coh))))})
                (λ tau₁ tau₂ fitsEq2 _ accDcoh ->
                  subst
                    (λ J -> Computable n J)
