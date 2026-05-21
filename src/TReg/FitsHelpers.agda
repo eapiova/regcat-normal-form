@@ -9,7 +9,7 @@ open import Data.Empty as Empty using (⊥) renaming (⊥-elim to rec)
 open import Data.Product using (Σ ; Σ-syntax ; _×_ ; _,_) renaming (proj₁ to fst ; proj₂ to snd)
 open import Data.List.Base using ([] ; _∷_ ; _++_ ; length)
 open import Data.Nat using (ℕ ; zero ; suc)
-open import Data.Nat.Base using (_<_ ; s≤s)
+open import Data.Nat.Base using (_<_ ; z≤n ; s≤s)
 open import Data.Nat.Induction using () renaming (<-wellFounded to <-wellfounded)
 open import Data.Nat.Properties using () renaming (1+n≢0 to snotz)
 open import Data.Unit using (tt) renaming (⊤ to Unit)
@@ -54,6 +54,25 @@ mutual
 SubstKeeps : ℕ -> Subst -> Type
 SubstKeeps n sigma = (k : ℕ) -> k < n -> applySubst sigma k ≡ var k
 
+RenMaps : ℕ -> ℕ -> Ren -> Type
+RenMaps m n rho = (k : ℕ) -> k < n -> applyRen rho k < m
+
+SubstMaps : ℕ -> ℕ -> Subst -> Type
+SubstMaps m n sigma = (k : ℕ) -> k < n -> ScopedTm m (applySubst sigma k)
+
+sucRenMaps : {n : ℕ} -> RenMaps (suc n) n sucRen
+sucRenMaps k k<n = s≤s k<n
+
+raiseRenMaps : {m n : ℕ} {rho : Ren}
+  -> RenMaps m n rho
+  -> RenMaps (suc m) (suc n) (raiseRen rho)
+raiseRenMaps {m = m} {rho = rho} maps zero _ = s≤s z≤n
+raiseRenMaps {m = m} {rho = rho} maps (suc k) (s≤s k<n) =
+  subst
+    (λ j -> j < suc m)
+    (sym (applyRen-raise-suc rho k))
+    (s≤s (maps k k<n))
+
 liftSubstKeeps : {n : ℕ} {sigma : Subst}
   -> SubstKeeps n sigma
   -> SubstKeeps (suc n) (liftSubst sigma)
@@ -61,6 +80,101 @@ liftSubstKeeps {sigma = sigma} keep zero _ = refl
 liftSubstKeeps {sigma = sigma} keep (suc k) (s≤s k<n) =
   liftSubst-apply-suc sigma k
   ∙ cong (renTm sucRen) (keep k k<n)
+
+mutual
+  scopedRenTy : {m n : ℕ} {rho : Ren}
+    -> RenMaps m n rho
+    -> (A : RawType)
+    -> ScopedTy n A
+    -> ScopedTy m (renTy rho A)
+  scopedRenTy {rho = rho} maps tyTop _ = tt
+  scopedRenTy {rho = rho} maps (tySigma A B) (scA , scB) =
+    scopedRenTy {rho = rho} maps A scA ,
+    scopedRenTy {rho = raiseRen rho} (raiseRenMaps {rho = rho} maps) B scB
+  scopedRenTy {rho = rho} maps (tyEq A a b) (scA , sca , scb) =
+    scopedRenTy {rho = rho} maps A scA ,
+    scopedRenTm {rho = rho} maps a sca ,
+    scopedRenTm {rho = rho} maps b scb
+  scopedRenTy {rho = rho} maps (tyQtr A) scA =
+    scopedRenTy {rho = rho} maps A scA
+
+  scopedRenTm : {m n : ℕ} {rho : Ren}
+    -> RenMaps m n rho
+    -> (t : RawTerm)
+    -> ScopedTm n t
+    -> ScopedTm m (renTm rho t)
+  scopedRenTm {rho = rho} maps (var k) sc = maps k sc
+  scopedRenTm {rho = rho} maps tmStar _ = tt
+  scopedRenTm {rho = rho} maps (tmPair a b) (sca , scb) =
+    scopedRenTm {rho = rho} maps a sca ,
+    scopedRenTm {rho = rho} maps b scb
+  scopedRenTm {rho = rho} maps (tmElSigma d m) (scd , scm) =
+    scopedRenTm {rho = rho} maps d scd ,
+    scopedRenTm {rho = raiseRen (raiseRen rho)}
+      (raiseRenMaps {rho = raiseRen rho} (raiseRenMaps {rho = rho} maps)) m scm
+  scopedRenTm {rho = rho} maps tmR _ = tt
+  scopedRenTm {rho = rho} maps (tmEq A a) (scA , sca) =
+    scopedRenTy {rho = rho} maps A scA ,
+    scopedRenTm {rho = rho} maps a sca
+  scopedRenTm {rho = rho} maps (tmClass a) sca =
+    scopedRenTm {rho = rho} maps a sca
+  scopedRenTm {rho = rho} maps (tmElQtr l p) (scl , scp) =
+    scopedRenTm {rho = raiseRen rho} (raiseRenMaps {rho = rho} maps) l scl ,
+    scopedRenTm {rho = rho} maps p scp
+
+liftSubstMaps : {m n : ℕ} {sigma : Subst}
+  -> SubstMaps m n sigma
+  -> SubstMaps (suc m) (suc n) (liftSubst sigma)
+liftSubstMaps {m = m} maps zero _ = s≤s z≤n
+liftSubstMaps {m = m} {sigma = sigma} maps (suc k) (s≤s k<n) =
+  subst
+    (ScopedTm (suc m))
+    (sym (liftSubst-apply-suc sigma k))
+    (scopedRenTm sucRenMaps (applySubst sigma k) (maps k k<n))
+
+mutual
+  scopedSubTy : {m n : ℕ} {sigma : Subst}
+    -> SubstMaps m n sigma
+    -> (A : RawType)
+    -> ScopedTy n A
+    -> ScopedTy m (subTy sigma A)
+  scopedSubTy {sigma = sigma} maps tyTop _ = tt
+  scopedSubTy {sigma = sigma} maps (tySigma A B) (scA , scB) =
+    scopedSubTy {sigma = sigma} maps A scA ,
+    scopedSubTy {sigma = liftSubst sigma}
+      (liftSubstMaps {sigma = sigma} maps) B scB
+  scopedSubTy {sigma = sigma} maps (tyEq A a b) (scA , sca , scb) =
+    scopedSubTy {sigma = sigma} maps A scA ,
+    scopedSubTm {sigma = sigma} maps a sca ,
+    scopedSubTm {sigma = sigma} maps b scb
+  scopedSubTy {sigma = sigma} maps (tyQtr A) scA =
+    scopedSubTy {sigma = sigma} maps A scA
+
+  scopedSubTm : {m n : ℕ} {sigma : Subst}
+    -> SubstMaps m n sigma
+    -> (t : RawTerm)
+    -> ScopedTm n t
+    -> ScopedTm m (subTm sigma t)
+  scopedSubTm {sigma = sigma} maps (var k) sc = maps k sc
+  scopedSubTm {sigma = sigma} maps tmStar _ = tt
+  scopedSubTm {sigma = sigma} maps (tmPair a b) (sca , scb) =
+    scopedSubTm {sigma = sigma} maps a sca ,
+    scopedSubTm {sigma = sigma} maps b scb
+  scopedSubTm {sigma = sigma} maps (tmElSigma d m) (scd , scm) =
+    scopedSubTm {sigma = sigma} maps d scd ,
+    scopedSubTm {sigma = liftSubst (liftSubst sigma)}
+      (liftSubstMaps {sigma = liftSubst sigma}
+        (liftSubstMaps {sigma = sigma} maps)) m scm
+  scopedSubTm {sigma = sigma} maps tmR _ = tt
+  scopedSubTm {sigma = sigma} maps (tmEq A a) (scA , sca) =
+    scopedSubTy {sigma = sigma} maps A scA ,
+    scopedSubTm {sigma = sigma} maps a sca
+  scopedSubTm {sigma = sigma} maps (tmClass a) sca =
+    scopedSubTm {sigma = sigma} maps a sca
+  scopedSubTm {sigma = sigma} maps (tmElQtr l p) (scl , scp) =
+    scopedSubTm {sigma = liftSubst sigma}
+      (liftSubstMaps {sigma = sigma} maps) l scl ,
+    scopedSubTm {sigma = sigma} maps p scp
 
 mutual
   scopedSubTyId : {n : ℕ} {sigma : Subst}
