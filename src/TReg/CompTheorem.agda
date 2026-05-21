@@ -292,11 +292,17 @@ mutual
   substDerivTyCompCF {n} (fEq {A = A} {a = a} {b = b} dA da db) fits cFits accD@(acc rs) =
       compFEqClosed
         (substDerivTyCompCF dA fits cFits
-          (rs (lift-lex-depth {d₁ = dA} {d₂ = fEq dA da db} (tyDepth-base<Eq A a b))))
+          (rs (lift-lex-depth {d₁ = dA} {d₂ = fEq dA da db}
+            (tyDepth-base<Eq A a b)
+            (substMeasure-fEq-base< dA da db))))
         (substDerivTmCompCF da fits cFits
-          (rs (lift-lex-depth {d₁ = da} {d₂ = fEq dA da db} (tyDepth-base<Eq A a b))))
+          (rs (lift-lex-depth {d₁ = da} {d₂ = fEq dA da db}
+            (tyDepth-base<Eq A a b)
+            (substMeasure-fEq-leftTm< dA da db))))
         (substDerivTmCompCF db fits cFits
-          (rs (lift-lex-depth {d₁ = db} {d₂ = fEq dA da db} (tyDepth-base<Eq A a b))))
+          (rs (lift-lex-depth {d₁ = db} {d₂ = fEq dA da db}
+            (tyDepth-base<Eq A a b)
+            (substMeasure-fEq-rightTm< dA da db))))
   substDerivTyCompCF {n} (fQtr {A = A} dA) fits cFits (acc rs) =
     compFQtrClosed (substDerivTyCompCF dA fits cFits (LexLt-wf _))
   substDerivTyCompCF {n} {sigma = sigma} (weakenTy {delta = delta} {A = A} d wf) fits cFits (acc rs) =
@@ -307,7 +313,8 @@ mutual
   substDerivTyCompCF {n} {sigma = sigma} (substTyRule {sigma = sigma'} {A = A} d fits') fits cFits accD@(acc rs) =
     let
       composedFits = composeFits fits fits'
-      composedCFits = composeCompFits fits cFits fits' (LexLt-wf _)
+      composedCFits = composeCompFits fits cFits fits'
+        (access accD (fitsSubstLexMeasure-substTyRule< d fits'))
     in
     subst
       (λ T -> Computable n (isType [] T))
@@ -542,9 +549,20 @@ mutual
             (substTyRule dM (liftFitsOne fits dSigmaσ))
             (λ rho fits2 cFits2 accD ->
               let
-                composedFits = composeOneBinder fits dSigmaσ fits2
+                liftedFits = liftFitsOne fits dSigmaσ
+                composedFits =
+                  subst
+                    (λ theta -> FitsSubst [] (tySigma A B ∷ gamma) theta)
+                    (cong (compSub rho) (liftSubstCompKeep sigma))
+                    (composeFits fits2 liftedFits)
                 composedCFits =
-                  fitsToCompFits composedFits (LexLt-wf _)
+                  substCompFits
+                    (cong (compSub rho) (liftSubstCompKeep sigma))
+                    (composeCompFitsOpen
+                      fits2
+                      cFits2
+                      liftedFits
+                      (liftFitsOneOpen fits dSigmaσ cFits (fitsScopedClosed fits)))
               in
               subst
                 (λ T -> Computable n (isType [] T))
@@ -1101,10 +1119,11 @@ mutual
         (sym (subTmWkBy sigma (length delta) t))
         (sym (subTyWkBy sigma (length delta) A)))
       (substDerivTmCompCF d (dropFits delta fits) (dropCompFits delta cFits) (LexLt-wf _))
-  substDerivTmCompCF {n} {sigma = sigma} (substTmRule {sigma = sigma'} {t = t} {A = A} d fits') fits cFits (acc rs) =
+  substDerivTmCompCF {n} {sigma = sigma} (substTmRule {sigma = sigma'} {t = t} {A = A} d fits') fits cFits accD@(acc rs) =
     let
       composedFits = composeFits fits fits'
-      composedCFits = composeCompFits fits cFits fits' (LexLt-wf _)
+      composedCFits = composeCompFits fits cFits fits'
+        (access accD (fitsSubstLexMeasure-substTmRule< d fits'))
     in
     subst
       (λ J -> Computable n J)
@@ -1112,7 +1131,7 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTyComp sigma sigma' A)))
       (substDerivTmCompCF d composedFits composedCFits
-        (access (acc rs) (lift-lex-eq {d₁ = d} {d₂ = substTmRule d fits'}
+        (access accD (lift-lex-eq {d₁ = d} {d₂ = substTmRule d fits'}
           (sym (tyDepth-subTy sigma' A))
           (substMeasure-substTmRule< d fits'))))
 
@@ -2673,10 +2692,11 @@ mutual
         (sym (subTmWkBy sigma (length delta) u))
         (sym (subTyWkBy sigma (length delta) A)))
       (substDerivTmEqCompCF d (dropFits delta fits) (dropCompFits delta cFits) (LexLt-wf _))
-  substDerivTmEqCompCF {n} {sigma = sigma} (substTmEqRule {sigma = sigma'} {t = t} {u = u} {A = A} d fits') fits cFits (acc rs) =
+  substDerivTmEqCompCF {n} {sigma = sigma} (substTmEqRule {sigma = sigma'} {t = t} {u = u} {A = A} d fits') fits cFits accD@(acc rs) =
     let
       composedFits = composeFits fits fits'
-      composedCFits = composeCompFits fits cFits fits' (LexLt-wf _)
+      composedCFits = composeCompFits fits cFits fits'
+        (access accD (fitsSubstLexMeasure-substTmEqRule< d fits'))
     in
     subst
       (λ J -> Computable n J)
@@ -2684,7 +2704,10 @@ mutual
         (sym (subTmComp sigma sigma' t))
         (sym (subTmComp sigma sigma' u))
         (sym (subTyComp sigma sigma' A)))
-      (substDerivTmEqCompCF d composedFits composedCFits (LexLt-wf _))
+      (substDerivTmEqCompCF d composedFits composedCFits
+        (access accD (lift-lex-eq {d₁ = d} {d₂ = substTmEqRule d fits'}
+          (sym (tyDepth-subTy sigma' A))
+          (substMeasure-substTmEqRule< d fits'))))
   substDerivTmEqCompCF {n} {sigma = sigma}
     (eqSubTmRule {sigma = sigma'} {tau = tau'} {t = t} {A = A} d fitsEq') fits cFits _ =
     let

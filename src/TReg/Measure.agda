@@ -1082,14 +1082,14 @@ substMeasure-cQtr-dcoh< dL da dBranchTy dl dcoh =
     (≤SumRight {derivSize dcoh} {derivSize dL + derivSize da + derivSize dBranchTy + derivSize dl})
 
 -- ═══════════════════════════════════════════════════════════════════
--- Phase E.1: Lex ordering on ℕ × ℕ for termination via (tyDepth, derivSize)
+-- Phase E.1: Lex ordering on ℕ × ℕ for termination via (size, tyDepth)
 -- ═══════════════════════════════════════════════════════════════════
 --
--- The measure (tyDepth subject, derivSize d) is used for termination of
+-- The measure (derivSize d, tyDepth subject) is used for termination of
 -- SCC 2 functions in CompTheorem.agda:
---   - Most recursions keep tyDepth constant and decrease derivSize (lex-snd)
---   - Sigma-family unfolding via sigmaTyFamHypClosed's closure decreases
---     tyDepth strictly (tyDepth B < tyDepth (tySigma A B)), using lex-fst.
+--   - Recursive calls through derivation subterms decrease derivSize (lex-fst)
+--   - The second component keeps the previous subject-depth information
+--     available for casts along type-depth preservation lemmas.
 
 -- Lex relation on ℕ × ℕ
 data LexLt : ℕ × ℕ → ℕ × ℕ → Type where
@@ -1123,7 +1123,7 @@ subjectTyDepth (hasTy _ _ A)      = tyDepth A
 subjectTyDepth (termEq _ _ _ A)   = tyDepth A
 
 substTaskLexMeasure : {J : JForm} → Derivable J → ℕ × ℕ
-substTaskLexMeasure {J = J} d = (subjectTyDepth J , derivSize d)
+substTaskLexMeasure {J = J} d = (derivSize d , subjectTyDepth J)
 
 fitsSubstDepth : {gamma delta : Ctx} {sigma : Subst}
   → FitsSubst gamma delta sigma → ℕ
@@ -1133,7 +1133,7 @@ fitsSubstDepth (fitsCons {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt
 
 fitsSubstLexMeasure : {gamma delta : Ctx} {sigma : Subst}
   → FitsSubst gamma delta sigma → ℕ × ℕ
-fitsSubstLexMeasure fits = (fitsSubstDepth fits , fitsSize fits)
+fitsSubstLexMeasure fits = (fitsSize fits , fitsSubstDepth fits)
 
 fitsSubstLexMeasure-tail< :
   {gamma delta : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
@@ -1141,9 +1141,7 @@ fitsSubstLexMeasure-tail< :
   → (dt : Derivable (hasTy gamma t (subTy sigma A)))
   → LexLt (fitsSubstLexMeasure fits) (fitsSubstLexMeasure (fitsCons fits dt))
 fitsSubstLexMeasure-tail< {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt =
-  lex-≤-<-snd
-    (m≤m⊔n (fitsSubstDepth fits) (subjectTyDepth (hasTy gamma t (subTy sigma A))))
-    (derivSize-sub-suc< {fitsSize fits} {derivSize dt})
+  lex-fst (derivSize-sub-suc< {fitsSize fits} {derivSize dt})
 
 fitsSubstLexMeasure-entry< :
   {gamma delta : Ctx} {sigma : Subst} {A : RawType} {t : RawTerm}
@@ -1151,9 +1149,31 @@ fitsSubstLexMeasure-entry< :
   → (dt : Derivable (hasTy gamma t (subTy sigma A)))
   → LexLt (substTaskLexMeasure dt) (fitsSubstLexMeasure (fitsCons fits dt))
 fitsSubstLexMeasure-entry< {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits dt =
-  lex-≤-<-snd
-    (m≤n⊔m (fitsSubstDepth fits) (subjectTyDepth (hasTy gamma t (subTy sigma A))))
-    (derivSize-fitsEntry< fits dt)
+  lex-fst (derivSize-fitsEntry< fits dt)
+
+fitsSubstLexMeasure-substTyRule< :
+  {gamma delta : Ctx} {sigma : Subst} {A : RawType}
+  → (d : Derivable (isType delta A))
+  → (fits : FitsSubst gamma delta sigma)
+  → LexLt (fitsSubstLexMeasure fits) (substTaskLexMeasure (substTyRule d fits))
+fitsSubstLexMeasure-substTyRule< d fits =
+  lex-fst (derivSize-sub-suc-right< {derivSize d} {fitsSize fits})
+
+fitsSubstLexMeasure-substTmRule< :
+  {gamma delta : Ctx} {sigma : Subst} {t : RawTerm} {A : RawType}
+  → (d : Derivable (hasTy delta t A))
+  → (fits : FitsSubst gamma delta sigma)
+  → LexLt (fitsSubstLexMeasure fits) (substTaskLexMeasure (substTmRule d fits))
+fitsSubstLexMeasure-substTmRule< d fits =
+  lex-fst (derivSize-sub-suc-right< {derivSize d} {fitsSize fits})
+
+fitsSubstLexMeasure-substTmEqRule< :
+  {gamma delta : Ctx} {sigma : Subst} {t u : RawTerm} {A : RawType}
+  → (d : Derivable (termEq delta t u A))
+  → (fits : FitsSubst gamma delta sigma)
+  → LexLt (fitsSubstLexMeasure fits) (substTaskLexMeasure (substTmEqRule d fits))
+fitsSubstLexMeasure-substTmEqRule< d fits =
+  lex-fst (derivSize-sub-suc-right< {derivSize d} {fitsSize fits})
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Phase E.2: Lifting helpers to convert derivSize-based lemmas into lex
@@ -1164,19 +1184,21 @@ fitsSubstLexMeasure-entry< {gamma = gamma} {sigma = sigma} {A = A} {t = t} fits 
 -- is chosen based on whether the subject type stays the same, decreases,
 -- or weakly decreases.
 
--- Case 1: subject tyDepth is EQUAL (most common — substitution, weakening, same-form)
+-- Case 1: derivSize decreases. The subject tyDepth equality is retained in the
+-- signature because call sites already carry the preservation proof.
 lift-lex-eq : {J₁ J₂ : JForm} {d₁ : Derivable J₁} {d₂ : Derivable J₂}
   → subjectTyDepth J₁ ≡ subjectTyDepth J₂
   → derivSize d₁ < derivSize d₂
   → LexLt (substTaskLexMeasure d₁) (substTaskLexMeasure d₂)
-lift-lex-eq {J₁} {J₂} {d₁} {d₂} eq size< =
-  subst (λ x → LexLt (subjectTyDepth J₁ , derivSize d₁) (x , derivSize d₂)) eq (lex-snd size<)
+lift-lex-eq {J₁} {J₂} {d₁} {d₂} eq size< = lex-fst size<
 
--- Case 2: subject tyDepth strictly DECREASES (elimination forms, Sigma-family unfold)
+-- Case 2: subject tyDepth strictly decreases; derivSize still supplies the
+-- lexicographic decrease for the subst-task measure.
 lift-lex-depth : {J₁ J₂ : JForm} {d₁ : Derivable J₁} {d₂ : Derivable J₂}
   → subjectTyDepth J₁ < subjectTyDepth J₂
+  → derivSize d₁ < derivSize d₂
   → LexLt (substTaskLexMeasure d₁) (substTaskLexMeasure d₂)
-lift-lex-depth depth< = lex-fst depth<
+lift-lex-depth depth< size< = lex-fst size<
 
 -- Case 3: subject tyDepth is ≤ AND derivSize strictly decreases
 -- (covers both equal and strictly smaller cases via ≤-split)
@@ -1184,7 +1206,7 @@ lift-lex-≤ : {J₁ J₂ : JForm} {d₁ : Derivable J₁} {d₂ : Derivable J�
   → subjectTyDepth J₁ ≤ subjectTyDepth J₂
   → derivSize d₁ < derivSize d₂
   → LexLt (substTaskLexMeasure d₁) (substTaskLexMeasure d₂)
-lift-lex-≤ depth≤ size< = lex-≤-<-snd depth≤ size<
+lift-lex-≤ depth≤ size< = lex-fst size<
 
 -- ═══════════════════════════════════════════════════════════════════
 -- Phase E.8a: Acc cast via tyDepth-subTy rewrite
@@ -1197,14 +1219,14 @@ lift-lex-≤ depth≤ size< = lex-≤-<-snd depth≤ size<
 
 cast-lex-acc-subTy : {gamma : Ctx} {t : RawTerm} {T : RawType} {sigma : Subst}
   → (d : Derivable (hasTy gamma t T))
-  → Acc LexLt (tyDepth T , derivSize d)
-  → Acc LexLt (tyDepth (subTy sigma T) , derivSize d)
+  → Acc LexLt (derivSize d , tyDepth T)
+  → Acc LexLt (derivSize d , tyDepth (subTy sigma T))
 cast-lex-acc-subTy {T = T} {sigma = sigma} d ax =
-  subst (λ m → Acc LexLt (m , derivSize d)) (sym (tyDepth-subTy sigma T)) ax
+  subst (λ m → Acc LexLt (derivSize d , m)) (sym (tyDepth-subTy sigma T)) ax
 
 cast-lex-acc-subTy-eq : {gamma : Ctx} {t u : RawTerm} {T : RawType} {sigma : Subst}
   → (d : Derivable (termEq gamma t u T))
-  → Acc LexLt (tyDepth T , derivSize d)
-  → Acc LexLt (tyDepth (subTy sigma T) , derivSize d)
+  → Acc LexLt (derivSize d , tyDepth T)
+  → Acc LexLt (derivSize d , tyDepth (subTy sigma T))
 cast-lex-acc-subTy-eq {T = T} {sigma = sigma} d ax =
-  subst (λ m → Acc LexLt (m , derivSize d)) (sym (tyDepth-subTy sigma T)) ax
+  subst (λ m → Acc LexLt (derivSize d , m)) (sym (tyDepth-subTy sigma T)) ax
