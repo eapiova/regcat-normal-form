@@ -79,12 +79,18 @@ mutual
   renTy : Ren -> RawType -> RawType
   renTy rho tyTop = tyTop
   renTy rho (tySigma A B) = tySigma (renTy rho A) (renTy (raiseRen rho) B)
+  renTy rho (tyEq A a b) = tyEq (renTy rho A) (renTm rho a) (renTm rho b)
+  renTy rho (tyQtr A) = tyQtr (renTy rho A)
 
   renTm : Ren -> RawTerm -> RawTerm
   renTm rho (var n) = var (applyRen rho n)
   renTm rho tmStar = tmStar
   renTm rho (tmPair a b) = tmPair (renTm rho a) (renTm rho b)
   renTm rho (tmElSigma d m) = tmElSigma (renTm rho d) (renTm (raiseRen (raiseRen rho)) m)
+  renTm rho tmR = tmR
+  renTm rho (tmEq A a) = tmEq (renTy rho A) (renTm rho a)
+  renTm rho (tmClass a) = tmClass (renTm rho a)
+  renTm rho (tmElQtr l p) = tmElQtr (renTm (raiseRen rho) l) (renTm rho p)
 
 wkTyBy : ℕ -> RawType -> RawType
 wkTyBy k = renTy (addRen k)
@@ -101,6 +107,11 @@ mutual
     cong₂ tySigma (renTyEq {rho = rho} {tau = tau} h A)
       (renTyEq {rho = raiseRen rho} {tau = raiseRen tau}
         (raiseRen-apply-cong {rho = rho} {tau = tau} h) B)
+  renTyEq {rho} {tau} h (tyEq A a b) =
+    cong₃ tyEq (renTyEq {rho = rho} {tau = tau} h A)
+      (renTmEq {rho = rho} {tau = tau} h a)
+      (renTmEq {rho = rho} {tau = tau} h b)
+  renTyEq {rho} {tau} h (tyQtr A) = cong tyQtr (renTyEq {rho = rho} {tau = tau} h A)
 
   renTmEq : {rho tau : Ren}
     -> ((n : ℕ) -> applyRen rho n ≡ applyRen tau n)
@@ -115,6 +126,16 @@ mutual
       (renTmEq {rho = raiseRen (raiseRen rho)} {tau = raiseRen (raiseRen tau)}
         (raiseRen-apply-cong {rho = raiseRen rho} {tau = raiseRen tau}
           (raiseRen-apply-cong {rho = rho} {tau = tau} h)) m)
+  renTmEq h tmR = refl
+  renTmEq {rho} {tau} h (tmEq A a) =
+    cong₂ tmEq (renTyEq {rho = rho} {tau = tau} h A)
+      (renTmEq {rho = rho} {tau = tau} h a)
+  renTmEq {rho} {tau} h (tmClass a) = cong tmClass (renTmEq {rho = rho} {tau = tau} h a)
+  renTmEq {rho} {tau} h (tmElQtr l p) =
+    cong₂ tmElQtr
+      (renTmEq {rho = raiseRen rho} {tau = raiseRen tau}
+        (raiseRen-apply-cong {rho = rho} {tau = tau} h) l)
+      (renTmEq {rho = rho} {tau = tau} h p)
 
 applySubst : Subst -> ℕ -> RawTerm
 applySubst (shiftSub k) n = var (k + n)
@@ -203,12 +224,18 @@ mutual
   subTy : Subst -> RawType -> RawType
   subTy sigma tyTop = tyTop
   subTy sigma (tySigma A B) = tySigma (subTy sigma A) (subTy (liftSubst sigma) B)
+  subTy sigma (tyEq A a b) = tyEq (subTy sigma A) (subTm sigma a) (subTm sigma b)
+  subTy sigma (tyQtr A) = tyQtr (subTy sigma A)
 
   subTm : Subst -> RawTerm -> RawTerm
   subTm sigma (var n) = applySubst sigma n
   subTm sigma tmStar = tmStar
   subTm sigma (tmPair a b) = tmPair (subTm sigma a) (subTm sigma b)
   subTm sigma (tmElSigma d m) = tmElSigma (subTm sigma d) (subTm (liftSubst (liftSubst sigma)) m)
+  subTm sigma tmR = tmR
+  subTm sigma (tmEq A a) = tmEq (subTy sigma A) (subTm sigma a)
+  subTm sigma (tmClass a) = tmClass (subTm sigma a)
+  subTm sigma (tmElQtr l p) = tmElQtr (subTm (liftSubst sigma) l) (subTm sigma p)
 
 subJ : Subst -> JForm -> JForm
 subJ sigma (isType gamma A) = isType [] (subTy sigma A)
@@ -242,6 +269,12 @@ mutual
     cong₂ tySigma (subTyEq {sigma = sigma} {tau = tau} h A)
       (subTyEq {sigma = liftSubst sigma} {tau = liftSubst tau}
         (liftSubst-apply-cong {sigma = sigma} {tau = tau} h) B)
+  subTyEq {sigma} {tau} h (tyEq A a b) =
+    cong₃ tyEq (subTyEq {sigma = sigma} {tau = tau} h A)
+      (subTmEq {sigma = sigma} {tau = tau} h a)
+      (subTmEq {sigma = sigma} {tau = tau} h b)
+  subTyEq {sigma} {tau} h (tyQtr A) =
+    cong tyQtr (subTyEq {sigma = sigma} {tau = tau} h A)
 
   subTmEq : {sigma tau : Subst}
     -> ((n : ℕ) -> applySubst sigma n ≡ applySubst tau n)
@@ -256,18 +289,27 @@ mutual
       (subTmEq {sigma = liftSubst (liftSubst sigma)} {tau = liftSubst (liftSubst tau)}
         (liftSubst-apply-cong {sigma = liftSubst sigma} {tau = liftSubst tau}
           (liftSubst-apply-cong {sigma = sigma} {tau = tau} h)) m)
+  subTmEq h tmR = refl
+  subTmEq {sigma} {tau} h (tmEq A a) =
+    cong₂ tmEq (subTyEq {sigma = sigma} {tau = tau} h A)
+      (subTmEq {sigma = sigma} {tau = tau} h a)
+  subTmEq {sigma} {tau} h (tmClass a) =
+    cong tmClass (subTmEq {sigma = sigma} {tau = tau} h a)
+  subTmEq {sigma} {tau} h (tmElQtr l p) =
+    cong₂ tmElQtr
+      (subTmEq {sigma = liftSubst sigma} {tau = liftSubst tau}
+        (liftSubst-apply-cong {sigma = sigma} {tau = tau} h) l)
+      (subTmEq {sigma = sigma} {tau = tau} h p)
 
 liftId-apply : (n : ℕ) -> applySubst (liftSubst idSubst) n ≡ applySubst idSubst n
 liftId-apply zero = refl
 liftId-apply (suc n) = liftSubst-apply-suc idSubst n
 
 liftId-subTy : (A : RawType) -> subTy (liftSubst idSubst) A ≡ subTy idSubst A
-liftId-subTy A =
-  subTyEq {sigma = liftSubst idSubst} {tau = idSubst} liftId-apply A
+liftId-subTy = subTyEq liftId-apply
 
 liftId-subTm : (t : RawTerm) -> subTm (liftSubst idSubst) t ≡ subTm idSubst t
-liftId-subTm t =
-  subTmEq {sigma = liftSubst idSubst} {tau = idSubst} liftId-apply t
+liftId-subTm = subTmEq liftId-apply
 
 liftId : (A : RawType) -> subTy (liftSubst idSubst) A ≡ subTy idSubst A
 liftId = liftId-subTy
@@ -281,13 +323,11 @@ liftId2-apply (suc n) =
 
 liftId2-subTy : (A : RawType)
   -> subTy (liftSubst (liftSubst idSubst)) A ≡ subTy idSubst A
-liftId2-subTy A =
-  subTyEq {sigma = liftSubst (liftSubst idSubst)} {tau = idSubst} liftId2-apply A
+liftId2-subTy = subTyEq liftId2-apply
 
 liftId2-subTm : (t : RawTerm)
   -> subTm (liftSubst (liftSubst idSubst)) t ≡ subTm idSubst t
-liftId2-subTm t =
-  subTmEq {sigma = liftSubst (liftSubst idSubst)} {tau = idSubst} liftId2-apply t
+liftId2-subTm = subTmEq liftId2-apply
 
 liftId2 : (A : RawType) -> subTy (liftSubst (liftSubst idSubst)) A ≡ subTy idSubst A
 liftId2 = liftId2-subTy
@@ -306,20 +346,12 @@ liftComp-apply sigma rho (suc n) =
 liftComp-subTy : (sigma : Subst) (rho : Ren) (A : RawType)
   -> subTy (compSubRen (liftSubst sigma) (raiseRen rho)) A
        ≡ subTy (liftSubst (compSubRen sigma rho)) A
-liftComp-subTy sigma rho A =
-  subTyEq
-    {sigma = compSubRen (liftSubst sigma) (raiseRen rho)}
-    {tau = liftSubst (compSubRen sigma rho)}
-    (liftComp-apply sigma rho) A
+liftComp-subTy sigma rho = subTyEq (liftComp-apply sigma rho)
 
 liftComp-subTm : (sigma : Subst) (rho : Ren) (t : RawTerm)
   -> subTm (compSubRen (liftSubst sigma) (raiseRen rho)) t
        ≡ subTm (liftSubst (compSubRen sigma rho)) t
-liftComp-subTm sigma rho t =
-  subTmEq
-    {sigma = compSubRen (liftSubst sigma) (raiseRen rho)}
-    {tau = liftSubst (compSubRen sigma rho)}
-    (liftComp-apply sigma rho) t
+liftComp-subTm sigma rho = subTmEq (liftComp-apply sigma rho)
 
 liftComp : (sigma : Subst) (rho : Ren) (A : RawType)
   -> subTy (compSubRen (liftSubst sigma) (raiseRen rho)) A
@@ -339,20 +371,12 @@ liftComp2-apply sigma rho n =
 liftComp2-subTy : (sigma : Subst) (rho : Ren) (A : RawType)
   -> subTy (compSubRen (liftSubst (liftSubst sigma)) (raiseRen (raiseRen rho))) A
        ≡ subTy (liftSubst (liftSubst (compSubRen sigma rho))) A
-liftComp2-subTy sigma rho A =
-  subTyEq
-    {sigma = compSubRen (liftSubst (liftSubst sigma)) (raiseRen (raiseRen rho))}
-    {tau = liftSubst (liftSubst (compSubRen sigma rho))}
-    (liftComp2-apply sigma rho) A
+liftComp2-subTy sigma rho = subTyEq (liftComp2-apply sigma rho)
 
 liftComp2-subTm : (sigma : Subst) (rho : Ren) (t : RawTerm)
   -> subTm (compSubRen (liftSubst (liftSubst sigma)) (raiseRen (raiseRen rho))) t
        ≡ subTm (liftSubst (liftSubst (compSubRen sigma rho))) t
-liftComp2-subTm sigma rho t =
-  subTmEq
-    {sigma = compSubRen (liftSubst (liftSubst sigma)) (raiseRen (raiseRen rho))}
-    {tau = liftSubst (liftSubst (compSubRen sigma rho))}
-    (liftComp2-apply sigma rho) t
+liftComp2-subTm sigma rho = subTmEq (liftComp2-apply sigma rho)
 
 liftComp2 : (sigma : Subst) (rho : Ren) (A : RawType)
   -> subTy (compSubRen (liftSubst (liftSubst sigma)) (raiseRen (raiseRen rho))) A
@@ -364,6 +388,8 @@ mutual
   subTyId tyTop = refl
   subTyId (tySigma A B) =
     cong₂ tySigma (subTyId A) (liftId-subTy B ∙ subTyId B)
+  subTyId (tyEq A a b) = cong₃ tyEq (subTyId A) (subTmId a) (subTmId b)
+  subTyId (tyQtr A) = cong tyQtr (subTyId A)
 
   subTmId : (t : RawTerm) -> subTm idSubst t ≡ t
   subTmId (var n) = refl
@@ -371,6 +397,11 @@ mutual
   subTmId (tmPair a b) = cong₂ tmPair (subTmId a) (subTmId b)
   subTmId (tmElSigma d m) =
     cong₂ tmElSigma (subTmId d) (liftId2-subTm m ∙ subTmId m)
+  subTmId tmR = refl
+  subTmId (tmEq A a) = cong₂ tmEq (subTyId A) (subTmId a)
+  subTmId (tmClass a) = cong tmClass (subTmId a)
+  subTmId (tmElQtr l p) =
+    cong₂ tmElQtr (liftId-subTm l ∙ subTmId l) (subTmId p)
 
 mutual
   subTyRen : (sigma : Subst) (rho : Ren) (A : RawType)
@@ -380,6 +411,9 @@ mutual
     cong₂ tySigma (subTyRen sigma rho A)
       (subTyRen (liftSubst sigma) (raiseRen rho) B
        ∙ liftComp-subTy sigma rho B)
+  subTyRen sigma rho (tyEq A a b) =
+    cong₃ tyEq (subTyRen sigma rho A) (subTmRen sigma rho a) (subTmRen sigma rho b)
+  subTyRen sigma rho (tyQtr A) = cong tyQtr (subTyRen sigma rho A)
 
   subTmRen : (sigma : Subst) (rho : Ren) (t : RawTerm)
     -> subTm sigma (renTm rho t) ≡ subTm (compSubRen sigma rho) t
@@ -391,6 +425,15 @@ mutual
     cong₂ tmElSigma (subTmRen sigma rho d)
       (subTmRen (liftSubst (liftSubst sigma)) (raiseRen (raiseRen rho)) m
        ∙ liftComp2-subTm sigma rho m)
+  subTmRen sigma rho tmR = refl
+  subTmRen sigma rho (tmEq A a) =
+    cong₂ tmEq (subTyRen sigma rho A) (subTmRen sigma rho a)
+  subTmRen sigma rho (tmClass a) = cong tmClass (subTmRen sigma rho a)
+  subTmRen sigma rho (tmElQtr l p) =
+    cong₂ tmElQtr
+      (subTmRen (liftSubst sigma) (raiseRen rho) l
+       ∙ liftComp-subTm sigma rho l)
+      (subTmRen sigma rho p)
 
 compSubRenIdAdd : (k : ℕ) -> compSubRen idSubst (addRen k) ≡ keepSubstBy k
 compSubRenIdAdd zero = refl
@@ -423,20 +466,12 @@ raiseCompRen-apply rho tau (suc n) =
 raiseCompRen : (rho tau : Ren) (A : RawType)
   -> renTy (compRen (raiseRen rho) (raiseRen tau)) A
        ≡ renTy (raiseRen (compRen rho tau)) A
-raiseCompRen rho tau A =
-  renTyEq
-    {rho = compRen (raiseRen rho) (raiseRen tau)}
-    {tau = raiseRen (compRen rho tau)}
-    (raiseCompRen-apply rho tau) A
+raiseCompRen rho tau = renTyEq (raiseCompRen-apply rho tau)
 
 raiseCompRenTm : (rho tau : Ren) (t : RawTerm)
   -> renTm (compRen (raiseRen rho) (raiseRen tau)) t
        ≡ renTm (raiseRen (compRen rho tau)) t
-raiseCompRenTm rho tau t =
-  renTmEq
-    {rho = compRen (raiseRen rho) (raiseRen tau)}
-    {tau = raiseRen (compRen rho tau)}
-    (raiseCompRen-apply rho tau) t
+raiseCompRenTm rho tau = renTmEq (raiseCompRen-apply rho tau)
 
 raiseCompRen2-apply : (rho tau : Ren) (n : ℕ)
   -> applyRen (compRen (raiseRen (raiseRen rho)) (raiseRen (raiseRen tau))) n
@@ -451,20 +486,12 @@ raiseCompRen2-apply rho tau n =
 raiseCompRen2 : (rho tau : Ren) (A : RawType)
   -> renTy (compRen (raiseRen (raiseRen rho)) (raiseRen (raiseRen tau))) A
        ≡ renTy (raiseRen (raiseRen (compRen rho tau))) A
-raiseCompRen2 rho tau A =
-  renTyEq
-    {rho = compRen (raiseRen (raiseRen rho)) (raiseRen (raiseRen tau))}
-    {tau = raiseRen (raiseRen (compRen rho tau))}
-    (raiseCompRen2-apply rho tau) A
+raiseCompRen2 rho tau = renTyEq (raiseCompRen2-apply rho tau)
 
 raiseCompRen2Tm : (rho tau : Ren) (t : RawTerm)
   -> renTm (compRen (raiseRen (raiseRen rho)) (raiseRen (raiseRen tau))) t
        ≡ renTm (raiseRen (raiseRen (compRen rho tau))) t
-raiseCompRen2Tm rho tau t =
-  renTmEq
-    {rho = compRen (raiseRen (raiseRen rho)) (raiseRen (raiseRen tau))}
-    {tau = raiseRen (raiseRen (compRen rho tau))}
-    (raiseCompRen2-apply rho tau) t
+raiseCompRen2Tm rho tau = renTmEq (raiseCompRen2-apply rho tau)
 
 shiftCompRen : (rho : Ren) -> compRen sucRen rho ≡ compRen (raiseRen rho) sucRen
 shiftCompRen (shiftRen zero) = refl
@@ -482,6 +509,9 @@ mutual
     cong₂ tySigma (renTyComp rho tau A)
       (renTyComp (raiseRen rho) (raiseRen tau) B
        ∙ raiseCompRen rho tau B)
+  renTyComp rho tau (tyEq A a b) =
+    cong₃ tyEq (renTyComp rho tau A) (renTmComp rho tau a) (renTmComp rho tau b)
+  renTyComp rho tau (tyQtr A) = cong tyQtr (renTyComp rho tau A)
 
   renTmComp : (rho tau : Ren) (t : RawTerm)
     -> renTm rho (renTm tau t) ≡ renTm (compRen rho tau) t
@@ -493,6 +523,15 @@ mutual
     cong₂ tmElSigma (renTmComp rho tau d)
       (renTmComp (raiseRen (raiseRen rho)) (raiseRen (raiseRen tau)) m
        ∙ raiseCompRen2Tm rho tau m)
+  renTmComp rho tau tmR = refl
+  renTmComp rho tau (tmEq A a) =
+    cong₂ tmEq (renTyComp rho tau A) (renTmComp rho tau a)
+  renTmComp rho tau (tmClass a) = cong tmClass (renTmComp rho tau a)
+  renTmComp rho tau (tmElQtr l p) =
+    cong₂ tmElQtr
+      (renTmComp (raiseRen rho) (raiseRen tau) l
+       ∙ raiseCompRenTm rho tau l)
+      (renTmComp rho tau p)
 
 liftRenSub-apply : (rho : Ren) (sigma : Subst) (n : ℕ)
   -> applySubst (liftSubst (renSub rho sigma)) n
@@ -510,20 +549,12 @@ liftRenSub-apply rho sigma (suc n) =
 liftRenSub : (rho : Ren) (sigma : Subst) (A : RawType)
   -> subTy (liftSubst (renSub rho sigma)) A
        ≡ subTy (renSub (raiseRen rho) (liftSubst sigma)) A
-liftRenSub rho sigma A =
-  subTyEq
-    {sigma = liftSubst (renSub rho sigma)}
-    {tau = renSub (raiseRen rho) (liftSubst sigma)}
-    (liftRenSub-apply rho sigma) A
+liftRenSub rho sigma = subTyEq (liftRenSub-apply rho sigma)
 
 liftRenSubTm : (rho : Ren) (sigma : Subst) (t : RawTerm)
   -> subTm (liftSubst (renSub rho sigma)) t
        ≡ subTm (renSub (raiseRen rho) (liftSubst sigma)) t
-liftRenSubTm rho sigma t =
-  subTmEq
-    {sigma = liftSubst (renSub rho sigma)}
-    {tau = renSub (raiseRen rho) (liftSubst sigma)}
-    (liftRenSub-apply rho sigma) t
+liftRenSubTm rho sigma = subTmEq (liftRenSub-apply rho sigma)
 
 liftRenSub2-apply : (rho : Ren) (sigma : Subst) (n : ℕ)
   -> applySubst (liftSubst (liftSubst (renSub rho sigma))) n
@@ -538,20 +569,12 @@ liftRenSub2-apply rho sigma n =
 liftRenSub2 : (rho : Ren) (sigma : Subst) (A : RawType)
   -> subTy (liftSubst (liftSubst (renSub rho sigma))) A
        ≡ subTy (renSub (raiseRen (raiseRen rho)) (liftSubst (liftSubst sigma))) A
-liftRenSub2 rho sigma A =
-  subTyEq
-    {sigma = liftSubst (liftSubst (renSub rho sigma))}
-    {tau = renSub (raiseRen (raiseRen rho)) (liftSubst (liftSubst sigma))}
-    (liftRenSub2-apply rho sigma) A
+liftRenSub2 rho sigma = subTyEq (liftRenSub2-apply rho sigma)
 
 liftRenSub2Tm : (rho : Ren) (sigma : Subst) (t : RawTerm)
   -> subTm (liftSubst (liftSubst (renSub rho sigma))) t
        ≡ subTm (renSub (raiseRen (raiseRen rho)) (liftSubst (liftSubst sigma))) t
-liftRenSub2Tm rho sigma t =
-  subTmEq
-    {sigma = liftSubst (liftSubst (renSub rho sigma))}
-    {tau = renSub (raiseRen (raiseRen rho)) (liftSubst (liftSubst sigma))}
-    (liftRenSub2-apply rho sigma) t
+liftRenSub2Tm rho sigma = subTmEq (liftRenSub2-apply rho sigma)
 
 mutual
   renTySub : (rho : Ren) (sigma : Subst) (A : RawType)
@@ -561,6 +584,9 @@ mutual
     cong₂ tySigma (renTySub rho sigma A)
       (renTySub (raiseRen rho) (liftSubst sigma) B
        ∙ sym (liftRenSub rho sigma B))
+  renTySub rho sigma (tyEq A a b) =
+    cong₃ tyEq (renTySub rho sigma A) (renTmSub rho sigma a) (renTmSub rho sigma b)
+  renTySub rho sigma (tyQtr A) = cong tyQtr (renTySub rho sigma A)
 
   renTmSub : (rho : Ren) (sigma : Subst) (t : RawTerm)
     -> renTm rho (subTm sigma t) ≡ subTm (renSub rho sigma) t
@@ -572,6 +598,15 @@ mutual
     cong₂ tmElSigma (renTmSub rho sigma d)
       (renTmSub (raiseRen (raiseRen rho)) (liftSubst (liftSubst sigma)) m
        ∙ sym (liftRenSub2Tm rho sigma m))
+  renTmSub rho sigma tmR = refl
+  renTmSub rho sigma (tmEq A a) =
+    cong₂ tmEq (renTySub rho sigma A) (renTmSub rho sigma a)
+  renTmSub rho sigma (tmClass a) = cong tmClass (renTmSub rho sigma a)
+  renTmSub rho sigma (tmElQtr l p) =
+    cong₂ tmElQtr
+      (renTmSub (raiseRen rho) (liftSubst sigma) l
+       ∙ sym (liftRenSubTm rho sigma l))
+      (renTmSub rho sigma p)
 
 abstract
   wkTyLiftSubst : (sigma : Subst) (A : RawType)
@@ -605,20 +640,12 @@ abstract
   liftCompSub : (sigma tau : Subst) (A : RawType)
     -> subTy (compSub (liftSubst sigma) (liftSubst tau)) A
          ≡ subTy (liftSubst (compSub sigma tau)) A
-  liftCompSub sigma tau A =
-    subTyEq
-      {sigma = compSub (liftSubst sigma) (liftSubst tau)}
-      {tau = liftSubst (compSub sigma tau)}
-      (liftCompSub-apply sigma tau) A
+  liftCompSub sigma tau = subTyEq (liftCompSub-apply sigma tau)
 
   liftCompSubTm : (sigma tau : Subst) (t : RawTerm)
     -> subTm (compSub (liftSubst sigma) (liftSubst tau)) t
          ≡ subTm (liftSubst (compSub sigma tau)) t
-  liftCompSubTm sigma tau t =
-    subTmEq
-      {sigma = compSub (liftSubst sigma) (liftSubst tau)}
-      {tau = liftSubst (compSub sigma tau)}
-      (liftCompSub-apply sigma tau) t
+  liftCompSubTm sigma tau = subTmEq (liftCompSub-apply sigma tau)
 
   liftCompSub2-apply : (sigma tau : Subst) (n : ℕ)
     -> applySubst (compSub (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau))) n
@@ -633,20 +660,12 @@ abstract
   liftCompSub2 : (sigma tau : Subst) (A : RawType)
     -> subTy (compSub (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau))) A
          ≡ subTy (liftSubst (liftSubst (compSub sigma tau))) A
-  liftCompSub2 sigma tau A =
-    subTyEq
-      {sigma = compSub (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau))}
-      {tau = liftSubst (liftSubst (compSub sigma tau))}
-      (liftCompSub2-apply sigma tau) A
+  liftCompSub2 sigma tau = subTyEq (liftCompSub2-apply sigma tau)
 
   liftCompSub2Tm : (sigma tau : Subst) (t : RawTerm)
     -> subTm (compSub (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau))) t
          ≡ subTm (liftSubst (liftSubst (compSub sigma tau))) t
-  liftCompSub2Tm sigma tau t =
-    subTmEq
-      {sigma = compSub (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau))}
-      {tau = liftSubst (liftSubst (compSub sigma tau))}
-      (liftCompSub2-apply sigma tau) t
+  liftCompSub2Tm sigma tau = subTmEq (liftCompSub2-apply sigma tau)
 
   mutual
     subTyComp : (sigma tau : Subst) (A : RawType)
@@ -656,6 +675,9 @@ abstract
       cong₂ tySigma (subTyComp sigma tau A)
         (subTyComp (liftSubst sigma) (liftSubst tau) B
          ∙ liftCompSub sigma tau B)
+    subTyComp sigma tau (tyEq A a b) =
+      cong₃ tyEq (subTyComp sigma tau A) (subTmComp sigma tau a) (subTmComp sigma tau b)
+    subTyComp sigma tau (tyQtr A) = cong tyQtr (subTyComp sigma tau A)
 
     subTmComp : (sigma tau : Subst) (t : RawTerm)
       -> subTm sigma (subTm tau t) ≡ subTm (compSub sigma tau) t
@@ -667,11 +689,25 @@ abstract
       cong₂ tmElSigma (subTmComp sigma tau d)
         (subTmComp (liftSubst (liftSubst sigma)) (liftSubst (liftSubst tau)) m
          ∙ liftCompSub2Tm sigma tau m)
+    subTmComp sigma tau tmR = refl
+    subTmComp sigma tau (tmEq A a) =
+      cong₂ tmEq (subTyComp sigma tau A) (subTmComp sigma tau a)
+    subTmComp sigma tau (tmClass a) = cong tmClass (subTmComp sigma tau a)
+    subTmComp sigma tau (tmElQtr l p) =
+      cong₂ tmElQtr
+        (subTmComp (liftSubst sigma) (liftSubst tau) l
+         ∙ liftCompSubTm sigma tau l)
+        (subTmComp sigma tau p)
 
 sigmaCompSubSingle : (b c : RawTerm)
   -> compSub (consSubst c (consSubst b idSubst)) (replace0By 2 (tmPair (var (suc zero)) (var zero)))
        ≡ singleSubst (tmPair b c)
 sigmaCompSubSingle b c = refl
+
+qtrCompSubSingle : (a : RawTerm)
+  -> compSub (consSubst a idSubst) (replace0By 1 (tmClass (var zero)))
+       ≡ singleSubst (tmClass a)
+qtrCompSubSingle a = refl
 
 sigmaBranchTyComp : (b c : RawTerm) (M : RawType)
   -> subTy (consSubst c (consSubst b idSubst)) (subTy (replace0By 2 (tmPair (var (suc zero)) (var zero))) M)
@@ -686,3 +722,43 @@ sigmaBranchTmComp : (b c m : RawTerm)
 sigmaBranchTmComp b c m =
   subTmComp (consSubst c (consSubst b idSubst)) (replace0By 2 (tmPair (var (suc zero)) (var zero))) m
   ∙ cong (λ theta -> subTm theta m) (sigmaCompSubSingle b c)
+
+qtrBranchTyComp : (a : RawTerm) (L : RawType)
+  -> subTy (consSubst a idSubst) (subTy (replace0By 1 (tmClass (var zero))) L)
+       ≡ subTy (singleSubst (tmClass a)) L
+qtrBranchTyComp a L =
+  subTyComp (consSubst a idSubst) (replace0By 1 (tmClass (var zero))) L
+  ∙ cong (λ theta -> subTy theta L) (qtrCompSubSingle a)
+
+qtrBranchTmComp : (a l : RawTerm)
+  -> subTm (consSubst a idSubst) (subTm (replace0By 1 (tmClass (var zero))) l)
+       ≡ subTm (singleSubst (tmClass a)) l
+qtrBranchTmComp a l =
+  subTmComp (consSubst a idSubst) (replace0By 1 (tmClass (var zero))) l
+  ∙ cong (λ theta -> subTm theta l) (qtrCompSubSingle a)
+
+qtrCohSubComp : (a b : RawTerm)
+  -> compSub (consSubst b (consSubst a idSubst)) (replace0By 2 (tmClass (var (suc zero))))
+       ≡ singleSubst (tmClass a)
+qtrCohSubComp a b = refl
+
+qtrCohTyComp : (a b : RawTerm) (L : RawType)
+  -> subTy (consSubst b (consSubst a idSubst)) (subTy (replace0By 2 (tmClass (var (suc zero)))) L)
+       ≡ subTy (singleSubst (tmClass a)) L
+qtrCohTyComp a b L =
+  subTyComp (consSubst b (consSubst a idSubst)) (replace0By 2 (tmClass (var (suc zero)))) L
+  ∙ cong (λ theta -> subTy theta L) (qtrCohSubComp a b)
+
+qtrCohLeftTmComp : (a b l : RawTerm)
+  -> subTm (consSubst b (consSubst a idSubst)) (wkTmBy 1 l)
+       ≡ subTm (consSubst a idSubst) l
+qtrCohLeftTmComp a b l =
+  subTmRen (consSubst b (consSubst a idSubst)) (addRen 1) l
+  ∙ refl
+
+qtrCohRightTmComp : (a b l : RawTerm)
+  -> subTm (consSubst b (consSubst a idSubst)) (renTm (keep0RenBy 1) l)
+       ≡ subTm (consSubst b idSubst) l
+qtrCohRightTmComp a b l =
+  subTmRen (consSubst b (consSubst a idSubst)) (keep0RenBy 1) l
+  ∙ refl

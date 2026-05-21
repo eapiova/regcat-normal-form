@@ -1,3 +1,4 @@
+
 {-# OPTIONS --safe #-}
 
 module Tait.Derivability where
@@ -16,6 +17,21 @@ sigmaMotSub = replace0By 2 (tmPair (var (suc zero)) (var zero))
 
 sigmaBranchTy : RawType -> RawType
 sigmaBranchTy M = subTy sigmaMotSub M
+
+qtrBranchSub : Subst
+qtrBranchSub = replace0By 1 (tmClass (var zero))
+
+qtrCohSub : Subst
+qtrCohSub = replace0By 2 (tmClass (var (suc zero)))
+
+qtrBranchTy : RawType -> RawType
+qtrBranchTy L = subTy qtrBranchSub L
+
+qtrCohTy : RawType -> RawType
+qtrCohTy L = subTy qtrCohSub L
+
+qtrSecondBranchRen : Ren
+qtrSecondBranchRen = keep0RenBy 1
 
 mutual
   data Derivable : JForm -> Type where
@@ -185,6 +201,102 @@ mutual
       -> Derivable
            (termEq gamma (tmElSigma (tmPair b c) m) (subTm (sigmaCompSub b c) m)
              (subTy (singleSubst (tmPair b c)) M))
+
+    fEq : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+      -> Derivable (isType gamma A)
+      -> Derivable (hasTy gamma a A)
+      -> Derivable (hasTy gamma b A)
+      -> Derivable (isType gamma (tyEq A a b))
+
+    fEqEq : {gamma : Ctx} {A C : RawType} {a b c d : RawTerm}
+      -> Derivable (typeEq gamma A C)
+      -> Derivable (termEq gamma a c A)
+      -> Derivable (termEq gamma b d A)
+      -> Derivable (typeEq gamma (tyEq A a b) (tyEq C c d))
+
+    iEq : {gamma : Ctx} {A : RawType} {a : RawTerm}
+      -> Derivable (hasTy gamma a A)
+      -> Derivable (hasTy gamma tmR (tyEq A a a))
+
+    iEqEq : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+      -> Derivable (termEq gamma a b A)
+      -> Derivable (termEq gamma tmR tmR (tyEq A a a))
+
+    eEqStar : {gamma : Ctx} {A : RawType} {a b p : RawTerm}
+      -> Derivable (hasTy gamma p (tyEq A a b))
+      -> Derivable (isType gamma A)
+      -> Derivable (hasTy gamma a A)
+      -> Derivable (hasTy gamma b A)
+      -> Derivable (termEq gamma a b A)
+
+    cEq : {gamma : Ctx} {A : RawType} {a b p : RawTerm}
+      -> Derivable (hasTy gamma p (tyEq A a b))
+      -> Derivable (isType gamma A)
+      -> Derivable (hasTy gamma a A)
+      -> Derivable (hasTy gamma b A)
+      -> Derivable (termEq gamma p tmR (tyEq A a b))
+
+    fQtr : {gamma : Ctx} {A : RawType}
+      -> Derivable (isType gamma A)
+      -> Derivable (isType gamma (tyQtr A))
+
+    fQtrEq : {gamma : Ctx} {A B : RawType}
+      -> Derivable (typeEq gamma A B)
+      -> Derivable (typeEq gamma (tyQtr A) (tyQtr B))
+
+    iQtr : {gamma : Ctx} {A : RawType} {a : RawTerm}
+      -> Derivable (hasTy gamma a A)
+      -> Derivable (hasTy gamma (tmClass a) (tyQtr A))
+
+    iQtrEq : {gamma : Ctx} {A : RawType} {a b : RawTerm}
+      -> Derivable (hasTy gamma a A)
+      -> Derivable (hasTy gamma b A)
+      -> Derivable (termEq gamma (tmClass a) (tmClass b) (tyQtr A))
+
+    eQtr : {gamma : Ctx} {A L : RawType} {l p : RawTerm}
+      -> Derivable (isType ((tyQtr A) ∷ gamma) L)
+      -> Derivable (hasTy gamma p (tyQtr A))
+      -> Derivable (isType (A ∷ gamma) (qtrBranchTy L))
+      -> Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L))
+      -> Derivable
+           (termEq (wkTyBy 1 A ∷ A ∷ gamma)
+             (wkTmBy 1 l)
+             (renTm qtrSecondBranchRen l)
+             (qtrCohTy L))
+      -> Derivable (hasTy gamma (tmElQtr l p) (subTy (singleSubst p) L))
+
+    eQtrEq : {gamma : Ctx} {A L : RawType} {l l' p p' : RawTerm}
+      -> Derivable (isType ((tyQtr A) ∷ gamma) L)
+      -> Derivable (termEq gamma p p' (tyQtr A))
+      -> Derivable (isType (A ∷ gamma) (qtrBranchTy L))
+      -> Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L))
+      -> Derivable (hasTy (A ∷ gamma) l' (qtrBranchTy L))
+      -> Derivable (termEq (A ∷ gamma) l l' (qtrBranchTy L))
+      -> Derivable
+           (termEq (wkTyBy 1 A ∷ A ∷ gamma)
+             (wkTmBy 1 l)
+             (renTm qtrSecondBranchRen l)
+             (qtrCohTy L))
+      -> Derivable
+           (termEq (wkTyBy 1 A ∷ A ∷ gamma)
+             (wkTmBy 1 l')
+             (renTm qtrSecondBranchRen l')
+             (qtrCohTy L))
+      -> Derivable (termEq gamma (tmElQtr l p) (tmElQtr l' p') (subTy (singleSubst p) L))
+
+    cQtr : {gamma : Ctx} {A L : RawType} {a l : RawTerm}
+      -> Derivable (isType ((tyQtr A) ∷ gamma) L)
+      -> Derivable (hasTy gamma a A)
+      -> Derivable (isType (A ∷ gamma) (qtrBranchTy L))
+      -> Derivable (hasTy (A ∷ gamma) l (qtrBranchTy L))
+      -> Derivable
+           (termEq (wkTyBy 1 A ∷ A ∷ gamma)
+             (wkTmBy 1 l)
+             (renTm qtrSecondBranchRen l)
+             (qtrCohTy L))
+      -> Derivable
+           (termEq gamma (tmElQtr l (tmClass a)) (subTm (qtrCompSub a) l)
+             (subTy (singleSubst (tmClass a)) L))
 
   data CtxWF : Ctx -> Type where
     wfNil : CtxWF []
