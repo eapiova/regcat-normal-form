@@ -14,3 +14,4 @@ open import Tait.CompLemmas
 open import Tait.Env
 open import Tait.Fundamental
 open import Tait.CanonicalForm
+open import Tait.Smoke
