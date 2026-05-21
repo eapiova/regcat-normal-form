@@ -186,8 +186,24 @@ mutual
     -> (inner : FitsSubst gamma delta sigma)
     -> Acc LexLt (fitsSubstLexMeasure inner)
     -> ComputableFits n (composeFits outer inner)
-  composeCompFits outer cOuter inner accInner =
-    composeCompFitsWith substDerivTmCompCF outer cOuter inner accInner
+  composeCompFits {n} outer cOuter (fitsNil wf) accInner = compFitsNil
+  composeCompFits {n} {rho = rho} outer cOuter
+    (fitsCons {sigma = sigmaTail} {A = A} {t = t} inner dtInner) accInner =
+    substCompFits
+      (sym (compSubCons rho t sigmaTail))
+      (compFitsCons
+        {dt =
+          subst
+            (λ T -> Derivable (hasTy [] (subTm rho t) T))
+            (subTyComp rho sigmaTail A)
+            (substTmRule dtInner outer)}
+        (composeCompFits outer cOuter inner
+          (access accInner (fitsSubstLexMeasure-tail< inner dtInner)))
+        (subst
+          (λ T -> Computable n (hasTy [] (subTm rho t) T))
+          (subTyComp rho sigmaTail A)
+          (substDerivTmCompCF dtInner outer cOuter
+            (access accInner (fitsSubstLexMeasure-entry< inner dtInner)))))
 
   composeCompEqFits : {n : ℕ} -> {gamma delta : Ctx} {rho eta sigma : Subst} {t : RawTerm} {T : RawType}
     -> (outer : FitsEqSubst [] gamma rho eta)
@@ -951,7 +967,7 @@ mutual
                        (cong (λ rho -> subTm rho (wkTmBy 1 l)) (liftSubstCompKeep (liftSubst sigma)))
                        (cong (λ rho -> subTy rho (qtrCohTy L)) (liftSubstCompKeep (liftSubst sigma)))))
                    compcohAssoc)
-                 (λ tau fits2 _ _ ->
+                 (λ tau fits2 _ accDcoh ->
                    let
                      composedFits = composeTwoBinders fits dAσ dWkAσ fits2
                    in
@@ -965,8 +981,19 @@ mutual
                            ∙ subTmComp tau (liftSubst (liftSubst sigma)) (renTm qtrSecondBranchRen l))
                          (cong (λ rho -> subTy tau (subTy rho (qtrCohTy L))) (liftSubstCompKeep (liftSubst sigma))
                            ∙ subTyComp tau (liftSubst (liftSubst sigma)) (qtrCohTy L))))
-                     (computableTmEqClosed (substTmEqRule dcoh composedFits)))
-                 (λ tau₁ tau₂ fitsEq2 _ _ ->
+                     (substDerivTmEqCompCF
+                       dcoh
+                       composedFits
+                       (fitsToCompFits composedFits (LexLt-wf _))
+                       (access accDcoh (lift-lex-eq {d₁ = dcoh} {d₂ = substTmEqRule dcoh lifted2-coh}
+                         (sym (tyDepth-subTy
+                           (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                           (qtrCohTy L)))
+                         (substMeasure-substTmEqRule< dcoh lifted2-coh)))))
+                 (λ tau₁ tau₂ fitsEq2 _ accDcoh ->
+                   let
+                     composedFitsEq = composeTwoBindersEq fits dAσ dWkAσ fitsEq2
+                   in
                    subst
                      (λ J -> Computable n J)
                      (sym
@@ -977,8 +1004,15 @@ mutual
                            ∙ subTmComp tau₂ (liftSubst (liftSubst sigma)) (renTm qtrSecondBranchRen l))
                          (cong (λ rho -> subTy tau₁ (subTy rho (qtrCohTy L))) (liftSubstCompKeep (liftSubst sigma))
                            ∙ subTyComp tau₁ (liftSubst (liftSubst sigma)) (qtrCohTy L))))
-                     (computableTmEqClosed
-                       (eqSubTmEqRule dcoh (composeTwoBindersEq fits dAσ dWkAσ fitsEq2))))))
+                     (eqSubDerivTmEqCompCF
+                       dcoh
+                       composedFitsEq
+                       (fitsEqToCompFitsEq composedFitsEq)
+                       (access accDcoh (lift-lex-eq {d₁ = dcoh} {d₂ = substTmEqRule dcoh lifted2-coh}
+                         (sym (tyDepth-subTy
+                           (consSubst (var zero) (compSub (keepSubstBy 1) (liftSubst sigma)))
+                           (qtrCohTy L)))
+                         (substMeasure-substTmEqRule< dcoh lifted2-coh)))))))
 
       resultPath :
         hasTy []
@@ -2857,11 +2891,20 @@ mutual
       evalSigma
       compAA'
       (hypCompToDerivable compBD)
-  eqSubDerivTyCompCF {n} (fEq dA da db) fitsEq cFitsEq (acc rs) =
+  eqSubDerivTyCompCF {n} (fEq {A = A} {a = a} {b = b} dA da db) fitsEq cFitsEq (acc rs) =
     let
-      compAA' = eqSubDerivTyCompCF dA fitsEq cFitsEq (LexLt-wf _)
-      compac = computableTmEqClosed (eqSubTmRule da fitsEq)
-      compbd = computableTmEqClosed (eqSubTmRule db fitsEq)
+      compAA' = eqSubDerivTyCompCF dA fitsEq cFitsEq
+        (rs (lift-lex-depth {d₁ = dA} {d₂ = fEq dA da db}
+          (tyDepth-base<Eq A a b)
+          (substMeasure-fEq-base< dA da db)))
+      compac = eqSubDerivTmCompCF da fitsEq cFitsEq
+        (rs (lift-lex-depth {d₁ = da} {d₂ = fEq dA da db}
+          (tyDepth-base<Eq A a b)
+          (substMeasure-fEq-leftTm< dA da db)))
+      compbd = eqSubDerivTmCompCF db fitsEq cFitsEq
+        (rs (lift-lex-depth {d₁ = db} {d₂ = fEq dA da db}
+          (tyDepth-base<Eq A a b)
+          (substMeasure-fEq-rightTm< dA da db)))
       compA = compTyEqLeft compAA'
       compA' = compTyEqRightClosed compAA'
       compa = compTmEqLeft compac
@@ -3870,10 +3913,21 @@ mutual
       tauFits = fitsEqSubstRight (derivToCtxWF du) fitsEq
     in
     compTransTmClosed
-      (eqSubDerivTmCompCF du fitsEq cFitsEq (LexLt-wf _))
+      (eqSubDerivTmCompCF du fitsEq cFitsEq
+        (rs (lift-lex-eq {d₁ = du} {d₂ = symTm d du dA}
+          refl
+          (substMeasure-symTm-right< d du dA))))
       (compConvTmEqClosed
-        (compSymTmClosed (substDerivTmEqCompCF d tauFits (fitsToCompFits tauFits (LexLt-wf _)) (LexLt-wf _)))
-        (compSymTyClosed (eqSubDerivTyCompCF dA fitsEq (fitsEqToCompFitsEq fitsEq) (LexLt-wf _))))
+        (compSymTmClosed
+          (substDerivTmEqCompCF d tauFits (fitsToCompFits tauFits (LexLt-wf _))
+            (rs (lift-lex-eq {d₁ = d} {d₂ = symTm d du dA}
+              refl
+              (substMeasure-symTm-eq< d du dA)))))
+        (compSymTyClosed
+          (eqSubDerivTyCompCF dA fitsEq cFitsEq
+            (rs (lift-lex-eq {d₁ = dA} {d₂ = symTm d du dA}
+              refl
+              (substMeasure-symTm-ty< d du dA))))))
   eqSubDerivTmEqCompCF {n} (transTm d₁ d₂) fitsEq cFitsEq (acc rs) =
     let
       sigmaFits = fitsEqSubstLeft fitsEq
