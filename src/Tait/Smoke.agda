@@ -57,3 +57,44 @@ smoke = canonicalFormTheorem dElim
 -- If this `refl` typechecks, normalisation genuinely ran.
 smokeReduces : proj₁ (canonicalFormTheorem dElim) ≡ tmStar
 smokeReduces = refl
+
+-- Eq-type non-vacuity: refl at Top has canonical representative `tmR`.
+dEqTy : Derivable (isType [] (tyEq tyTop tmStar tmStar))
+dEqTy = fEq (fTop wfNil) (iTop wfNil) (iTop wfNil)
+
+dEqTerm : Derivable (hasTy [] tmR (tyEq tyTop tmStar tmStar))
+dEqTerm = iEq (iTop wfNil)
+
+smokeEqReduces : proj₁ (canonicalFormTheorem dEqTerm) ≡ tmR
+smokeEqReduces = refl
+
+-- Qtr-type non-vacuity: a closed quotient eliminator computes to `tmStar`.
+dQtrTy : Derivable (isType [] (tyQtr tyTop))
+dQtrTy = fQtr (fTop wfNil)
+
+dQtrClass : Derivable (hasTy [] (tmClass tmStar) (tyQtr tyTop))
+dQtrClass = iQtr (iTop wfNil)
+
+dQtrMotive : Derivable (isType (tyQtr tyTop ∷ []) tyTop)
+dQtrMotive = fTop (wfCons wfNil dQtrTy)
+
+dQtrBranchTy : Derivable (isType (tyTop ∷ []) (qtrBranchTy tyTop))
+dQtrBranchTy = fTop wf1
+
+dQtrBranch : Derivable (hasTy (tyTop ∷ []) tmStar (qtrBranchTy tyTop))
+dQtrBranch = iTop wf1
+
+dQtrCoh : Derivable
+  (termEq (wkTyBy 1 tyTop ∷ tyTop ∷ [])
+    (wkTmBy 1 tmStar)
+    (renTm qtrSecondBranchRen tmStar)
+    (qtrCohTy tyTop))
+dQtrCoh = cTop (iTop wf2)
+
+dQtrElim : Derivable
+  (hasTy [] (tmElQtr tmStar (tmClass tmStar))
+    (subTy (singleSubst (tmClass tmStar)) tyTop))
+dQtrElim = eQtr dQtrMotive dQtrClass dQtrBranchTy dQtrBranch dQtrCoh
+
+smokeQtrReduces : proj₁ (canonicalFormTheorem dQtrElim) ≡ tmStar
+smokeQtrReduces = refl

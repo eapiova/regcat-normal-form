@@ -32,6 +32,8 @@ CanonicalForm (termEq (_ ∷ _) t u A) = ⊤
 typeEval : (A : RawType) -> A =>t A
 typeEval tyTop = evalTop
 typeEval (tySigma A B) = evalSigma
+typeEval (tyEq A a b) = evalEq
+typeEval (tyQtr A) = evalQtr
 
 canonicalType : {A : RawType}
   -> Derivable (isType [] A)
@@ -58,10 +60,16 @@ canonicalTermEq {A = tyTop} d =
   let evt , evu = fundTmEqClosed d in
   tmStar , tmStar , tyTop , evt , evu , evalTop
 canonicalTermEq {A = tySigma A B} d =
-  let a , b , c , e , evt , evu , eqA , eqB =
+  let a , b , c , e , evt , evu , eqA , eqB , tyB =
         computableTmEqSigma-elim (fundTmEqClosed d)
   in
   tmPair a b , tmPair c e , tySigma A B , evt , evu , evalSigma
+canonicalTermEq {A = tyEq A a b} d =
+  let evt , evu , eqab = computableTmEqEqForm-elim (fundTmEqClosed d) in
+  tmR , tmR , tyEq A a b , evt , evu , evalEq
+canonicalTermEq {A = tyQtr A} d =
+  let p , q , evt , evu , epp , eqq = computableTmEqQtr-elim (fundTmEqClosed d) in
+  tmClass p , tmClass q , tyQtr A , evt , evu , evalQtr
 
 canonicalFormTheorem : {J : JForm} -> Derivable J -> CanonicalForm J
 canonicalFormTheorem {J = isType [] A} d = canonicalType d
