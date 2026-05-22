@@ -43,50 +43,135 @@ subTy-snd< A B a =
         (sym (tyDepth-subTy (singleSubst a) B))
         (tyDepth-snd<Sigma A B)
 
--- ── Term-equality computability ──────────────────────────────────
--- Both sides evaluate to related canonical forms; recursion on `A`.
+-- ── Term/type-equality computability ─────────────────────────────
+-- Term equality and type equality are mutually recursive. The Sigma
+-- clauses carry the dependent-family congruence needed by later phases.
 
-ComputableTmEqAcc : (A : RawType) -> Acc _<_ (tyDepth A) -> RawTerm -> RawTerm -> Type
-ComputableTmEqAcc tyTop _ t u = (t =>e tmStar) × (u =>e tmStar)
-ComputableTmEqAcc (tySigma A B) (acc rs) t u =
-  Σ[ a ∈ RawTerm ] Σ[ b ∈ RawTerm ] Σ[ c ∈ RawTerm ] Σ[ d ∈ RawTerm ]
-      (t =>e tmPair a b)
-    × (u =>e tmPair c d)
-    × ComputableTmEqAcc A (rs (tyDepth-fst<Sigma A B)) a c
-    × ComputableTmEqAcc (subTy (singleSubst a) B) (rs (subTy-snd< A B a)) b d
-ComputableTmEqAcc (tyEq A a b) (acc rs) t u =
-    (t =>e tmR) × (u =>e tmR)
-  × ComputableTmEqAcc A (rs (tyDepth-base<Eq A a b)) a b
-ComputableTmEqAcc (tyQtr A) (acc rs) t u =
-  Σ[ p ∈ RawTerm ] Σ[ q ∈ RawTerm ]
-      (t =>e tmClass p) × (u =>e tmClass q)
-    × ComputableTmEqAcc A (rs (tyDepth-base<Qtr A)) p p
-    × ComputableTmEqAcc A (rs (tyDepth-base<Qtr A)) q q
+mutual
+  ComputableTmEqAcc : (A : RawType) -> Acc _<_ (tyDepth A) -> RawTerm -> RawTerm -> Type
+  ComputableTmEqAcc tyTop _ t u = (t =>e tmStar) × (u =>e tmStar)
+  ComputableTmEqAcc (tySigma A B) (acc rs) t u =
+    Σ[ a ∈ RawTerm ] Σ[ b ∈ RawTerm ] Σ[ c ∈ RawTerm ] Σ[ d ∈ RawTerm ]
+        (t =>e tmPair a b)
+      × (u =>e tmPair c d)
+      × ComputableTmEqAcc A (rs (tyDepth-fst<Sigma A B)) a c
+      × ComputableTmEqAcc (subTy (singleSubst a) B) (rs (subTy-snd< A B a)) b d
+      × ComputableTyEqAcc (subTy (singleSubst a) B) (subTy (singleSubst c) B)
+          (rs (subTy-snd< A B a)) (rs (subTy-snd< A B c))
+  ComputableTmEqAcc (tyEq A a b) (acc rs) t u =
+      (t =>e tmR) × (u =>e tmR)
+    × ComputableTmEqAcc A (rs (tyDepth-base<Eq A a b)) a b
+  ComputableTmEqAcc (tyQtr A) (acc rs) t u =
+    Σ[ p ∈ RawTerm ] Σ[ q ∈ RawTerm ]
+        (t =>e tmClass p) × (u =>e tmClass q)
+      × ComputableTmEqAcc A (rs (tyDepth-base<Qtr A)) p p
+      × ComputableTmEqAcc A (rs (tyDepth-base<Qtr A)) q q
+
+  ComputableTyEqAcc : (A B : RawType)
+    -> Acc _<_ (tyDepth A) -> Acc _<_ (tyDepth B) -> Type
+  ComputableTyEqAcc tyTop tyTop _ _ = ⊤
+  ComputableTyEqAcc tyTop (tySigma C D) _ _ = ⊥
+  ComputableTyEqAcc tyTop (tyEq C c d) _ _ = ⊥
+  ComputableTyEqAcc tyTop (tyQtr C) _ _ = ⊥
+  ComputableTyEqAcc (tySigma A B) tyTop _ _ = ⊥
+  ComputableTyEqAcc (tySigma A B) (tySigma C D) (acc rsAB) (acc rsCD) =
+      ComputableTyEqAcc A C
+        (rsAB (tyDepth-fst<Sigma A B)) (rsCD (tyDepth-fst<Sigma C D))
+    × ((a c : RawTerm)
+         -> ComputableTmEqAcc A (rsAB (tyDepth-fst<Sigma A B)) a c
+         -> ComputableTyEqAcc (subTy (singleSubst a) B) (subTy (singleSubst c) D)
+              (rsAB (subTy-snd< A B a)) (rsCD (subTy-snd< C D c)))
+  ComputableTyEqAcc (tySigma A B) (tyEq C c d) _ _ = ⊥
+  ComputableTyEqAcc (tySigma A B) (tyQtr C) _ _ = ⊥
+  ComputableTyEqAcc (tyEq A a b) tyTop _ _ = ⊥
+  ComputableTyEqAcc (tyEq A a b) (tySigma C D) _ _ = ⊥
+  ComputableTyEqAcc (tyEq A a b) (tyEq C c d) (acc rsL) (acc rsR) =
+      ComputableTyEqAcc A C
+        (rsL (tyDepth-base<Eq A a b)) (rsR (tyDepth-base<Eq C c d))
+    × ComputableTmEqAcc A (rsL (tyDepth-base<Eq A a b)) a c
+    × ComputableTmEqAcc A (rsL (tyDepth-base<Eq A a b)) b d
+  ComputableTyEqAcc (tyEq A a b) (tyQtr C) _ _ = ⊥
+  ComputableTyEqAcc (tyQtr A) tyTop _ _ = ⊥
+  ComputableTyEqAcc (tyQtr A) (tySigma C D) _ _ = ⊥
+  ComputableTyEqAcc (tyQtr A) (tyEq C c d) _ _ = ⊥
+  ComputableTyEqAcc (tyQtr A) (tyQtr C) (acc rsL) (acc rsR) =
+    ComputableTyEqAcc A C (rsL (tyDepth-base<Qtr A)) (rsR (tyDepth-base<Qtr C))
 
 ComputableTmEq : RawType -> RawTerm -> RawTerm -> Type
 ComputableTmEq A t u = ComputableTmEqAcc A (<-wf (tyDepth A)) t u
 
-ComputableTmEqAcc-cast : (A : RawType) (p q : Acc _<_ (tyDepth A)) (t u : RawTerm)
-  -> ComputableTmEqAcc A p t u -> ComputableTmEqAcc A q t u
-ComputableTmEqAcc-cast tyTop p q t u x = x
-ComputableTmEqAcc-cast (tySigma A B) (acc rsP) (acc rsQ) t u
-  (a , b , c , d , evt , evu , cAC , cBD) =
-  a , b , c , d , evt , evu ,
-  ComputableTmEqAcc-cast A
-    (rsP (tyDepth-fst<Sigma A B)) (rsQ (tyDepth-fst<Sigma A B)) a c cAC ,
-  ComputableTmEqAcc-cast (subTy (singleSubst a) B)
-    (rsP (subTy-snd< A B a)) (rsQ (subTy-snd< A B a)) b d cBD
-ComputableTmEqAcc-cast (tyEq A a b) (acc rsP) (acc rsQ) t u (evt , evu , cab) =
-  evt , evu ,
-  ComputableTmEqAcc-cast A
-    (rsP (tyDepth-base<Eq A a b)) (rsQ (tyDepth-base<Eq A a b)) a b cab
-ComputableTmEqAcc-cast (tyQtr A) (acc rsP) (acc rsQ) t u
-  (p , q , evt , evu , cpp , cqq) =
-  p , q , evt , evu ,
-  ComputableTmEqAcc-cast A
-    (rsP (tyDepth-base<Qtr A)) (rsQ (tyDepth-base<Qtr A)) p p cpp ,
-  ComputableTmEqAcc-cast A
-    (rsP (tyDepth-base<Qtr A)) (rsQ (tyDepth-base<Qtr A)) q q cqq
+ComputableTyEq : RawType -> RawType -> Type
+ComputableTyEq A B = ComputableTyEqAcc A B (<-wf (tyDepth A)) (<-wf (tyDepth B))
+
+-- Acc-irrelevance for equality relations, as structural functions.
+
+mutual
+  ComputableTmEqAcc-cast : (A : RawType) (p q : Acc _<_ (tyDepth A)) (t u : RawTerm)
+    -> ComputableTmEqAcc A p t u -> ComputableTmEqAcc A q t u
+  ComputableTmEqAcc-cast tyTop p q t u x = x
+  ComputableTmEqAcc-cast (tySigma A B) (acc rsP) (acc rsQ) t u
+    (a , b , c , d , evt , evu , cAC , cBD , tyBD) =
+    a , b , c , d , evt , evu ,
+    ComputableTmEqAcc-cast A
+      (rsP (tyDepth-fst<Sigma A B)) (rsQ (tyDepth-fst<Sigma A B)) a c cAC ,
+    ComputableTmEqAcc-cast (subTy (singleSubst a) B)
+      (rsP (subTy-snd< A B a)) (rsQ (subTy-snd< A B a)) b d cBD ,
+    ComputableTyEqAcc-cast (subTy (singleSubst a) B) (subTy (singleSubst c) B)
+      (rsP (subTy-snd< A B a)) (rsQ (subTy-snd< A B a))
+      (rsP (subTy-snd< A B c)) (rsQ (subTy-snd< A B c)) tyBD
+  ComputableTmEqAcc-cast (tyEq A a b) (acc rsP) (acc rsQ) t u (evt , evu , cab) =
+    evt , evu ,
+    ComputableTmEqAcc-cast A
+      (rsP (tyDepth-base<Eq A a b)) (rsQ (tyDepth-base<Eq A a b)) a b cab
+  ComputableTmEqAcc-cast (tyQtr A) (acc rsP) (acc rsQ) t u
+    (p , q , evt , evu , cpp , cqq) =
+    p , q , evt , evu ,
+    ComputableTmEqAcc-cast A
+      (rsP (tyDepth-base<Qtr A)) (rsQ (tyDepth-base<Qtr A)) p p cpp ,
+    ComputableTmEqAcc-cast A
+      (rsP (tyDepth-base<Qtr A)) (rsQ (tyDepth-base<Qtr A)) q q cqq
+
+  ComputableTyEqAcc-cast : (A B : RawType)
+      (pA qA : Acc _<_ (tyDepth A)) (pB qB : Acc _<_ (tyDepth B))
+    -> ComputableTyEqAcc A B pA pB -> ComputableTyEqAcc A B qA qB
+  ComputableTyEqAcc-cast tyTop tyTop pA qA pB qB x = x
+  ComputableTyEqAcc-cast tyTop (tySigma C D) pA qA pB qB x = x
+  ComputableTyEqAcc-cast tyTop (tyEq C c d) pA qA pB qB x = x
+  ComputableTyEqAcc-cast tyTop (tyQtr C) pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tySigma A B) tyTop pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tySigma A B) (tySigma C D)
+    (acc rsABp) (acc rsABq) (acc rsCDp) (acc rsCDq) (cAC , fam) =
+    ComputableTyEqAcc-cast A C
+      (rsABp (tyDepth-fst<Sigma A B)) (rsABq (tyDepth-fst<Sigma A B))
+      (rsCDp (tyDepth-fst<Sigma C D)) (rsCDq (tyDepth-fst<Sigma C D)) cAC ,
+    λ a c eq -> ComputableTyEqAcc-cast (subTy (singleSubst a) B) (subTy (singleSubst c) D)
+      (rsABp (subTy-snd< A B a)) (rsABq (subTy-snd< A B a))
+      (rsCDp (subTy-snd< C D c)) (rsCDq (subTy-snd< C D c))
+      (fam a c
+        (ComputableTmEqAcc-cast A
+          (rsABq (tyDepth-fst<Sigma A B)) (rsABp (tyDepth-fst<Sigma A B)) a c eq))
+  ComputableTyEqAcc-cast (tySigma A B) (tyEq C c d) pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tySigma A B) (tyQtr C) pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tyEq A a b) tyTop pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tyEq A a b) (tySigma C D) pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tyEq A a b) (tyEq C c d)
+    (acc rsAp) (acc rsAq) (acc rsCp) (acc rsCq) (cAC , cab , cbd) =
+    ComputableTyEqAcc-cast A C
+      (rsAp (tyDepth-base<Eq A a b)) (rsAq (tyDepth-base<Eq A a b))
+      (rsCp (tyDepth-base<Eq C c d)) (rsCq (tyDepth-base<Eq C c d)) cAC ,
+    ComputableTmEqAcc-cast A
+      (rsAp (tyDepth-base<Eq A a b)) (rsAq (tyDepth-base<Eq A a b)) a c cab ,
+    ComputableTmEqAcc-cast A
+      (rsAp (tyDepth-base<Eq A a b)) (rsAq (tyDepth-base<Eq A a b)) b d cbd
+  ComputableTyEqAcc-cast (tyEq A a b) (tyQtr C) pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tyQtr A) tyTop pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tyQtr A) (tySigma C D) pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tyQtr A) (tyEq C c d) pA qA pB qB x = x
+  ComputableTyEqAcc-cast (tyQtr A) (tyQtr C)
+    (acc rsAp) (acc rsAq) (acc rsCp) (acc rsCq) cAC =
+    ComputableTyEqAcc-cast A C
+      (rsAp (tyDepth-base<Qtr A)) (rsAq (tyDepth-base<Qtr A))
+      (rsCp (tyDepth-base<Qtr C)) (rsCq (tyDepth-base<Qtr C)) cAC
 
 -- ── Term computability ───────────────────────────────────────────
 -- Pure reducibility, indexed by an accessibility proof so the
@@ -127,6 +212,50 @@ ComputableTmAcc-cast (tyQtr A) (acc rsP) (acc rsQ) t (p , ev , cA) =
   p , ev ,
   ComputableTmAcc-cast A
     (rsP (tyDepth-base<Qtr A)) (rsQ (tyDepth-base<Qtr A)) p cA
+
+-- ── Type computability ───────────────────────────────────────────
+-- Types are reflexively canonical (`_=>t_` is reflexive on formers).
+-- `ComputableTy` is the hereditary predicate: the components are
+-- computable types, with Sigma families respecting term equality.
+
+ComputableTyAcc : (A : RawType) -> Acc _<_ (tyDepth A) -> Type
+ComputableTyAcc tyTop _ = ⊤
+ComputableTyAcc (tySigma A B) (acc rs) =
+    ComputableTyAcc A (rs (tyDepth-fst<Sigma A B))
+  × ((a c : RawTerm)
+       -> ComputableTmEqAcc A (rs (tyDepth-fst<Sigma A B)) a c
+       -> ComputableTyEqAcc (subTy (singleSubst a) B) (subTy (singleSubst c) B)
+            (rs (subTy-snd< A B a)) (rs (subTy-snd< A B c)))
+ComputableTyAcc (tyEq A a b) (acc rs) =
+    ComputableTyAcc A (rs (tyDepth-base<Eq A a b))
+  × Computable A a
+  × Computable A b
+ComputableTyAcc (tyQtr A) (acc rs) =
+  ComputableTyAcc A (rs (tyDepth-base<Qtr A))
+
+ComputableTy : RawType -> Type
+ComputableTy A = ComputableTyAcc A (<-wf (tyDepth A))
+
+ComputableTyAcc-cast : (A : RawType) (p q : Acc _<_ (tyDepth A))
+  -> ComputableTyAcc A p -> ComputableTyAcc A q
+ComputableTyAcc-cast tyTop p q x = x
+ComputableTyAcc-cast (tySigma A B) (acc rsP) (acc rsQ) (cA , fam) =
+  ComputableTyAcc-cast A
+    (rsP (tyDepth-fst<Sigma A B)) (rsQ (tyDepth-fst<Sigma A B)) cA ,
+  λ a c eq -> ComputableTyEqAcc-cast (subTy (singleSubst a) B) (subTy (singleSubst c) B)
+    (rsP (subTy-snd< A B a)) (rsQ (subTy-snd< A B a))
+    (rsP (subTy-snd< A B c)) (rsQ (subTy-snd< A B c))
+    (fam a c
+      (ComputableTmEqAcc-cast A
+        (rsQ (tyDepth-fst<Sigma A B)) (rsP (tyDepth-fst<Sigma A B)) a c eq))
+ComputableTyAcc-cast (tyEq A a b) (acc rsP) (acc rsQ) (cA , ca , cb) =
+  ComputableTyAcc-cast A
+    (rsP (tyDepth-base<Eq A a b)) (rsQ (tyDepth-base<Eq A a b)) cA ,
+  ca ,
+  cb
+ComputableTyAcc-cast (tyQtr A) (acc rsP) (acc rsQ) cA =
+  ComputableTyAcc-cast A
+    (rsP (tyDepth-base<Qtr A)) (rsQ (tyDepth-base<Qtr A)) cA
 
 -- ── Sigma intro / elim ────────────────────────────────────────────
 -- The unfolded form of `Computable (tySigma A B) t`, with the
@@ -224,117 +353,3 @@ computableEq-intro : {A : RawType} {a b t : RawTerm}
   -> (t =>e tmR) × ComputableTmEq A a b -> Computable (tyEq A a b) t
 computableEq-intro {A} {a} {b} {t} c =
   eqAcc-intro A a b (<-wf (tyDepth (tyEq A a b))) t c
-
--- ── Type computability ───────────────────────────────────────────
--- Types are reflexively canonical (`_=>t_` is reflexive on formers).
--- `ComputableTy` is the hereditary predicate: the components are
--- computable types, the Sigma family over already-computable args.
-
-ComputableTyAcc : (A : RawType) -> Acc _<_ (tyDepth A) -> Type
-ComputableTyAcc tyTop _ = ⊤
-ComputableTyAcc (tySigma A B) (acc rs) =
-    ComputableTyAcc A (rs (tyDepth-fst<Sigma A B))
-  × ((a : RawTerm) -> Computable A a
-       -> ComputableTyAcc (subTy (singleSubst a) B) (rs (subTy-snd< A B a)))
-ComputableTyAcc (tyEq A a b) (acc rs) =
-    ComputableTyAcc A (rs (tyDepth-base<Eq A a b))
-  × Computable A a
-  × Computable A b
-ComputableTyAcc (tyQtr A) (acc rs) =
-  ComputableTyAcc A (rs (tyDepth-base<Qtr A))
-
-ComputableTy : RawType -> Type
-ComputableTy A = ComputableTyAcc A (<-wf (tyDepth A))
-
-ComputableTyAcc-cast : (A : RawType) (p q : Acc _<_ (tyDepth A))
-  -> ComputableTyAcc A p -> ComputableTyAcc A q
-ComputableTyAcc-cast tyTop p q x = x
-ComputableTyAcc-cast (tySigma A B) (acc rsP) (acc rsQ) (cA , fam) =
-  ComputableTyAcc-cast A
-    (rsP (tyDepth-fst<Sigma A B)) (rsQ (tyDepth-fst<Sigma A B)) cA ,
-  λ a ca -> ComputableTyAcc-cast (subTy (singleSubst a) B)
-    (rsP (subTy-snd< A B a)) (rsQ (subTy-snd< A B a)) (fam a ca)
-ComputableTyAcc-cast (tyEq A a b) (acc rsP) (acc rsQ) (cA , ca , cb) =
-  ComputableTyAcc-cast A
-    (rsP (tyDepth-base<Eq A a b)) (rsQ (tyDepth-base<Eq A a b)) cA ,
-  ca ,
-  cb
-ComputableTyAcc-cast (tyQtr A) (acc rsP) (acc rsQ) cA =
-  ComputableTyAcc-cast A
-    (rsP (tyDepth-base<Qtr A)) (rsQ (tyDepth-base<Qtr A)) cA
-
--- ── Type-equality computability ──────────────────────────────────
--- Recursion on both sides. Mismatched-head pairs are `⊥` — total, and
--- never built by the fundamental theorem (all closed type equalities
--- preserve the head).
-
-ComputableTyEqAcc : (A B : RawType)
-  -> Acc _<_ (tyDepth A) -> Acc _<_ (tyDepth B) -> Type
-ComputableTyEqAcc tyTop tyTop _ _ = ⊤
-ComputableTyEqAcc tyTop (tySigma C D) _ _ = ⊥
-ComputableTyEqAcc tyTop (tyEq C c d) _ _ = ⊥
-ComputableTyEqAcc tyTop (tyQtr C) _ _ = ⊥
-ComputableTyEqAcc (tySigma A B) tyTop _ _ = ⊥
-ComputableTyEqAcc (tySigma A B) (tySigma C D) (acc rsAB) (acc rsCD) =
-    ComputableTyEqAcc A C
-      (rsAB (tyDepth-fst<Sigma A B)) (rsCD (tyDepth-fst<Sigma C D))
-  × ((a : RawTerm) -> Computable A a
-       -> ComputableTyEqAcc (subTy (singleSubst a) B) (subTy (singleSubst a) D)
-            (rsAB (subTy-snd< A B a)) (rsCD (subTy-snd< C D a)))
-ComputableTyEqAcc (tySigma A B) (tyEq C c d) _ _ = ⊥
-ComputableTyEqAcc (tySigma A B) (tyQtr C) _ _ = ⊥
-ComputableTyEqAcc (tyEq A a b) tyTop _ _ = ⊥
-ComputableTyEqAcc (tyEq A a b) (tySigma C D) _ _ = ⊥
-ComputableTyEqAcc (tyEq A a b) (tyEq C c d) (acc rsL) (acc rsR) =
-    ComputableTyEqAcc A C
-      (rsL (tyDepth-base<Eq A a b)) (rsR (tyDepth-base<Eq C c d))
-  × ComputableTmEqAcc A (rsL (tyDepth-base<Eq A a b)) a c
-  × ComputableTmEqAcc A (rsL (tyDepth-base<Eq A a b)) b d
-ComputableTyEqAcc (tyEq A a b) (tyQtr C) _ _ = ⊥
-ComputableTyEqAcc (tyQtr A) tyTop _ _ = ⊥
-ComputableTyEqAcc (tyQtr A) (tySigma C D) _ _ = ⊥
-ComputableTyEqAcc (tyQtr A) (tyEq C c d) _ _ = ⊥
-ComputableTyEqAcc (tyQtr A) (tyQtr C) (acc rsL) (acc rsR) =
-  ComputableTyEqAcc A C (rsL (tyDepth-base<Qtr A)) (rsR (tyDepth-base<Qtr C))
-
-ComputableTyEq : RawType -> RawType -> Type
-ComputableTyEq A B = ComputableTyEqAcc A B (<-wf (tyDepth A)) (<-wf (tyDepth B))
-
-ComputableTyEqAcc-cast : (A B : RawType)
-    (pA qA : Acc _<_ (tyDepth A)) (pB qB : Acc _<_ (tyDepth B))
-  -> ComputableTyEqAcc A B pA pB -> ComputableTyEqAcc A B qA qB
-ComputableTyEqAcc-cast tyTop tyTop pA qA pB qB x = x
-ComputableTyEqAcc-cast tyTop (tySigma C D) pA qA pB qB x = x
-ComputableTyEqAcc-cast tyTop (tyEq C c d) pA qA pB qB x = x
-ComputableTyEqAcc-cast tyTop (tyQtr C) pA qA pB qB x = x
-ComputableTyEqAcc-cast (tySigma A B) tyTop pA qA pB qB x = x
-ComputableTyEqAcc-cast (tySigma A B) (tySigma C D)
-  (acc rsABp) (acc rsABq) (acc rsCDp) (acc rsCDq) (cAC , fam) =
-  ComputableTyEqAcc-cast A C
-    (rsABp (tyDepth-fst<Sigma A B)) (rsABq (tyDepth-fst<Sigma A B))
-    (rsCDp (tyDepth-fst<Sigma C D)) (rsCDq (tyDepth-fst<Sigma C D)) cAC ,
-  λ a ca -> ComputableTyEqAcc-cast (subTy (singleSubst a) B) (subTy (singleSubst a) D)
-    (rsABp (subTy-snd< A B a)) (rsABq (subTy-snd< A B a))
-    (rsCDp (subTy-snd< C D a)) (rsCDq (subTy-snd< C D a)) (fam a ca)
-ComputableTyEqAcc-cast (tySigma A B) (tyEq C c d) pA qA pB qB x = x
-ComputableTyEqAcc-cast (tySigma A B) (tyQtr C) pA qA pB qB x = x
-ComputableTyEqAcc-cast (tyEq A a b) tyTop pA qA pB qB x = x
-ComputableTyEqAcc-cast (tyEq A a b) (tySigma C D) pA qA pB qB x = x
-ComputableTyEqAcc-cast (tyEq A a b) (tyEq C c d)
-  (acc rsAp) (acc rsAq) (acc rsCp) (acc rsCq) (cAC , cab , cbd) =
-  ComputableTyEqAcc-cast A C
-    (rsAp (tyDepth-base<Eq A a b)) (rsAq (tyDepth-base<Eq A a b))
-    (rsCp (tyDepth-base<Eq C c d)) (rsCq (tyDepth-base<Eq C c d)) cAC ,
-  ComputableTmEqAcc-cast A
-    (rsAp (tyDepth-base<Eq A a b)) (rsAq (tyDepth-base<Eq A a b)) a c cab ,
-  ComputableTmEqAcc-cast A
-    (rsAp (tyDepth-base<Eq A a b)) (rsAq (tyDepth-base<Eq A a b)) b d cbd
-ComputableTyEqAcc-cast (tyEq A a b) (tyQtr C) pA qA pB qB x = x
-ComputableTyEqAcc-cast (tyQtr A) tyTop pA qA pB qB x = x
-ComputableTyEqAcc-cast (tyQtr A) (tySigma C D) pA qA pB qB x = x
-ComputableTyEqAcc-cast (tyQtr A) (tyEq C c d) pA qA pB qB x = x
-ComputableTyEqAcc-cast (tyQtr A) (tyQtr C)
-  (acc rsAp) (acc rsAq) (acc rsCp) (acc rsCq) cAC =
-  ComputableTyEqAcc-cast A C
-    (rsAp (tyDepth-base<Qtr A)) (rsAq (tyDepth-base<Qtr A))
-    (rsCp (tyDepth-base<Qtr C)) (rsCq (tyDepth-base<Qtr C)) cAC
