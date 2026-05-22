@@ -1,6 +1,6 @@
 {-# OPTIONS --safe #-}
 
--- Tait-style rebuild prototype (Phase K) — non-vacuity smoke test.
+-- Tait-style rebuild (Phase K/L) — non-vacuity smoke test.
 -- Builds a concrete closed derivation containing a Sigma ELIMINATOR
 -- (`tmElSigma (tmPair tmStar tmStar) tmStar`) and checks that
 -- `canonicalFormTheorem` genuinely reduces it to its normal form

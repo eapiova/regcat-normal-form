@@ -1,8 +1,8 @@
 {-# OPTIONS --safe #-}
 
--- Tait-style rebuild prototype (Phase K). Top + Sigma fragment.
+-- Tait-style rebuild (Phase K/L). Full theory: Top, Sigma, Eq, Qtr.
 --
--- THE CORE (K.2): the semantic computability relation as a recursive
+-- THE CORE: the semantic computability relation as a recursive
 -- *function* on type structure, defined by well-founded recursion on
 -- `tyDepth`. A function has no positivity obligation, so the Sigma
 -- clause may quantify over `Computable` values freely.

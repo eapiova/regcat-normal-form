@@ -1,6 +1,6 @@
 {-# OPTIONS --safe #-}
 
--- Tait-style rebuild prototype (Phase K). Top + Sigma fragment.
+-- Tait-style rebuild (Phase K/L). Full theory: Top, Sigma, Eq, Qtr.
 -- Verbatim fork of TReg.Prelude.
 
 module Tait.Prelude where

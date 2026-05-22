@@ -1,7 +1,7 @@
 {-# OPTIONS --safe #-}
 
--- Tait-style rebuild prototype (Phase K). Top + Sigma fragment.
--- Verbatim fork of TReg.Context (fragment-agnostic).
+-- Tait-style rebuild (Phase K/L). Full theory: Top, Sigma, Eq, Qtr.
+-- Verbatim fork of TReg.Context.
 
 module Tait.Context where
 
