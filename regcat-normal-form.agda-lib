@@ -1,4 +1,4 @@
-name: canonical-normal-form-regular-categories
+name: regcat-normal-form
 include: src
 depend: standard-library-2.3
 flags: --without-K
