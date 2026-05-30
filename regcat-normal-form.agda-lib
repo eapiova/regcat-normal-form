@@ -1,4 +1,4 @@
-name: modular-normal-forms
+name: regcat-normal-form
 include: src
 depend: standard-library-2.3
 flags: --without-K

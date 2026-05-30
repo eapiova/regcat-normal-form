@@ -1,4 +1,4 @@
-# Modular Normal Forms for Categorical Type Theories
+# regcat-normal-form
 
 A machine-checked **Agda** formalisation of the *canonical normal form
 theorem* for the type theory of regular categories.
