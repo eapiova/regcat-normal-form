@@ -1,2 +1,9 @@
 _build/
 *.agdai
+*.pdf
+
+# Local-only material. The public artifact should contain only the checked
+# Agda development and build metadata.
+local/
+paper/
+talk/

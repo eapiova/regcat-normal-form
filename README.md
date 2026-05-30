@@ -1,4 +1,4 @@
-# regcat-normal-form
+# Modular Normal Forms for Categorical Type Theories
 
 A machine-checked **Agda** formalisation of the *canonical normal form
 theorem* for the type theory of regular categories.
@@ -11,10 +11,10 @@ calculus.
 
 `T_reg` is the internal language of regular categories in Maietti's
 modular correspondence between extensions of dependent type theory and
-classes of categories. It has four judgement forms — type, type
+classes of categories. This repository focuses on the regular-category
+level of that hierarchy. It has four judgement forms — type, type
 equality, term, term equality — and the type formers `⊤`, `Σ`,
-extensional propositional equality `Eq`, and effective quotients
-`Qtr`.
+extensional propositional equality `Eq`, and effective quotients `Qtr`.
 
 ## Two developments
 
